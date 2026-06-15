@@ -90,31 +90,23 @@ def mark_read(chat_id: int, message_id: int, biz: str) -> None:
 
 GIFT_KEYWORDS = {"gift", "tip", "spoil", "treat", "send me", "pay.bellavista", "worth it", "earn it", "show me you"}
 
-STAR_TIERS = [
-    {"title": "💌 Small Love",    "description": "Show Bella a little love ✨",       "amount": 750,  "payload": "stars_750"},
-    {"title": "💖 Big Love",      "description": "Bella loves being spoiled 🩷",      "amount": 1900, "payload": "stars_1900"},
-    {"title": "👑 Ultimate Love", "description": "Be Bella's favorite today 😍",      "amount": 3750, "payload": "stars_3750"},
-]
-
 def send_stars_invoice(chat_id: int, biz: str = "") -> None:
-    """Send 3 Telegram Stars invoices at different price tiers (~$10/$25/$50)."""
-    for tier in STAR_TIERS:
-        payload = {
-            "chat_id": chat_id,
-            "title": tier["title"],
-            "description": tier["description"],
-            "payload": tier["payload"],
-            "currency": "XTR",
-            "prices": [{"label": "Stars", "amount": tier["amount"]}]
-        }
-        if biz:
-            payload["business_connection_id"] = biz
-        result = tg("sendInvoice", payload)
-        if result.get("ok"):
-            log.info(f"Stars invoice {tier['amount']} sent to {chat_id}")
-        else:
-            log.warning(f"Stars invoice {tier['amount']} failed: {result}")
-        time.sleep(0.3)  # slight stagger so they appear in order
+    """Send a single Telegram Stars gift invoice for 690 Stars."""
+    payload = {
+        "chat_id": chat_id,
+        "title": "💖 Gift Bella Stars",
+        "description": "Send Bella some love with Telegram Stars 🩷",
+        "payload": "bella_stars_690",
+        "currency": "XTR",
+        "prices": [{"label": "Stars", "amount": 690}]
+    }
+    if biz:
+        payload["business_connection_id"] = biz
+    result = tg("sendInvoice", payload)
+    if result.get("ok"):
+        log.info(f"Stars invoice 690 sent to {chat_id}")
+    else:
+        log.warning(f"Stars invoice failed: {result}")
 
 def send_message(chat_id: int, text: str, biz: str = "") -> bool:
     payload = {"chat_id": chat_id, "text": text}
