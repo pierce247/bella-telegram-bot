@@ -218,8 +218,9 @@ def process_update(update: dict) -> None:
     else:
         log.error(f"❌ Failed to send to {user_name}")
 
-    # 6. Always send Stars invoices when Tip/Fanvue buttons appear
-    if cta_in_reply:
+    # 6. Only send Stars invoice if fan explicitly mentioned Stars
+    stars_triggers = {"star", "stars", "⭐", "★", "telegram star", "send stars"}
+    if any(t in text.lower() for t in stars_triggers):
         time.sleep(0.5)
         send_stars_invoice(chat_id, biz)
 
