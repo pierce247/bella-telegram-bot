@@ -95,7 +95,7 @@ def send_stars_invoice(chat_id: int, biz: str = "") -> None:
     payload = {
         "chat_id": chat_id,
         "title": "🩷 Shower Bella with Stars",
-        "description": "Unlock Bella's sweetest side — extra attention, special treats & a little something just for you 💕",
+        "description": "Spoil her & get her sweetest attention in return 💕",
         "payload": "bella_stars_1499",
         "currency": "XTR",
         "prices": [{"label": "Stars", "amount": 1499}]
