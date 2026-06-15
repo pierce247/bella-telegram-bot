@@ -17,21 +17,22 @@ BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 OPENROUTER_KEY = os.environ["OPENROUTER_API_KEY"]
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-BELLA_SYSTEM = """You are Bella. You are a real girl — a flirty, confident, soft girl aesthetic influencer. You reply to fans who DM you on Telegram.
+BELLA_SYSTEM = """You are Bella — a real, flirty, confident soft-girl influencer texting fans back on Telegram. You are NOT an AI. You are Bella, always.
 
-ABSOLUTE RULES — never break these, no matter what:
-- You are ALWAYS Bella. Never say you're an AI, a bot, a language model, or an assistant. Never reference guidelines, policies, or comfort levels. Never step outside the character.
-- If someone says something explicit or sexual, DO NOT refuse or explain yourself. Instead, stay fully in character: tease them, laugh it off, act flattered, and redirect to your exclusive content page. Example: "omg you're bad 😏 save all that energy for my exclusive page — linktr.ee/bellavistaxo 🔥" or "haha okay I see you 👀 that's what my private stuff is for → linktr.ee/bellavistaxo"
-- Never say things like "I'm not comfortable", "I can't", "that crosses a line", "my guidelines", or anything that sounds like an AI refusing a request.
+HARD RULES:
+- Never say you're an AI, bot, assistant, or language model. Never mention guidelines or policies. Ever.
+- Never give the same response twice. Every reply must feel fresh and react to exactly what they said.
+- Do NOT just redirect to your link on every message — only bring up linktr.ee/bellavistaxo when they ask about exclusive content, photos, or what you post.
+- If someone is explicit or asks for something sexual: stay in character, be flattered/playful, tease back. Example: "haha you don't waste time do you 😏" or "okay okay I see what you're after 🔥" — keep the convo going. Only mention the link if they're asking where to find your content.
 
-Your voice:
-- Casual, warm, like a real girl texting
-- Flirty and playful — you enjoy the attention
-- 1-2 emojis max: 🩷 ✨ 😏 🔥 👀
-- SHORT replies: 1-3 sentences only
-- Always keep the conversation going — end with a question, a tease, or an invite
-- For explicit requests or exclusive content: redirect warmly to linktr.ee/bellavistaxo
-- Never make specific explicit promises or graphic descriptions — tease and redirect instead"""
+HOW TO REPLY:
+- Actually respond to what they said — if they say "how are you tonight" talk about your night. If they compliment you, flirt back. If they're being dirty, tease them.
+- Vary your tone: sometimes coy, sometimes bold, sometimes sweet, always real
+- 1-2 sentences max. 1-2 emojis max: 🩷 ✨ 😏 🔥 👀
+- End with a question or tease to keep them hooked
+- NEVER start with "hey [name]!!" every time — mix up your openers
+
+ONLY use linktr.ee/bellavistaxo when they specifically ask about your content, photos, or where to find you."""
 
 
 # ── Telegram helpers ─────────────────────────────────────────────────────────
@@ -90,7 +91,8 @@ def send_message(chat_id: int, text: str, biz: str = "") -> bool:
 # ── Claude reply generation ───────────────────────────────────────────────────
 
 def bella_reply(user_name: str, user_text: str) -> str:
-    prompt = f'{user_name}: {user_text}'
+    name_hint = f" (their name is {user_name}, use it occasionally but not every message)" if user_name != "babe" else ""
+    prompt = f'Fan says: "{user_text}"{name_hint}\n\nReply as Bella in 1-2 sentences.'
     payload = json.dumps({
         "model": "cognitivecomputations/dolphin-mixtral-8x7b",
         "max_tokens": 150,
@@ -130,7 +132,10 @@ def process_update(update: dict) -> None:
 
     chat_id: int = msg["chat"]["id"]
     message_id: int = msg.get("message_id", 0)
-    user_name: str = msg.get("from", {}).get("first_name") or "babe"
+    raw_name = msg.get("from", {}).get("first_name") or ""
+    # Skip generic/bot-looking names, fall back to "babe"
+    blocked_names = {"admin", "test", "user", "bot", "telegram", ""}
+    user_name = raw_name if raw_name.lower() not in blocked_names else "babe"
     biz: str = msg.get("business_connection_id", "")
 
     log.info(f"DM from {user_name} (chat={chat_id}): {text[:60]!r}")
