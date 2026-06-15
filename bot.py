@@ -88,7 +88,7 @@ def mark_read(chat_id: int, message_id: int, biz: str) -> None:
     })
 
 
-GIFT_KEYWORDS = {"gift", "tip", "spoil", "treat", "send me", "pay.bellavista", "worth it", "earn it", "show me you"}
+GIFT_KEYWORDS = {"pay.bellavista", "fanvue.com", "tip me", "send me a gift", "spoil me"}
 
 def send_stars_invoice(chat_id: int, biz: str = "") -> None:
     """Send a single Telegram Stars gift invoice for 690 Stars."""
@@ -223,24 +223,59 @@ def process_update(update: dict) -> None:
     else:
         log.error(f"❌ Failed to send to {user_name}")
 
-    # 6. If fan asked about gifts specifically, send a Stars invoice after the reply
-    gift_triggers = {"gift", "spoil", "send you", "give you", "present"}
+    # 6. If fan explicitly asked about gifting/Stars, send invoice after reply
+    gift_triggers = {"i want to spoil", "how do i spoil", "how do i gift", "send you stars", "give you a gift", "want to gift"}
     if any(t in text.lower() for t in gift_triggers):
         time.sleep(1)
         send_stars_invoice(chat_id, biz)
 
 
+OFFSET_FILE = "/tmp/bella_offset.txt"
+
+def load_offset() -> int:
+    try:
+        with open(OFFSET_FILE) as f:
+            return int(f.read().strip())
+    except Exception:
+        return 0
+
+def save_offset(offset: int) -> None:
+    try:
+        with open(OFFSET_FILE, "w") as f:
+            f.write(str(offset))
+    except Exception as e:
+        log.warning(f"Could not save offset: {e}")
+
 def main():
     log.info("🩷 Bella Telegram Bot starting up...")
-    offset = 0
+
+    # On startup: skip ALL pending updates — only reply to NEW messages going forward
+    try:
+        result = get_updates(offset=-1)
+        if result:
+            latest = result[-1]["update_id"]
+            offset = latest + 1
+            save_offset(offset)
+            log.info(f"Startup: skipped to offset {offset} ({len(result)} old updates ignored)")
+        else:
+            offset = load_offset()
+    except Exception:
+        offset = load_offset()
+
+    replied_ids: set = set()  # in-memory dedup within this session
 
     while True:
         try:
             updates = get_updates(offset)
             for update in updates:
                 uid = update["update_id"]
+                if uid in replied_ids:
+                    offset = uid + 1
+                    continue
+                replied_ids.add(uid)
+                save_offset(uid + 1)   # persist BEFORE processing — prevents re-sending on crash
+                offset = uid + 1
                 process_update(update)
-                offset = uid + 1  # advance offset — prevents re-processing
         except KeyboardInterrupt:
             log.info("Shutting down.")
             break
@@ -248,7 +283,7 @@ def main():
             err = str(e)
             if "409" in err:
                 log.warning("409 conflict — another instance running, waiting 10s...")
-                time.sleep(10)  # wait for old instance to die
+                time.sleep(10)
             else:
                 log.error(f"Main loop error: {e}")
                 time.sleep(5)
