@@ -29,16 +29,16 @@ REPLY STYLE:
 - Never say you're an AI. Ever.
 
 WHEN SOMEONE ASKS FOR A PIC, CONTENT, OR ANYTHING VISUAL:
-- Do NOT just ask a question back. Tease them — hint that the good stuff exists, make them want it.
-- Example: "oh you want to see me? 😏 the good stuff is on my Fanvue" or "that's what my private page is for 🩷 fanvue.com/bellavistaxo"
-- Always include "fanvue.com/bellavistaxo" in your reply so the buttons appear
+- Tease them — hint that the good stuff exists somewhere private, make them want it
+- Use cute phrases like: "the good stuff", "my private stuff", "what I save for the right ones", "my exclusive side"
+- NEVER say "Fanvue", never include any URLs — the buttons will handle that automatically
+- Example: "oh you want to see me? 😏 I save the good stuff for the right ones" or "that's what my private page is for 🌸 you'd love it"
 
-WHEN TO MENTION LINKS:
-- Pic/content requests → always tease toward fanvue.com/bellavistaxo
-- Spoil/tip requests → pay.bellavista.lol
-- "Where are you / links?" → linktr.ee/bellavistaxo
+WHEN SOMEONE ASKS TO SPOIL YOU OR TIP:
+- Tease toward paying without saying "tip" robotically
+- NEVER include any URLs — buttons handle it
 
-For general compliments and flirting — just be flirty, no links needed."""
+For general compliments and flirting — just flirt back, no links, no CTAs."""
 
 
 # ── Telegram helpers ─────────────────────────────────────────────────────────
@@ -89,6 +89,8 @@ def mark_read(chat_id: int, message_id: int, biz: str) -> None:
 GIFT_KEYWORDS = {"pay.bellavista", "fanvue.com", "tip me", "send me a gift", "spoil me", "linktr.ee", "tip first", "private page", "good stuff"}
 
 SOCIAL_KEYWORDS = {"instagram", "insta", "facebook", "tiktok", "tik tok", "youtube", "twitter", "snapchat", "snap", "onlyfans", "reddit", "link", "links", "socials", "where can i find", "where do you post", "where are you"}
+
+CONTENT_REQUEST_KEYWORDS = {"pic", "photo", "picture", "send me", "show me", "nude", "nudes", "body", "boobs", "ass", "titty", "tits", "see you", "look like", "video", "clip", "content", "exclusive", "private", "only fans", "more of you"}
 
 def send_stars_invoice(chat_id: int, biz: str = "") -> None:
     """Send a single Stars invoice — 1499 Stars, mid-tier special attention."""
@@ -203,6 +205,7 @@ def process_update(update: dict) -> None:
     log.info(f"DM from {user_name} (chat={chat_id}): {text[:60]!r}")
 
     is_social_request = any(kw in text.lower() for kw in SOCIAL_KEYWORDS)
+    is_content_request = any(kw in text.lower() for kw in CONTENT_REQUEST_KEYWORDS)
 
     # 1. Mark as read
     mark_read(chat_id, message_id, biz)
@@ -210,8 +213,9 @@ def process_update(update: dict) -> None:
     # 2. Show typing indicator
     send_typing(chat_id, biz)
 
-    # 3. Generate reply — tell model to skip URLs if buttons will handle it
-    extra = "\n\nIMPORTANT: Do NOT include any URLs or links in your reply. The buttons below will handle that." if is_social_request else ""
+    # 3. Generate reply — no URLs ever in body when buttons will appear
+    no_url_note = "\n\nIMPORTANT: Do NOT include any URLs, brand names, or platform names in your reply. No links at all — buttons handle that."
+    extra = no_url_note if (is_social_request or is_content_request) else ""
     reply = bella_reply(user_name, text, extra_instruction=extra)
     log.info(f"Bella reply: {reply!r}")
 
@@ -219,8 +223,20 @@ def process_update(update: dict) -> None:
     pause = min(1.0 + len(reply) * 0.02, 3.5)
     time.sleep(pause)
 
-    # 5. Send reply — social requests get My Links + Tip Bella buttons
-    if is_social_request:
+    # 5. Send reply — attach buttons based on request type
+    if is_content_request:
+        payload = {"chat_id": chat_id, "text": reply}
+        if biz:
+            payload["business_connection_id"] = biz
+        payload["reply_markup"] = {
+            "inline_keyboard": [[
+                {"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol"},
+                {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}
+            ]]
+        }
+        result = tg("sendMessage", payload)
+        ok = result.get("ok", False)
+    elif is_social_request:
         payload = {"chat_id": chat_id, "text": reply}
         if biz:
             payload["business_connection_id"] = biz
