@@ -21,8 +21,8 @@ BELLA_SYSTEM = """You are Bella — a real, flirty, confident soft-girl texting 
 
 MONETIZATION CTAs — work these in naturally based on context:
 - Fan wants to see content / asks what you post → "it's all on my Fanvue 😏 fanvue.com/bellavistaxo"
-- Fan is thirsty / pushing for more → "tip me first and we'll see what happens 🔥 pay.bellavista.lol/x"
-- Fan asks how to spoil you / what you want → "send me a gift on here 🩷 or tip me → pay.bellavista.lol/x"
+- Fan is thirsty / pushing for more → "tip me first and we'll see what happens 🩷 pay.bellavista.lol"
+- Fan asks how to spoil you / what you want → "send me a gift on here 🩷 or tip me → pay.bellavista.lol"
 - Fan asks for links / where to find you → "everything's at linktr.ee/bellavistaxo 👀"
 - General escalation / "I'll do anything" energy → push toward the tip link
 
@@ -90,21 +90,37 @@ def mark_read(chat_id: int, message_id: int, biz: str) -> None:
 
 GIFT_KEYWORDS = {"gift", "tip", "spoil", "treat", "send me", "pay.bellavista", "worth it", "earn it", "show me you"}
 
-def gift_button() -> dict:
-    """Inline keyboard with a gift button linking to Bella's Telegram profile."""
-    return {
-        "inline_keyboard": [[
-            {"text": "🎁 Send Bella a Gift", "url": "https://t.me/bellavistaxoxo"}
-        ]]
+def send_stars_invoice(chat_id: int, biz: str = "") -> None:
+    """Send a Telegram Stars payment invoice — the native gift flow."""
+    payload = {
+        "chat_id": chat_id,
+        "title": "💖 Gift Bella Stars",
+        "description": "Send Bella some love with Telegram Stars ✨",
+        "payload": "bella_stars_gift",
+        "currency": "XTR",   # Telegram Stars
+        "prices": [{"label": "Gift", "amount": 50}]  # 50 Stars default
     }
+    if biz:
+        payload["business_connection_id"] = biz
+    result = tg("sendInvoice", payload)
+    if result.get("ok"):
+        log.info(f"Stars invoice sent to {chat_id}")
+    else:
+        # Fallback: inline button to tip link if invoice fails
+        log.warning(f"Stars invoice failed, using tip link button: {result}")
 
 def send_message(chat_id: int, text: str, biz: str = "") -> bool:
     payload = {"chat_id": chat_id, "text": text}
     if biz:
         payload["business_connection_id"] = biz
-    # Attach gift button if reply mentions gifts/tips/spoiling
+    # If reply mentions gifts/tips, attach tip link button as fallback CTA
     if any(kw in text.lower() for kw in GIFT_KEYWORDS):
-        payload["reply_markup"] = gift_button()
+        payload["reply_markup"] = {
+            "inline_keyboard": [[
+                {"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol"},
+                {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}
+            ]]
+        }
     result = tg("sendMessage", payload)
     return result.get("ok", False)
 
@@ -113,7 +129,7 @@ def send_message(chat_id: int, text: str, biz: str = "") -> bool:
 
 def bella_reply(user_name: str, user_text: str) -> str:
     name_hint = f" (fan's name: {user_name}, use sparingly)" if user_name != "babe" else ""
-    prompt = f'Fan: "{user_text}"{name_hint}\n\nReply as Bella. 1 sentence, maybe 2. Short, suggestive, real.'
+    prompt = f'Fan: "{user_text}"{name_hint}\n\nReply as Bella. 1 sentence, maybe 2. Short, suggestive, real.\nTip link if relevant: pay.bellavista.lol (NOT pay.bellavista.lol/x)'
 
     # Try primary model first, fall back to secondary
     models = [
@@ -201,12 +217,18 @@ def process_update(update: dict) -> None:
     pause = min(1.0 + len(reply) * 0.02, 3.5)
     time.sleep(pause)
 
-    # 5. Send
+    # 5. Send text reply
     ok = send_message(chat_id, reply, biz)
     if ok:
         log.info(f"✅ Sent to {user_name}")
     else:
         log.error(f"❌ Failed to send to {user_name}")
+
+    # 6. If fan asked about gifts specifically, send a Stars invoice after the reply
+    gift_triggers = {"gift", "spoil", "send you", "give you", "present"}
+    if any(t in text.lower() for t in gift_triggers):
+        time.sleep(1)
+        send_stars_invoice(chat_id, biz)
 
 
 def main():
