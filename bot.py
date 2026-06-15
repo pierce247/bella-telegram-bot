@@ -299,6 +299,11 @@ def main():
 
     replied_ids: set = set()  # in-memory dedup within this session
 
+    # Follow-up tracking: chat_id → {last_msg_time, biz, followup_sent}
+    chat_state: dict = {}
+    FOLLOWUP_DELAY = 600  # 10 minutes in seconds
+    FOLLOWUP_MSGS = ["babeee 🩷", "heyy you still there? 💕", "don't leave me on read 😏", "babeee where'd you go 🌸"]
+
     while True:
         try:
             updates = get_updates(offset)
@@ -308,9 +313,34 @@ def main():
                     offset = uid + 1
                     continue
                 replied_ids.add(uid)
-                save_offset(uid + 1)   # persist BEFORE processing — prevents re-sending on crash
+                save_offset(uid + 1)
                 offset = uid + 1
+
+                # Track chat state for follow-up
+                msg = update.get("business_message") or update.get("message") or {}
+                cid = msg.get("chat", {}).get("id")
+                biz = msg.get("business_connection_id", "")
+                if cid:
+                    chat_state[cid] = {"last_msg": time.time(), "biz": biz, "followup_sent": False}
+
                 process_update(update)
+
+            # Check for silent chats — send follow-up after 10 min
+            now = time.time()
+            for cid, state in list(chat_state.items()):
+                if not state["followup_sent"] and (now - state["last_msg"]) >= FOLLOWUP_DELAY:
+                    import random
+                    msg_text = random.choice(FOLLOWUP_MSGS)
+                    payload = {"chat_id": cid, "text": msg_text}
+                    if state["biz"]:
+                        payload["business_connection_id"] = state["biz"]
+                    result = tg("sendMessage", payload)
+                    if result.get("ok"):
+                        log.info(f"Follow-up sent to {cid}: {msg_text!r}")
+                        state["followup_sent"] = True
+                    else:
+                        log.warning(f"Follow-up failed to {cid}: {result}")
+
         except KeyboardInterrupt:
             log.info("Shutting down.")
             break
