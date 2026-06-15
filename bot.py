@@ -4,8 +4,8 @@ Bella Telegram DM Bot — standalone long-polling responder.
 Responds to fan DMs in ~1-2 seconds via Telegram Business mode.
 
 Env vars required:
-  TELEGRAM_BOT_TOKEN  — from @BotFather
-  ANTHROPIC_API_KEY   — for Claude Haiku reply generation
+  TELEGRAM_BOT_TOKEN   — from @BotFather
+  OPENROUTER_API_KEY   — from openrouter.ai (uses Dolphin Mixtral, uncensored)
 """
 import os, json, time, logging
 import urllib.request, urllib.error
@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("bella-bot")
 
 BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-ANTHROPIC_KEY = os.environ["ANTHROPIC_API_KEY"]
+OPENROUTER_KEY = os.environ["OPENROUTER_API_KEY"]
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 BELLA_SYSTEM = """You are Bella. You are a real girl — a flirty, confident, soft girl aesthetic influencer. You reply to fans who DM you on Telegram.
@@ -90,28 +90,31 @@ def send_message(chat_id: int, text: str, biz: str = "") -> bool:
 # ── Claude reply generation ───────────────────────────────────────────────────
 
 def bella_reply(user_name: str, user_text: str) -> str:
-    prompt = f'Fan named {user_name} DMed Bella: "{user_text}"\n\nWrite Bella\'s reply. 1-3 sentences, natural and warm. No quotation marks.'
+    prompt = f'{user_name}: {user_text}'
     payload = json.dumps({
-        "model": "claude-haiku-4-5",
+        "model": "cognitivecomputations/dolphin-mixtral-8x7b",
         "max_tokens": 150,
-        "system": BELLA_SYSTEM,
-        "messages": [{"role": "user", "content": prompt}]
+        "messages": [
+            {"role": "system", "content": BELLA_SYSTEM},
+            {"role": "user", "content": prompt}
+        ]
     }).encode()
     req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages", data=payload,
+        "https://openrouter.ai/api/v1/chat/completions", data=payload,
         headers={
-            "x-api-key": ANTHROPIC_KEY,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json"
+            "Authorization": f"Bearer {OPENROUTER_KEY}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://bellavistaxo.com",
+            "X-Title": "Bella DM Bot"
         }
     )
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
             data = json.loads(r.read())
-            return data["content"][0]["text"].strip()
+            return data["choices"][0]["message"]["content"].strip()
     except Exception as e:
-        log.error(f"Claude error: {e}")
-        return f"hey {user_name}!! 🩷 so happy you reached out — check everything at linktr.ee/bellavistaxo"
+        log.error(f"OpenRouter error: {e}")
+        return f"hey {user_name}!! 🩷 you know where to find me — linktr.ee/bellavistaxo ✨"
 
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
