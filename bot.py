@@ -92,31 +92,57 @@ def send_message(chat_id: int, text: str, biz: str = "") -> bool:
 
 def bella_reply(user_name: str, user_text: str) -> str:
     name_hint = f" (their name is {user_name}, use it occasionally but not every message)" if user_name != "babe" else ""
-    prompt = f'Fan says: "{user_text}"{name_hint}\n\nReply as Bella in 1-2 sentences.'
-    payload = json.dumps({
-        "model": "cognitivecomputations/dolphin-mixtral-8x7b",
-        "max_tokens": 150,
-        "messages": [
-            {"role": "system", "content": BELLA_SYSTEM},
-            {"role": "user", "content": prompt}
-        ]
-    }).encode()
-    req = urllib.request.Request(
-        "https://openrouter.ai/api/v1/chat/completions", data=payload,
-        headers={
-            "Authorization": f"Bearer {OPENROUTER_KEY}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://bellavistaxo.com",
-            "X-Title": "Bella DM Bot"
-        }
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=15) as r:
-            data = json.loads(r.read())
-            return data["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        log.error(f"OpenRouter error: {e}")
-        return f"hey {user_name}!! 🩷 you know where to find me — linktr.ee/bellavistaxo ✨"
+    prompt = f'Fan says: "{user_text}"{name_hint}\n\nReply as Bella in 2-3 sentences, conversational and in character.'
+
+    # Try primary model first, fall back to secondary
+    models = [
+        "nousresearch/hermes-3-llama-3.1-8b",
+        "mistralai/mistral-7b-instruct",
+    ]
+
+    for model in models:
+        payload = json.dumps({
+            "model": model,
+            "max_tokens": 200,
+            "temperature": 0.9,
+            "messages": [
+                {"role": "system", "content": BELLA_SYSTEM},
+                {"role": "user", "content": prompt}
+            ]
+        }).encode()
+        req = urllib.request.Request(
+            "https://openrouter.ai/api/v1/chat/completions", data=payload,
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_KEY}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://bellavistaxo.com",
+                "X-Title": "Bella DM Bot"
+            }
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=20) as r:
+                raw = r.read()
+                data = json.loads(raw)
+                if "choices" in data:
+                    reply = data["choices"][0]["message"]["content"].strip()
+                    log.info(f"Reply via {model}: {reply[:60]!r}")
+                    return reply
+                else:
+                    log.error(f"Unexpected OpenRouter response ({model}): {data}")
+        except urllib.error.HTTPError as e:
+            body = e.read().decode()
+            log.error(f"OpenRouter HTTP {e.code} ({model}): {body}")
+        except Exception as e:
+            log.error(f"OpenRouter error ({model}): {e}")
+
+    # All models failed — conversational fallback
+    fallbacks = [
+        f"omg hey 🩷 just saw this — what's up?",
+        f"heyy 😏 you caught me at a good time — what's on your mind?",
+        f"okay okay I see you 🔥 talk to me",
+    ]
+    import random
+    return random.choice(fallbacks)
 
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
