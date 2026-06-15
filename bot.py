@@ -246,6 +246,19 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
         return None, None
 
     text = msg.get("text", "").strip()
+    sticker = msg.get("sticker")
+
+    # Handle sticker with a cute reaction
+    if sticker and not text:
+        chat_id: int = msg["chat"]["id"]
+        biz: str = msg.get("business_connection_id", "")
+        mark_read(chat_id, msg.get("message_id", 0), biz)
+        send_typing(chat_id, biz)
+        time.sleep(1.2)
+        reactions = ["omg haha 😍", "okay that one got me 💕", "lol you're cute 🌸", "stickers now? 😏 you're adorable"]
+        send_raw(chat_id, random.choice(reactions), biz)
+        return chat_id, biz
+
     if not text or text.startswith("/"):
         return None, None
 
@@ -375,9 +388,12 @@ def main():
                     msg_text = random.choice(FOLLOWUP_MSGS)
                     payload = {"chat_id": cid, "text": msg_text}
                     if state["biz"]: payload["business_connection_id"] = state["biz"]
-                    if tg("sendMessage", payload).get("ok"):
+                    result = tg("sendMessage", payload)
+                    state["followup_sent"] = True  # always stop retrying
+                    if result.get("ok"):
                         log.info(f"Follow-up sent to {cid}: {msg_text!r}")
-                        state["followup_sent"] = True
+                    else:
+                        log.warning(f"Follow-up failed to {cid} (suppressed): {result.get('description','')}")
 
         except KeyboardInterrupt:
             log.info("Shutting down.")
