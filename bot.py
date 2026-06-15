@@ -90,23 +90,30 @@ def mark_read(chat_id: int, message_id: int, biz: str) -> None:
 
 GIFT_KEYWORDS = {"pay.bellavista", "fanvue.com", "tip me", "send me a gift", "spoil me"}
 
+STAR_TIERS = [
+    {"title": "💌 Spoil Me",      "description": "Show Bella some love ✨",            "amount": 999,  "payload": "stars_999"},
+    {"title": "👑 Make Me Yours", "description": "Be Bella's favorite — she'll notice 😍", "amount": 2499, "payload": "stars_2499"},
+]
+
 def send_stars_invoice(chat_id: int, biz: str = "") -> None:
-    """Send a single Telegram Stars gift invoice for 690 Stars."""
-    payload = {
-        "chat_id": chat_id,
-        "title": "💖 Gift Bella Stars",
-        "description": "Send Bella some love with Telegram Stars 🩷",
-        "payload": "bella_stars_690",
-        "currency": "XTR",
-        "prices": [{"label": "Stars", "amount": 690}]
-    }
-    if biz:
-        payload["business_connection_id"] = biz
-    result = tg("sendInvoice", payload)
-    if result.get("ok"):
-        log.info(f"Stars invoice 690 sent to {chat_id}")
-    else:
-        log.warning(f"Stars invoice failed: {result}")
+    """Send 2 Telegram Stars invoices — 999 (~$13) and 2499 (~$32)."""
+    for tier in STAR_TIERS:
+        payload = {
+            "chat_id": chat_id,
+            "title": tier["title"],
+            "description": tier["description"],
+            "payload": tier["payload"],
+            "currency": "XTR",
+            "prices": [{"label": "Stars", "amount": tier["amount"]}]
+        }
+        if biz:
+            payload["business_connection_id"] = biz
+        result = tg("sendInvoice", payload)
+        if result.get("ok"):
+            log.info(f"Stars invoice {tier['amount']} sent to {chat_id}")
+        else:
+            log.warning(f"Stars invoice {tier['amount']} failed: {result}")
+        time.sleep(0.3)
 
 def send_message(chat_id: int, text: str, biz: str = "") -> bool:
     payload = {"chat_id": chat_id, "text": text}
