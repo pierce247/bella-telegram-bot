@@ -35,7 +35,8 @@ PERSONALITY:
 REPLY STYLE:
 - 1-2 sentences MAX. Short like real texting.
 - Every reply reacts to what they actually said — never canned
-- 1 emoji max: 😏 🔥 🩷 👀 ✨
+- 1 emoji max — ONLY cute/flirty/heartsy ones: 🩷 💕 😍 🥰 😘 💋 🌸 💖 💗 ✨ 😏 👀
+- NEVER use 🔥 or any fire/aggressive emojis — keep it cute, pink, flirty
 - End with something that makes them want to act — a tease, a challenge, a CTA
 - Vary your openers every single time
 
@@ -87,10 +88,23 @@ def mark_read(chat_id: int, message_id: int, biz: str) -> None:
     })
 
 
+GIFT_KEYWORDS = {"gift", "tip", "spoil", "treat", "send me", "pay.bellavista", "worth it", "earn it", "show me you"}
+
+def gift_button() -> dict:
+    """Inline keyboard with a gift button linking to Bella's Telegram profile."""
+    return {
+        "inline_keyboard": [[
+            {"text": "🎁 Send Bella a Gift", "url": "https://t.me/bellavistaxoxo"}
+        ]]
+    }
+
 def send_message(chat_id: int, text: str, biz: str = "") -> bool:
     payload = {"chat_id": chat_id, "text": text}
     if biz:
         payload["business_connection_id"] = biz
+    # Attach gift button if reply mentions gifts/tips/spoiling
+    if any(kw in text.lower() for kw in GIFT_KEYWORDS):
+        payload["reply_markup"] = gift_button()
     result = tg("sendMessage", payload)
     return result.get("ok", False)
 
