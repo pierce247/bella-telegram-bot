@@ -96,8 +96,8 @@ def bella_reply(user_name: str, user_text: str) -> str:
 
     # Try primary model first, fall back to secondary
     models = [
-        "nousresearch/hermes-3-llama-3.1-8b",
-        "mistralai/mistral-7b-instruct",
+        "neversleep/llama-3.1-lumimaid-70b",       # uncensored roleplay-focused
+        "meta-llama/llama-3.3-70b-instruct",        # high quality fallback
     ]
 
     for model in models:
@@ -203,8 +203,13 @@ def main():
             log.info("Shutting down.")
             break
         except Exception as e:
-            log.error(f"Main loop error: {e}")
-            time.sleep(5)  # backoff on unexpected errors
+            err = str(e)
+            if "409" in err:
+                log.warning("409 conflict — another instance running, waiting 10s...")
+                time.sleep(10)  # wait for old instance to die
+            else:
+                log.error(f"Main loop error: {e}")
+                time.sleep(5)
 
 
 if __name__ == "__main__":
