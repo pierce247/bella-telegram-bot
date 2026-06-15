@@ -90,24 +90,31 @@ def mark_read(chat_id: int, message_id: int, biz: str) -> None:
 
 GIFT_KEYWORDS = {"gift", "tip", "spoil", "treat", "send me", "pay.bellavista", "worth it", "earn it", "show me you"}
 
+STAR_TIERS = [
+    {"title": "💌 Small Love",    "description": "Show Bella a little love ✨",       "amount": 750,  "payload": "stars_750"},
+    {"title": "💖 Big Love",      "description": "Bella loves being spoiled 🩷",      "amount": 1900, "payload": "stars_1900"},
+    {"title": "👑 Ultimate Love", "description": "Be Bella's favorite today 😍",      "amount": 3750, "payload": "stars_3750"},
+]
+
 def send_stars_invoice(chat_id: int, biz: str = "") -> None:
-    """Send a Telegram Stars payment invoice — the native gift flow."""
-    payload = {
-        "chat_id": chat_id,
-        "title": "💖 Gift Bella Stars",
-        "description": "Send Bella some love with Telegram Stars ✨",
-        "payload": "bella_stars_gift",
-        "currency": "XTR",   # Telegram Stars
-        "prices": [{"label": "Gift", "amount": 50}]  # 50 Stars default
-    }
-    if biz:
-        payload["business_connection_id"] = biz
-    result = tg("sendInvoice", payload)
-    if result.get("ok"):
-        log.info(f"Stars invoice sent to {chat_id}")
-    else:
-        # Fallback: inline button to tip link if invoice fails
-        log.warning(f"Stars invoice failed, using tip link button: {result}")
+    """Send 3 Telegram Stars invoices at different price tiers (~$10/$25/$50)."""
+    for tier in STAR_TIERS:
+        payload = {
+            "chat_id": chat_id,
+            "title": tier["title"],
+            "description": tier["description"],
+            "payload": tier["payload"],
+            "currency": "XTR",
+            "prices": [{"label": "Stars", "amount": tier["amount"]}]
+        }
+        if biz:
+            payload["business_connection_id"] = biz
+        result = tg("sendInvoice", payload)
+        if result.get("ok"):
+            log.info(f"Stars invoice {tier['amount']} sent to {chat_id}")
+        else:
+            log.warning(f"Stars invoice {tier['amount']} failed: {result}")
+        time.sleep(0.3)  # slight stagger so they appear in order
 
 def send_message(chat_id: int, text: str, biz: str = "") -> bool:
     payload = {"chat_id": chat_id, "text": text}
@@ -129,7 +136,7 @@ def send_message(chat_id: int, text: str, biz: str = "") -> bool:
 
 def bella_reply(user_name: str, user_text: str) -> str:
     name_hint = f" (fan's name: {user_name}, use sparingly)" if user_name != "babe" else ""
-    prompt = f'Fan: "{user_text}"{name_hint}\n\nReply as Bella. 1 sentence, maybe 2. Short, suggestive, real.\nTip link if relevant: pay.bellavista.lol (NOT pay.bellavista.lol/x)'
+    prompt = f'Fan: "{user_text}"{name_hint}\n\nReply as Bella. 1 sentence, maybe 2. Short, suggestive, real.\nTip link if relevant: pay.bellavista.lol (NOT pay.bellavista.lol)'
 
     # Try primary model first, fall back to secondary
     models = [
