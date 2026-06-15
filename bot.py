@@ -88,7 +88,7 @@ def mark_read(chat_id: int, message_id: int, biz: str) -> None:
     })
 
 
-GIFT_KEYWORDS = {"pay.bellavista", "fanvue.com", "tip me", "send me a gift", "spoil me"}
+GIFT_KEYWORDS = {"pay.bellavista", "fanvue.com", "tip me", "send me a gift", "spoil me", "linktr.ee", "tip first", "show me you're worth"}
 
 STAR_TIERS = [
     {"title": "💌 Spoil Me",      "description": "Show Bella some love ✨",            "amount": 999,  "payload": "stars_999"},
@@ -223,17 +223,17 @@ def process_update(update: dict) -> None:
     pause = min(1.0 + len(reply) * 0.02, 3.5)
     time.sleep(pause)
 
-    # 5. Send text reply
+    # 5. Send text reply (with Tip/Fanvue buttons if reply mentions those CTAs)
+    cta_in_reply = any(kw in reply.lower() for kw in GIFT_KEYWORDS)
     ok = send_message(chat_id, reply, biz)
     if ok:
         log.info(f"✅ Sent to {user_name}")
     else:
         log.error(f"❌ Failed to send to {user_name}")
 
-    # 6. If fan explicitly asked about gifting/Stars, send invoice after reply
-    gift_triggers = {"i want to spoil", "how do i spoil", "how do i gift", "send you stars", "give you a gift", "want to gift"}
-    if any(t in text.lower() for t in gift_triggers):
-        time.sleep(1)
+    # 6. Always send Stars invoices when Tip/Fanvue buttons appear
+    if cta_in_reply:
+        time.sleep(0.5)
         send_stars_invoice(chat_id, biz)
 
 
