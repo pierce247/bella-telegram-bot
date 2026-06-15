@@ -84,6 +84,8 @@ def mark_read(chat_id: int, message_id: int, biz: str) -> None:
 
 GIFT_KEYWORDS = {"pay.bellavista", "fanvue.com", "tip me", "send me a gift", "spoil me", "linktr.ee", "tip first", "show me you're worth"}
 
+SOCIAL_KEYWORDS = {"instagram", "insta", "facebook", "tiktok", "tik tok", "youtube", "twitter", "snapchat", "snap", "onlyfans", "reddit", "link", "links", "socials", "where can i find", "where do you post", "where are you"}
+
 def send_stars_invoice(chat_id: int, biz: str = "") -> None:
     """Send a single Stars invoice — 1499 Stars, mid-tier special attention."""
     payload = {
@@ -120,9 +122,9 @@ def send_message(chat_id: int, text: str, biz: str = "") -> bool:
 
 # ── Claude reply generation ───────────────────────────────────────────────────
 
-def bella_reply(user_name: str, user_text: str) -> str:
+def bella_reply(user_name: str, user_text: str, extra_instruction: str = "") -> str:
     name_hint = f" (fan's name: {user_name}, use sparingly)" if user_name != "babe" else ""
-    prompt = f'Fan: "{user_text}"{name_hint}\n\nReply as Bella. 1 sentence, maybe 2. Short, suggestive, real.\nTip link if relevant: pay.bellavista.lol (NOT pay.bellavista.lol)'
+    prompt = f'Fan: "{user_text}"{name_hint}\n\nReply as Bella. 1 sentence, maybe 2. Short, suggestive, real.{extra_instruction}'
 
     # Try primary model first, fall back to secondary
     models = [
@@ -196,29 +198,46 @@ def process_update(update: dict) -> None:
 
     log.info(f"DM from {user_name} (chat={chat_id}): {text[:60]!r}")
 
+    is_social_request = any(kw in text.lower() for kw in SOCIAL_KEYWORDS)
+
     # 1. Mark as read
     mark_read(chat_id, message_id, biz)
 
     # 2. Show typing indicator
     send_typing(chat_id, biz)
 
-    # 3. Generate reply
-    reply = bella_reply(user_name, text)
+    # 3. Generate reply — tell model to skip URLs if buttons will handle it
+    extra = "\n\nIMPORTANT: Do NOT include any URLs or links in your reply. The buttons below will handle that." if is_social_request else ""
+    reply = bella_reply(user_name, text, extra_instruction=extra)
     log.info(f"Bella reply: {reply!r}")
 
-    # 4. Realistic typing pause (scales with reply length)
+    # 4. Realistic typing pause
     pause = min(1.0 + len(reply) * 0.02, 3.5)
     time.sleep(pause)
 
-    # 5. Send text reply (with Tip/Fanvue buttons if reply mentions those CTAs)
-    cta_in_reply = any(kw in reply.lower() for kw in GIFT_KEYWORDS)
-    ok = send_message(chat_id, reply, biz)
+    # 5. Send reply — social requests get My Links + Tip Bella buttons
+    if is_social_request:
+        payload = {"chat_id": chat_id, "text": reply}
+        if biz:
+            payload["business_connection_id"] = biz
+        payload["reply_markup"] = {
+            "inline_keyboard": [[
+                {"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"},
+                {"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol"}
+            ]]
+        }
+        result = tg("sendMessage", payload)
+        ok = result.get("ok", False)
+    else:
+        cta_in_reply = any(kw in reply.lower() for kw in GIFT_KEYWORDS)
+        ok = send_message(chat_id, reply, biz)
+
     if ok:
         log.info(f"✅ Sent to {user_name}")
     else:
         log.error(f"❌ Failed to send to {user_name}")
 
-    # 6. Only send Stars invoice if fan explicitly mentioned Stars
+    # 6. Stars invoice only when fan explicitly mentions Stars
     stars_triggers = {"star", "stars", "⭐", "★", "telegram star", "send stars"}
     if any(t in text.lower() for t in stars_triggers):
         time.sleep(0.5)
