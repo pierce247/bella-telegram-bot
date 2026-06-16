@@ -131,7 +131,7 @@ def send_raw(chat_id: int, text: str, biz: str = "", markup: dict = None) -> boo
 GIFT_KEYWORDS    = {"pay.bellavista", "fanvue.com", "tip me", "send me a gift", "spoil me", "linktr.ee", "private page", "good stuff"}
 SOCIAL_KEYWORDS  = {"instagram", "insta", "facebook", "tiktok", "youtube", "twitter", "snapchat", "snap", "reddit", "link", "links", "socials", "where do you post", "where are you"}
 CONTENT_KEYWORDS = {"pic", "photo", "picture", "send me", "show me", "nude", "nudes", "body", "boobs", "ass", "titty", "tits", "see you", "video", "clip", "content", "exclusive", "private", "more of you"}
-STARS_KEYWORDS   = {"star", "stars", "⭐", "★", "telegram star", "send stars"}
+STARS_KEYWORDS   = {"stars", "⭐", "★", "telegram star", "send stars", "telegram stars"}  # NOT "star" alone to avoid "start" false trigger
 COFFEE_KEYWORDS  = {"coffee", "café", "cafe", "latte", "espresso", "cappuccino", "brew", "cup of coffee"}
 DINNER_KEYWORDS  = {"dinner", "restaurant", "food", "eat", "hungry", "cook for you", "date", "take you out", "treat you to"}
 GIFT_BTN_KEYWORDS = {"gift", "present", "surprise you", "send you something", "get you something"}
@@ -516,7 +516,8 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 
     is_social   = any(kw in text.lower() for kw in SOCIAL_KEYWORDS)
     is_content  = any(kw in text.lower() for kw in CONTENT_KEYWORDS)
-    is_stars    = any(kw in text.lower() for kw in STARS_KEYWORDS)
+    t_lower = text.lower()
+    is_stars    = any(kw in t_lower for kw in STARS_KEYWORDS) or bool(__import__("re").search(r"\bstar\b", t_lower))
     is_coffee   = any(kw in text.lower() for kw in COFFEE_KEYWORDS)
     is_dinner   = any(kw in text.lower() for kw in DINNER_KEYWORDS)
     is_gift_btn = any(kw in text.lower() for kw in GIFT_BTN_KEYWORDS) and not is_stars
@@ -614,6 +615,17 @@ FANS_FILE    = "/data/bella_fans.json"  # persists fan chat_ids for broadcast
 DEDUP_FILE   = "/data/bella_dedup.txt"
 MAX_DEDUP    = 500  # keep last N update IDs on disk
 
+def load_seen() -> set:
+    try:
+        with open(SEEN_FILE) as f: return set(json.load(f))
+    except: return set()
+
+def save_seen(seen: set) -> None:
+    try:
+        with open(SEEN_FILE, "w") as f: json.dump(list(seen), f)
+    except Exception as e: log.warning(f"Could not save seen: {e}")
+
+
 def load_fans() -> dict:
     """Load fan registry: {chat_id: {biz, last_seen}}"""
     try:
@@ -662,6 +674,7 @@ def main():
 
     replied_ids: set = load_dedup()  # persisted dedup across restarts
     fan_registry: dict = load_fans()   # {str(chat_id): {biz, last_seen}}
+    seen_chats: set = load_seen()       # persisted - true first contact
     log.info(f"Loaded {len(replied_ids)} dedup IDs from disk")
 
     # Per-chat state
@@ -702,6 +715,7 @@ def main():
                     if cid not in seen_chats:
                         seen_chats.add(cid)
                         daily_stats["new_fans"].add(cid)
+                        save_seen(seen_chats)
                     # 20% chance of an authentic double-text (short follow-up thought)
                     if random.random() < 0.20:
                         double_texts = [
