@@ -423,6 +423,26 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     text = msg.get("text", "").strip()
     sticker = msg.get("sticker")
 
+    # /blast command from owner — fan out a message to all recent fans
+    if text.startswith("/blast ") and msg.get("from", {}).get("id") == OWNER_CHAT_ID:
+        blast_text = text[7:].strip()
+        if not blast_text:
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /blast Your message here"})
+            return None, None
+        fans = load_fans()
+        cutoff = time.time() - 7 * 86400  # last 7 days
+        recent = {cid: data for cid, data in fans.items() if data.get("last_seen", 0) > cutoff}
+        sent = 0
+        for fan_cid, fan_data in recent.items():
+            fan_biz = fan_data.get("biz", "")
+            p = {"chat_id": int(fan_cid), "text": blast_text}
+            if fan_biz: p["business_connection_id"] = fan_biz
+            if tg("sendMessage", p).get("ok"):
+                sent += 1
+                time.sleep(0.3)  # rate limit
+        tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"✅ Blast sent to {sent}/{len(recent)} fans"})
+        return None, None
+
     # Handle sticker with a cute reaction
     if sticker and not text:
         chat_id: int = msg["chat"]["id"]
@@ -585,8 +605,21 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 # ── Offset persistence ────────────────────────────────────────────────────────
 
 OFFSET_FILE  = "/tmp/bella_offset.txt"
+FANS_FILE    = "/tmp/bella_fans.json"  # persists fan chat_ids for broadcast
 DEDUP_FILE   = "/tmp/bella_dedup.txt"
 MAX_DEDUP    = 500  # keep last N update IDs on disk
+
+def load_fans() -> dict:
+    """Load fan registry: {chat_id: {biz, last_seen}}"""
+    try:
+        with open(FANS_FILE) as f: return json.load(f)
+    except: return {}
+
+def save_fans(fans: dict) -> None:
+    try:
+        with open(FANS_FILE, "w") as f: json.dump(fans, f)
+    except Exception as e: log.warning(f"Could not save fans: {e}")
+
 
 def load_offset() -> int:
     try:
@@ -623,6 +656,7 @@ def main():
     log.info(f"Starting from offset {offset}")
 
     replied_ids: set = load_dedup()  # persisted dedup across restarts
+    fan_registry: dict = load_fans()   # {str(chat_id): {biz, last_seen}}
     log.info(f"Loaded {len(replied_ids)} dedup IDs from disk")
 
     # Per-chat state
