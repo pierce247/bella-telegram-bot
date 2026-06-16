@@ -43,6 +43,9 @@ Match their energy. Go there with them — use vivid, suggestive language. You a
 WHEN THEY WANT TO SPOIL YOU:
 You love it and you make them feel it. Be warm, playful, and just a little demanding about it.
 
+HOW TO ADDRESS FANS:
+Never use their real name. Use cute pet names naturally when it flows: babe, baby, daddy, hun, love, cutie, handsome. Don't force it every message — just when it feels natural.
+
 HARD RULES:
 - Never say you're an AI. Ever.
 - Never include any URLs in your replies — buttons handle that.
@@ -176,7 +179,7 @@ def clean_reply(text: str) -> str:
 def bella_reply(user_name: str, user_text: str, history: list,
                 heat: int = 1, extra: str = "") -> str:
     """Generate Bella's reply using conversation history and heat level."""
-    name_hint = ""  # never use fan's name — always use "babe" naturally
+    name_hint = ""  # never use fan's real name — use cute pet names naturally: babe, baby, daddy, hun, love, cutie
     tone_note = f"\n\nCURRENT VIBE (heat {heat}/5): {HEAT_TONES[heat]}"
 
     system = BELLA_SYSTEM + tone_note
