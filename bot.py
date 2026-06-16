@@ -123,6 +123,7 @@ GIFT_KEYWORDS    = {"pay.bellavista", "fanvue.com", "tip me", "send me a gift", 
 SOCIAL_KEYWORDS  = {"instagram", "insta", "facebook", "tiktok", "youtube", "twitter", "snapchat", "snap", "reddit", "link", "links", "socials", "where do you post", "where are you"}
 CONTENT_KEYWORDS = {"pic", "photo", "picture", "send me", "show me", "nude", "nudes", "body", "boobs", "ass", "titty", "tits", "see you", "video", "clip", "content", "exclusive", "private", "more of you"}
 STARS_KEYWORDS   = {"star", "stars", "⭐", "★", "telegram star", "send stars"}
+COFFEE_KEYWORDS  = {"coffee", "café", "cafe", "latte", "espresso", "cappuccino", "brew", "cup of coffee"}
 
 TIME_HINTS = {
     "night": {"can't sleep", "late night", "midnight", "2am", "3am", "up late", "insomnia"},
@@ -135,6 +136,7 @@ TIME_HINTS = {
 CONTENT_MARKUP = {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}]]}
 SOCIAL_MARKUP  = {"inline_keyboard": [[{"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}, {"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}]]}
 TIP_MARKUP     = {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}]]}
+COFFEE_MARKUP  = {"inline_keyboard": [[{"text": "☕ Buy Me a Coffee", "url": "https://pay.bellavista.lol/coffee"}]]}
 
 def send_stars_invoice(chat_id: int, biz: str = "") -> None:
     p = {"chat_id": chat_id, "title": "🌸 Make a Wish — Send Me Stars",
@@ -438,6 +440,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
     is_social   = any(kw in text.lower() for kw in SOCIAL_KEYWORDS)
     is_content  = any(kw in text.lower() for kw in CONTENT_KEYWORDS)
     is_stars    = any(kw in text.lower() for kw in STARS_KEYWORDS)
+    is_coffee   = any(kw in text.lower() for kw in COFFEE_KEYWORDS)
 
     # 1. Mark read
     mark_read(chat_id, message_id, biz)
@@ -468,6 +471,8 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
     # 8. Send with appropriate buttons
     if is_content:
         ok = send_raw(chat_id, reply, biz, CONTENT_MARKUP)
+    elif is_coffee:
+        ok = send_raw(chat_id, reply, biz, COFFEE_MARKUP)
     elif is_social:
         ok = send_raw(chat_id, reply, biz, SOCIAL_MARKUP)
     else:
