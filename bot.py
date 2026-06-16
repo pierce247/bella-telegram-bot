@@ -545,7 +545,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     call_hint   = "\n\nContext: fan is asking for a video call, phone call, or meetup — use a soft excuse first (busy, bad timing). If persistent, tease them with 'for the right price anything is possible' and ask what they have in mind." if is_call else ""
     custom_hint = "\n\nContext: fan is making a custom request — react with playful surprise, ask what they think it's worth, negotiate. Once they name a price, tell them to send it and you'll deliver." if is_custom else ""
     stars_hint = "\n\nContext: fan is asking about Telegram Stars — acknowledge it warmly and let them know they can send Stars to show their appreciation. Keep it flirty." if is_stars else ""
-    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + custom_hint + giveaway_hint
+    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + custom_hint
 
     # 4. Get history for this chat (last 5 turns)
     history = list(chat_history[chat_id])
@@ -588,9 +588,6 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         MY_LINKS_MARKUP = {"inline_keyboard": [[{"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
         if has_cta:
             ok = send_raw(chat_id, reply, biz, random_tip_markup())
-        elif is_new_fan or is_giveaway:
-            # New fans and giveaway entrants get channel join button on first reply
-            ok = send_raw(chat_id, reply, biz, CHANNEL_MARKUP)
         elif random.random() < 0.15:  # 15% chance on regular messages
             ok = send_raw(chat_id, reply, biz, MY_LINKS_MARKUP)
         else:
@@ -716,6 +713,10 @@ def main():
                         seen_chats.add(cid)
                         daily_stats["new_fans"].add(cid)
                         save_seen(seen_chats)
+                        # Send channel button ONCE on very first contact — separate message
+                        time.sleep(1.5)
+                        state = chat_state.get(cid, {})
+                        send_raw(cid, "📣 join my channel for first access to everything 🩷", state.get("biz", ""), CHANNEL_MARKUP)
                     # 20% chance of an authentic double-text (short follow-up thought)
                     if random.random() < 0.20:
                         double_texts = [
