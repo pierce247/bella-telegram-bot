@@ -254,7 +254,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
 
     for model in models:
         payload = json.dumps({
-            "model": model, "max_tokens": {1: 25, 2: 35, 3: 50, 4: 70, 5: 90}.get(heat, 50), "temperature": 0.9,
+            "model": model, "max_tokens": {1: 80, 2: 100, 3: 130, 4: 180, 5: 220}.get(heat, 130), "temperature": 0.9,
             "messages": [{"role": "system", "content": system}] + messages
         }).encode()
         req = urllib.request.Request(
