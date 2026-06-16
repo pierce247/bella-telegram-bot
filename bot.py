@@ -132,9 +132,9 @@ TIME_HINTS = {
 
 # ── Buttons ───────────────────────────────────────────────────────────────────
 
-CONTENT_MARKUP = {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}]]}
-SOCIAL_MARKUP  = {"inline_keyboard": [[{"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}, {"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol"}]]}
-TIP_MARKUP     = {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}]]}
+CONTENT_MARKUP = {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}]]}
+SOCIAL_MARKUP  = {"inline_keyboard": [[{"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}, {"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}]]}
+TIP_MARKUP     = {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}]]}
 
 def send_stars_invoice(chat_id: int, biz: str = "") -> None:
     p = {"chat_id": chat_id, "title": "🌸 Make a Wish — Send Me Stars",
