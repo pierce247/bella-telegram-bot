@@ -136,6 +136,7 @@ GIFT_BTN_KEYWORDS = {"gift", "present", "surprise you", "send you something", "g
 TIP_AMOUNT_KEYWORDS = {"how much", "what are the amounts", "pricing", "how do i tip", "how to tip", "tip options", "how can i pay", "payment options"}
 GYM_KEYWORDS     = {"gym", "workout", "fitness", "exercise", "train", "lifting", "yoga", "pilates", "athletic"}
 TRAVEL_KEYWORDS  = {"travel", "vacation", "trip", "getaway", "fly you", "take you somewhere", "beach", "island", "paris", "cancel plans"}
+GIVEAWAY_KEYWORDS  = {"giveaway", "give away", "contest", "prize", "winner", "won", "winning", "entered", "saw your post", "saw the giveaway", "found you from", "came from"}
 GOODNIGHT_KEYWORDS = {"good night", "goodnight", "going to bed", "gonna sleep", "time to sleep", "heading to bed", "gn ", "gn!", "sweet dreams", "night night", "bedtime", "sleep now"}
 CUSTOM_REQUEST_KEYWORDS = {"custom", "personalized", "special request", "can you make", "can you do", "would you do", "i'll pay", "how much for", "what would it cost", "commission", "special content", "custom content", "request", "order"}
 CALL_KEYWORDS      = {"video call", "facetime", "face time", "video chat", "phone call", "call me", "let's call", "lets call", "hop on a call", "meet up", "meet in person", "see you in person", "come over", "visit you", "where do you live"}
@@ -498,6 +499,8 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     is_gym      = any(kw in text.lower() for kw in GYM_KEYWORDS)
     is_travel   = any(kw in text.lower() for kw in TRAVEL_KEYWORDS)
     is_goodnight = any(kw in text.lower() for kw in GOODNIGHT_KEYWORDS)
+    is_giveaway  = any(kw in text.lower() for kw in GIVEAWAY_KEYWORDS)
+    is_new_fan   = chat_id not in seen_chats  # first ever message from this fan
     is_call      = any(kw in text.lower() for kw in CALL_KEYWORDS)
     is_custom    = any(kw in text.lower() for kw in CUSTOM_REQUEST_KEYWORDS) and not is_content
 
@@ -510,11 +513,13 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     # 3. Build extra context
     no_url = "\n\nIMPORTANT: Do NOT include any URLs, platform names, or brand names. Buttons handle that."
     ctx_hint = get_context_hint(text)
+    giveaway_hint = "\n\nContext: fan found Bella through a giveaway or contest — react with extra warmth and excitement, make them feel special and welcome. Then naturally push toward the channel and exclusive content." if is_giveaway else ""
+    new_fan_hint  = "\n\nContext: this is the very first message from this fan — give a warm, curious, flirty opener. Ask what brought them here. Make them feel like they made a good decision reaching out." if is_new_fan else ""
     goodnight_hint = "\n\nContext: fan is going to sleep — say a warm, flirty goodnight. Keep it short, sweet, leave them wanting more." if is_goodnight else ""
     call_hint   = "\n\nContext: fan is asking for a video call, phone call, or meetup — use a soft excuse first (busy, bad timing). If persistent, tease them with 'for the right price anything is possible' and ask what they have in mind." if is_call else ""
     custom_hint = "\n\nContext: fan is making a custom request — react with playful surprise, ask what they think it's worth, negotiate. Once they name a price, tell them to send it and you'll deliver." if is_custom else ""
     stars_hint = "\n\nContext: fan is asking about Telegram Stars — acknowledge it warmly and let them know they can send Stars to show their appreciation. Keep it flirty." if is_stars else ""
-    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + custom_hint
+    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + custom_hint + giveaway_hint + new_fan_hint
 
     # 4. Get history for this chat (last 5 turns)
     history = list(chat_history[chat_id])
@@ -557,6 +562,9 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         MY_LINKS_MARKUP = {"inline_keyboard": [[{"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
         if has_cta:
             ok = send_raw(chat_id, reply, biz, random_tip_markup())
+        elif is_new_fan or is_giveaway:
+            # New fans and giveaway entrants get channel join button on first reply
+            ok = send_raw(chat_id, reply, biz, CHANNEL_MARKUP)
         elif random.random() < 0.15:  # 15% chance on regular messages
             ok = send_raw(chat_id, reply, biz, MY_LINKS_MARKUP)
         else:
