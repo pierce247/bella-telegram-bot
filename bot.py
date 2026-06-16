@@ -160,7 +160,7 @@ TIP_MARKUP     = {"inline_keyboard": [
     [{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}],
     [{"text": "💵 $15", "url": "https://pay.bellavista.lol/15"}, {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"}, {"text": "💵 $35", "url": "https://pay.bellavista.lol/35"}]
 ]}
-CHANNEL_MARKUP = {"inline_keyboard": [[{"text": "📣 Join My Channel", "url": BELLA_CHANNEL_URL}]]}
+None  # CHANNEL_MARKUP disabled = {"inline_keyboard": [[{"text": "📣 Join My Channel", "url": BELLA_CHANNEL_URL}]]}
 COFFEE_MARKUP  = {"inline_keyboard": [[{"text": "☕ Buy Me a Coffee", "url": "https://pay.bellavista.lol/coffee"}]]}
 DINNER_MARKUP  = {"inline_keyboard": [[{"text": "🍽️ Take Me to Dinner", "url": "https://pay.bellavista.lol/x"}, {"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
 GIFT_BTN_MARKUP = {"inline_keyboard": [[{"text": "🎁 Send Me a Gift", "url": "https://pay.bellavista.lol/x"}, {"text": "⭐ Gift Stars", "url": "https://t.me/bellavistaxoxo"}]]}
@@ -713,10 +713,7 @@ def main():
                         seen_chats.add(cid)
                         daily_stats["new_fans"].add(cid)
                         save_seen(seen_chats)
-                        # Send channel button ONCE on very first contact — separate message
-                        time.sleep(1.5)
-                        state = chat_state.get(cid, {})
-                        send_raw(cid, "📣 join my channel for first access to everything 🩷", state.get("biz", ""), CHANNEL_MARKUP)
+
                     # 20% chance of an authentic double-text (short follow-up thought)
                     if random.random() < 0.20:
                         double_texts = [
