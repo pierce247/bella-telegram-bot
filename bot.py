@@ -156,14 +156,14 @@ def bella_reply(user_name: str, user_text: str, history: list,
     messages = list(history)  # already formatted as [{role, content}, ...]
     messages.append({
         "role": "user",
-        "content": f'Fan: "{user_text}"{name_hint}\n\nReply as Bella. Real, in character.{extra}\n\nLength rule (STRICT): heat 1-2 = 1 sentence only. heat 3 = 1-2 sentences. heat 4-5 = 2-3 sentences max, punchy and vivid. NO long paragraphs ever.'
+        "content": f'Fan: "{user_text}"{name_hint}\n\nReply as Bella in character.{extra}\n\nBE BRIEF. 1 sentence at heat 1-3. 2 short sentences MAX at heat 4-5. Text message length only.'
     })
 
     models = ["cognitivecomputations/dolphin3.0-mistral-24b", "sao10k/l3.3-euryale-70b", "meta-llama/llama-3.3-70b-instruct"]
 
     for model in models:
         payload = json.dumps({
-            "model": model, "max_tokens": {1: 40, 2: 55, 3: 80, 4: 110, 5: 140}.get(heat, 80), "temperature": 0.9,
+            "model": model, "max_tokens": {1: 25, 2: 35, 3: 50, 4: 70, 5: 90}.get(heat, 50), "temperature": 0.9,
             "messages": [{"role": "system", "content": system}] + messages
         }).encode()
         req = urllib.request.Request(
