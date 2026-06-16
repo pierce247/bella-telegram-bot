@@ -255,7 +255,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
 
     for model in models:
         payload = json.dumps({
-            "model": model, "max_tokens": {1: 80, 2: 100, 3: 130, 4: 180, 5: 220}.get(heat, 130), "temperature": 0.9,
+            "model": model, "max_tokens": {1: 60, 2: 75, 3: 100, 4: 130, 5: 160}.get(heat, 100), "temperature": 0.9,
             "messages": [{"role": "system", "content": system}] + messages
         }).encode()
         req = urllib.request.Request(
@@ -593,7 +593,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
             ok = send_raw(chat_id, reply, biz, CHANNEL_LINKS_MARKUP)
         elif has_cta:
             ok = send_raw(chat_id, reply, biz, random_tip_markup())
-        elif random.random() < 0.15:  # 15% chance on regular messages
+        elif random.random() < 0.25:  # 25% chance on regular messages
             ok = send_raw(chat_id, reply, biz, MY_LINKS_MARKUP)
         else:
             ok = send_raw(chat_id, reply, biz)
@@ -724,16 +724,7 @@ def main():
                         save_seen(seen_chats)
                         log.info(f"New fan registered: {cid}")
 
-                    # 20% chance of an authentic double-text (short follow-up thought)
-                    if random.random() < 0.20:
-                        double_texts = [
-                            "😏", "lol", "just sayin", "fr tho", "not gonna lie",
-                            "okay wait 😍", "anyway 💕", "hehe", "okay I said what I said",
-                        ]
-                        time.sleep(random.uniform(2.0, 5.0))
-                        state = chat_state.get(cid, {})
-                        biz_key = state.get("biz", biz or "")
-                        send_raw(cid, random.choice(double_texts), biz_key)
+                    # Double-text disabled — was causing too many back-to-back messages
 
             # Daily recap at midnight UTC (close to 7pm CT)
             today = time.strftime("%Y-%m-%d", time.gmtime())
