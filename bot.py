@@ -552,7 +552,13 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         ok = send_raw(chat_id, reply, biz, SOCIAL_MARKUP)
     else:
         has_cta = any(kw in reply.lower() for kw in GIFT_KEYWORDS)
-        ok = send_raw(chat_id, reply, biz, random_tip_markup() if has_cta else None)
+        MY_LINKS_MARKUP = {"inline_keyboard": [[{"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
+        if has_cta:
+            ok = send_raw(chat_id, reply, biz, random_tip_markup())
+        elif random.random() < 0.15:  # 15% chance on regular messages
+            ok = send_raw(chat_id, reply, biz, MY_LINKS_MARKUP)
+        else:
+            ok = send_raw(chat_id, reply, biz)
 
     log.info(f"{'✅' if ok else '❌'} Sent to {user_name}")
 
