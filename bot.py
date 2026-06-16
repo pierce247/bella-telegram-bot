@@ -376,11 +376,16 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
     blocked_names = {"admin", "test", "user", "bot", "telegram", "", "the", "a", "an",
                      "mr", "ms", "mrs", "dr", "sir", "null", "none", "unknown", "anonymous"}
     name_clean = raw_name.strip()
-    # Use "babe" if name is blocked, too short (1-2 chars), or all numbers
-    if (name_clean.lower() in blocked_names or len(name_clean) <= 2 or name_clean.isdigit()):
+    # Only use name if it looks like a real person name:
+    # - Not blocked, not too short/long, not digits
+    # - Contains only basic Latin letters, spaces, hyphens, apostrophes
+    import re
+    is_latin = bool(re.match(r"^[a-zA-Z][a-zA-Z '\-]{0,18}$", name_clean))
+    if (name_clean.lower() in blocked_names or len(name_clean) <= 2
+            or name_clean.isdigit() or not is_latin):
         user_name = "babe"
     else:
-        user_name = name_clean
+        user_name = name_clean.split()[0]  # use only first word of name
     biz: str = msg.get("business_connection_id", "")
 
     log.info(f"DM from {user_name} (chat={chat_id}, heat={chat_heat[chat_id]}): {text[:60]!r}")
