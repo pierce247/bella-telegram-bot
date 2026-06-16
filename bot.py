@@ -124,6 +124,10 @@ SOCIAL_KEYWORDS  = {"instagram", "insta", "facebook", "tiktok", "youtube", "twit
 CONTENT_KEYWORDS = {"pic", "photo", "picture", "send me", "show me", "nude", "nudes", "body", "boobs", "ass", "titty", "tits", "see you", "video", "clip", "content", "exclusive", "private", "more of you"}
 STARS_KEYWORDS   = {"star", "stars", "⭐", "★", "telegram star", "send stars"}
 COFFEE_KEYWORDS  = {"coffee", "café", "cafe", "latte", "espresso", "cappuccino", "brew", "cup of coffee"}
+DINNER_KEYWORDS  = {"dinner", "restaurant", "food", "eat", "hungry", "cook for you", "date", "take you out", "treat you to"}
+GIFT_BTN_KEYWORDS = {"gift", "present", "surprise you", "send you something", "get you something"}
+GYM_KEYWORDS     = {"gym", "workout", "fitness", "exercise", "train", "lifting", "yoga", "pilates", "athletic"}
+TRAVEL_KEYWORDS  = {"travel", "vacation", "trip", "getaway", "fly you", "take you somewhere", "beach", "island", "paris", "cancel plans"}
 
 TIME_HINTS = {
     "night": {"can't sleep", "late night", "midnight", "2am", "3am", "up late", "insomnia"},
@@ -137,6 +141,10 @@ CONTENT_MARKUP = {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https:
 SOCIAL_MARKUP  = {"inline_keyboard": [[{"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}, {"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}]]}
 TIP_MARKUP     = {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}]]}
 COFFEE_MARKUP  = {"inline_keyboard": [[{"text": "☕ Buy Me a Coffee", "url": "https://pay.bellavista.lol/coffee"}]]}
+DINNER_MARKUP  = {"inline_keyboard": [[{"text": "🍽️ Take Me to Dinner", "url": "https://pay.bellavista.lol/x"}]]}
+GIFT_BTN_MARKUP = {"inline_keyboard": [[{"text": "🎁 Send Me a Gift", "url": "https://pay.bellavista.lol/x"}, {"text": "⭐ Gift Stars", "url": "https://t.me/bellavistaxoxo"}]]}
+GYM_MARKUP     = {"inline_keyboard": [[{"text": "💪 Sponsor My Gym", "url": "https://pay.bellavista.lol/x"}]]}
+TRAVEL_MARKUP  = {"inline_keyboard": [[{"text": "✈️ Take Me Away", "url": "https://pay.bellavista.lol/x"}]]}
 
 def send_stars_invoice(chat_id: int, biz: str = "") -> None:
     p = {"chat_id": chat_id, "title": "🌸 Make a Wish — Send Me Stars",
@@ -441,6 +449,10 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
     is_content  = any(kw in text.lower() for kw in CONTENT_KEYWORDS)
     is_stars    = any(kw in text.lower() for kw in STARS_KEYWORDS)
     is_coffee   = any(kw in text.lower() for kw in COFFEE_KEYWORDS)
+    is_dinner   = any(kw in text.lower() for kw in DINNER_KEYWORDS)
+    is_gift_btn = any(kw in text.lower() for kw in GIFT_BTN_KEYWORDS) and not is_stars
+    is_gym      = any(kw in text.lower() for kw in GYM_KEYWORDS)
+    is_travel   = any(kw in text.lower() for kw in TRAVEL_KEYWORDS)
 
     # 1. Mark read
     mark_read(chat_id, message_id, biz)
@@ -473,6 +485,14 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
         ok = send_raw(chat_id, reply, biz, CONTENT_MARKUP)
     elif is_coffee:
         ok = send_raw(chat_id, reply, biz, COFFEE_MARKUP)
+    elif is_dinner:
+        ok = send_raw(chat_id, reply, biz, DINNER_MARKUP)
+    elif is_gift_btn:
+        ok = send_raw(chat_id, reply, biz, GIFT_BTN_MARKUP)
+    elif is_gym:
+        ok = send_raw(chat_id, reply, biz, GYM_MARKUP)
+    elif is_travel:
+        ok = send_raw(chat_id, reply, biz, TRAVEL_MARKUP)
     elif is_social:
         ok = send_raw(chat_id, reply, biz, SOCIAL_MARKUP)
     else:
