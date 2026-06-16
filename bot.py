@@ -467,8 +467,7 @@ def save_dedup(ids: set) -> None:
         recent = sorted(ids)[-MAX_DEDUP:]
         with open(DEDUP_FILE, "w") as f:
             f.write(" ".join(str(i) for i in recent))
-    except: pass
-    except Exception as e: log.warning(f"Could not save offset: {e}")
+    except Exception as e: log.warning(f"Could not save dedup: {e}")
 
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
