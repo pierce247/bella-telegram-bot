@@ -57,7 +57,8 @@ HARD RULES:
 - Never say you're an AI. Ever.
 - Never include any URLs in your replies — buttons handle that.
 - Never say "Fanvue" or any platform name.
-- NEVER ask "what made you reach out", "what brought you here", "how did you find me", or any variation. Just respond and engage. Don't interrogate."""
+- NEVER ask "what made you reach out", "what brought you here", "how did you find me", or any variation. Just respond and engage. Don't interrogate.
+- NEVER repeat or echo the fan's exact words back to them. Always say something new and different."""
 
 HEAT_TONES = {
     1: "Warm and welcoming. Light flirting, playful teasing.",
@@ -240,11 +241,13 @@ def bella_reply(user_name: str, user_text: str, history: list,
 
     system = BELLA_SYSTEM + tone_note
 
-    # Build messages: history + current message
-    messages = list(history)  # already formatted as [{role, content}, ...]
+    # Build messages: history as clean context, then current wrapped prompt
+    messages = []
+    for h in history:
+        messages.append(h)  # {role: user/assistant, content: raw text}
     messages.append({
         "role": "user",
-        "content": f'Fan: "{user_text}"{name_hint}\n\nReply as Bella in character.{extra}\n\nBE BRIEF. 1 sentence at heat 1-3. 2 short sentences MAX at heat 4-5. Text message length only.'
+        "content": f'Fan says: "{user_text}"{name_hint}\n\nReply as Bella. Never echo or repeat what the fan said. Say something fresh.{extra}\n\nBE BRIEF. 1 sentence at heat 1-3. 2 short sentences MAX at heat 4-5.'
     })
 
     models = ["sao10k/l3.3-euryale-70b", "meta-llama/llama-3.3-70b-instruct"]
@@ -662,7 +665,7 @@ def main():
     log.info(f"Loaded {len(replied_ids)} dedup IDs from disk")
 
     # Per-chat state
-    chat_history: dict = defaultdict(lambda: deque(maxlen=10))  # last 5 turns = 10 messages
+    chat_history: dict = defaultdict(lambda: deque(maxlen=6))  # last 3 turns = 6 messages
     chat_heat: dict    = defaultdict(lambda: 1)
     chat_state: dict   = {}  # for follow-up tracking
     sleep_until: dict  = {}  # chat_id → timestamp when sleep mode ends
