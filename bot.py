@@ -708,7 +708,10 @@ def main():
                 save_offset(uid + 1)
                 offset = uid + 1
 
-                _is_first = cid not in seen_chats if cid else False
+                # Extract chat_id from update to check first-contact BEFORE calling process_update
+                _msg_pre = update.get("business_message") or update.get("message") or {}
+                _cid_pre = _msg_pre.get("chat", {}).get("id")
+                _is_first = bool(_cid_pre and _cid_pre not in seen_chats)
                 cid, biz = process_update(update, chat_history, chat_heat, sleep_until, first_contact=_is_first)
                 if cid:
                     chat_state[cid] = {"last_msg": time.time(), "biz": biz or "", "followups_sent": 0}
