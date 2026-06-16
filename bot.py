@@ -173,7 +173,10 @@ def bella_reply(user_name: str, user_text: str, history: list,
             with urllib.request.urlopen(req, timeout=20) as r:
                 data = json.loads(r.read())
                 if "choices" in data:
-                    reply = data["choices"][0]["message"]["content"].strip()
+                    reply = data["choices"][0]["message"]["content"].strip().strip('"\'"'"'')
+                    # Remove wrapping quotes the model sometimes adds
+                    if reply.startswith('"') and reply.endswith('"'):
+                        reply = reply[1:-1].strip()
                     log.info(f"[heat={heat}] Reply via {model}: {reply[:60]!r}")
                     return reply
                 log.error(f"Unexpected response ({model}): {data}")
@@ -362,8 +365,11 @@ def main():
     chat_heat: dict    = defaultdict(lambda: 1)
     chat_state: dict   = {}  # for follow-up tracking
 
-    FOLLOWUP_DELAY = 600
-    FOLLOWUP_MSGS  = ["babeee 🩷", "heyy you still there? 💕", "don't leave me on read 😏", "babeee where'd you go 🌸"]
+    # Follow-up schedule: (seconds_after_last_msg, [messages])
+    FOLLOWUP_SCHEDULE = [
+        (600,  ["babeee 🩷", "heyy you still there? 💕", "don't leave me on read 😏", "babeee where'd you go 🌸"]),
+        (3600, ["did you ghost me already? 😏", "okay I see how it is 💕", "hello?? rude lol 🌸", "you really just left me on read 😍 cute"]),
+    ]
 
     while True:
         try:
@@ -379,21 +385,26 @@ def main():
 
                 cid, biz = process_update(update, chat_history, chat_heat)
                 if cid:
-                    chat_state[cid] = {"last_msg": time.time(), "biz": biz or "", "followup_sent": False}
+                    prev = chat_state.get(cid, {})
+                    chat_state[cid] = {"last_msg": time.time(), "biz": biz or "", "followups_sent": 0}
 
-            # Follow-up check
+            # Multi-tier follow-up check
             now = time.time()
             for cid, state in list(chat_state.items()):
-                if not state["followup_sent"] and (now - state["last_msg"]) >= FOLLOWUP_DELAY:
-                    msg_text = random.choice(FOLLOWUP_MSGS)
-                    payload = {"chat_id": cid, "text": msg_text}
-                    if state["biz"]: payload["business_connection_id"] = state["biz"]
-                    result = tg("sendMessage", payload)
-                    state["followup_sent"] = True  # always stop retrying
-                    if result.get("ok"):
-                        log.info(f"Follow-up sent to {cid}: {msg_text!r}")
-                    else:
-                        log.warning(f"Follow-up failed to {cid} (suppressed): {result.get('description','')}")
+                elapsed = now - state["last_msg"]
+                sent_count = state.get("followups_sent", 0)
+                if sent_count < len(FOLLOWUP_SCHEDULE):
+                    delay, msgs = FOLLOWUP_SCHEDULE[sent_count]
+                    if elapsed >= delay:
+                        msg_text = random.choice(msgs)
+                        payload = {"chat_id": cid, "text": msg_text}
+                        if state["biz"]: payload["business_connection_id"] = state["biz"]
+                        result = tg("sendMessage", payload)
+                        state["followups_sent"] = sent_count + 1
+                        if result.get("ok"):
+                            log.info(f"Follow-up #{sent_count+1} sent to {cid}: {msg_text!r}")
+                        else:
+                            log.warning(f"Follow-up #{sent_count+1} failed to {cid}: {result.get('description','')} ")
 
         except KeyboardInterrupt:
             log.info("Shutting down.")
