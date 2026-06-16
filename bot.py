@@ -17,6 +17,7 @@ log = logging.getLogger("bella-bot")
 BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 OPENROUTER_KEY = os.environ["OPENROUTER_API_KEY"]
 OWNER_CHAT_ID = int(os.environ.get("OWNER_CHAT_ID", "0"))  # your personal Telegram ID
+BELLA_CHANNEL_URL = os.environ.get("BELLA_CHANNEL_URL", "https://t.me/bellavistaxo")  # set in Railway vars
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 # ── Persona ───────────────────────────────────────────────────────────────────
@@ -156,6 +157,7 @@ TIP_MARKUP     = {"inline_keyboard": [
     [{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}],
     [{"text": "💵 $15", "url": "https://pay.bellavista.lol/15"}, {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"}, {"text": "💵 $35", "url": "https://pay.bellavista.lol/35"}]
 ]}
+CHANNEL_MARKUP = {"inline_keyboard": [[{"text": "📣 Join My Channel", "url": BELLA_CHANNEL_URL}, {"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
 COFFEE_MARKUP  = {"inline_keyboard": [[{"text": "☕ Buy Me a Coffee", "url": "https://pay.bellavista.lol/coffee"}]]}
 DINNER_MARKUP  = {"inline_keyboard": [[{"text": "🍽️ Take Me to Dinner", "url": "https://pay.bellavista.lol/x"}, {"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
 GIFT_BTN_MARKUP = {"inline_keyboard": [[{"text": "🎁 Send Me a Gift", "url": "https://pay.bellavista.lol/x"}, {"text": "⭐ Gift Stars", "url": "https://t.me/bellavistaxoxo"}]]}
@@ -620,6 +622,8 @@ def main():
     chat_heat: dict    = defaultdict(lambda: 1)
     chat_state: dict   = {}  # for follow-up tracking
     sleep_until: dict  = {}  # chat_id → timestamp when sleep mode ends
+    msg_count: dict    = defaultdict(int)  # per-chat message counter
+    channel_prompted: set = set()  # chats that already got the channel prompt
 
     # Follow-up schedule: (seconds_after_last_msg, [messages])
     FOLLOWUP_SCHEDULE = [
@@ -645,6 +649,19 @@ def main():
                 cid, biz = process_update(update, chat_history, chat_heat, sleep_until)
                 if cid:
                     chat_state[cid] = {"last_msg": time.time(), "biz": biz or "", "followups_sent": 0}
+                    msg_count[cid] += 1
+                    # Fire channel join prompt exactly once after 3rd message exchange
+                    if msg_count[cid] == 3 and cid not in channel_prompted:
+                        channel_prompted.add(cid)
+                        state = chat_state.get(cid, {})
+                        biz_key = state.get("biz", "")
+                        time.sleep(2)
+                        channel_tease = random.choice([
+                            "oh and you should join my channel too 😏 I post there first",
+                            "p.s. my channel is where the real stuff drops 🌸",
+                            "btw join my channel if you want first access to everything 💕",
+                        ])
+                        send_raw(cid, channel_tease, biz_key, CHANNEL_MARKUP)
                     daily_stats["conversations"] += 1
                     if cid not in seen_chats:
                         seen_chats.add(cid)
