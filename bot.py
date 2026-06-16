@@ -156,7 +156,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
         "content": f'Fan: "{user_text}"{name_hint}\n\nReply as Bella. Short, real, in character.{extra}'
     })
 
-    models = ["neversleep/llama-3.1-lumimaid-70b", "meta-llama/llama-3.3-70b-instruct"]
+    models = ["sao10k/l3.3-euryale-70b", "neversleep/llama-3.1-lumimaid-8b", "meta-llama/llama-3.3-70b-instruct"]
 
     for model in models:
         payload = json.dumps({
