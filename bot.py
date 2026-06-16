@@ -156,7 +156,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
         "content": f'Fan: "{user_text}"{name_hint}\n\nReply as Bella. Short, real, in character.{extra}'
     })
 
-    models = ["sao10k/l3.3-euryale-70b", "neversleep/llama-3.1-lumimaid-8b", "meta-llama/llama-3.3-70b-instruct"]
+    models = ["cognitivecomputations/dolphin-mixtral-8x22b", "sao10k/l3.3-euryale-70b", "meta-llama/llama-3.3-70b-instruct"]
 
     for model in models:
         payload = json.dumps({
@@ -237,6 +237,58 @@ def fresh_stats() -> dict:
 daily_stats = fresh_stats()
 seen_chats: set = set()  # track new vs returning fans
 
+
+def vision_reply(image_url: str, biz: str = "") -> str:
+    """Generate Bella's reaction to a fan's photo using GPT-4o-mini vision."""
+    payload = json.dumps({
+        "model": "openai/gpt-4o-mini",
+        "max_tokens": 100,
+        "messages": [{
+            "role": "system",
+            "content": BELLA_SYSTEM
+        }, {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "A fan just sent you this photo. React as Bella — short, flirty, in character. 1-2 sentences max."},
+                {"type": "image_url", "image_url": {"url": image_url}}
+            ]
+        }]
+    }).encode()
+    req = urllib.request.Request(
+        "https://openrouter.ai/api/v1/chat/completions", data=payload,
+        headers={"Authorization": f"Bearer {OPENROUTER_KEY}",
+                 "Content-Type": "application/json",
+                 "HTTP-Referer": "https://bellavistaxo.com",
+                 "X-Title": "Bella DM Bot"}
+    )
+    REFUSAL_MARKERS = ("i can't", "i cannot", "i'm not able", "sorry", "inappropriate",
+                        "content policy", "explicit", "unable to", "i apologize", "as an ai",
+                        "i'm unable", "don't feel comfortable", "not appropriate")
+    SPICY_REACTIONS = [
+        "okay WAIT 😏 you're bold, I like that",
+        "oh my 😍 you don't waste any time do you",
+        "haha okay I see you 💕 you're something else",
+        "well then... I wasn't expecting that 😏",
+        "I'm blushing and you can't even see me 🌸",
+        "okay you definitely got my attention now 👀",
+        "someone's feeling confident today 😍 I respect it",
+    ]
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            data = json.loads(r.read())
+            if "choices" in data:
+                reply = data["choices"][0]["message"]["content"].strip()
+                if len(reply) >= 2 and reply[0] == reply[-1] and reply[0] in ('"', "'"):
+                    reply = reply[1:-1].strip()
+                # If vision model refused (censored photo), swap for flirty reaction
+                if any(m in reply.lower() for m in REFUSAL_MARKERS):
+                    return random.choice(SPICY_REACTIONS)
+                return reply
+    except Exception as e:
+        log.error(f"Vision error: {e}")
+    return random.choice(["okay wait... 😍", "I see you 👀", "omg 💕 hi"])
+
+
 # ── Process update ────────────────────────────────────────────────────────────
 
 def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
@@ -289,6 +341,27 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
         time.sleep(1.2)
         reactions = ["omg haha 😍", "okay that one got me 💕", "lol you're cute 🌸", "stickers now? 😏 you're adorable"]
         send_raw(chat_id, random.choice(reactions), biz)
+        return chat_id, biz
+
+    # Handle photo with vision AI
+    photo = msg.get("photo")
+    if photo and not text:
+        chat_id: int = msg["chat"]["id"]
+        biz: str = msg.get("business_connection_id", "")
+        mark_read(chat_id, msg.get("message_id", 0), biz)
+        send_typing(chat_id, biz)
+        # Get the largest photo file_id
+        file_id = photo[-1]["file_id"]
+        # Get download URL via getFile
+        file_info = tg("getFile", {"file_id": file_id})
+        file_path = file_info.get("result", {}).get("file_path", "")
+        if file_path:
+            image_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+            reply = vision_reply(image_url, biz)
+        else:
+            reply = random.choice(["okay wait... 😍", "I see you 👀 cute", "omg 💕"])
+        time.sleep(1.5)
+        send_raw(chat_id, reply, biz)
         return chat_id, biz
 
     if not text or text.startswith("/"):
@@ -402,8 +475,10 @@ def main():
 
     # Follow-up schedule: (seconds_after_last_msg, [messages])
     FOLLOWUP_SCHEDULE = [
-        (600,  ["babeee 🩷", "heyy you still there? 💕", "don't leave me on read 😏", "babeee where'd you go 🌸"]),
-        (3600, ["did you ghost me already? 😏", "okay I see how it is 💕", "hello?? rude lol 🌸", "you really just left me on read 😍 cute"]),
+        (600,    ["babeee 🩷", "heyy you still there? 💕", "don't leave me on read 😏", "babeee where'd you go 🌸"]),
+        (3600,   ["did you ghost me already? 😏", "okay I see how it is 💕", "hello?? rude lol 🌸", "you really just left me on read 😍 cute"]),
+        (86400,  ["I keep thinking about our convo... you good? 🌸", "hey stranger 💕 was just thinking about you", "you disappeared on me 😍 everything okay?"]),
+        (172800, ["last time I check in I promise 💕 just didn't want to leave things like that", "okay fine I'll let you go 🩷 but you know where to find me", "my exclusive stuff is still there for you whenever you're ready 😏"]),
     ]
 
     while True:
