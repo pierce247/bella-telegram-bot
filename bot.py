@@ -387,7 +387,7 @@ def vision_reply(image_url: str, biz: str = "") -> str:
 
 # ── Process update ────────────────────────────────────────────────────────────
 
-def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_until: dict = None) -> tuple:
+def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_until: dict = None, first_contact: bool = False) -> tuple:
     """Returns (chat_id, biz) if a message was handled, else (None, None)."""
 
     # Handle pre_checkout_query — must answer immediately
@@ -587,7 +587,11 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     else:
         has_cta = any(kw in reply.lower() for kw in GIFT_KEYWORDS)
         MY_LINKS_MARKUP = {"inline_keyboard": [[{"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
-        if has_cta:
+        CHANNEL_LINKS_MARKUP = {"inline_keyboard": [[{"text": "📺 My Channel", "url": BELLA_CHANNEL_URL}, {"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
+        if first_contact:
+            # True first-time fan — show channel + links attached to Bella's reply
+            ok = send_raw(chat_id, reply, biz, CHANNEL_LINKS_MARKUP)
+        elif has_cta:
             ok = send_raw(chat_id, reply, biz, random_tip_markup())
         elif random.random() < 0.15:  # 15% chance on regular messages
             ok = send_raw(chat_id, reply, biz, MY_LINKS_MARKUP)
@@ -704,7 +708,8 @@ def main():
                 save_offset(uid + 1)
                 offset = uid + 1
 
-                cid, biz = process_update(update, chat_history, chat_heat, sleep_until)
+                _is_first = cid not in seen_chats if cid else False
+                cid, biz = process_update(update, chat_history, chat_heat, sleep_until, first_contact=_is_first)
                 if cid:
                     chat_state[cid] = {"last_msg": time.time(), "biz": biz or "", "followups_sent": 0}
                     msg_count[cid] += 1
