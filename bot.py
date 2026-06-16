@@ -492,9 +492,10 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     is_latin = bool(re.match(r"^[a-zA-Z][a-zA-Z '\-]{0,18}$", name_clean))
     if (name_clean.lower() in blocked_names or len(name_clean) <= 2
             or name_clean.isdigit() or not is_latin):
-        user_name = "babe"
+        user_name = "babe"  # used in AI prompt only
     else:
         user_name = name_clean.split()[0]  # use only first word of name
+    log_name = raw_name or "unknown"  # always log the real name for debugging
     biz: str = msg.get("business_connection_id", "")
 
     # Check sleep mode
@@ -505,7 +506,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         else:
             del sleep_until[chat_id]  # sleep over
 
-    log.info(f"DM from {user_name} (chat={chat_id}, heat={chat_heat[chat_id]}): {text[:60]!r}")
+    log.info(f"DM from {log_name!r} → ai_name={user_name!r} (chat={chat_id}, heat={chat_heat[chat_id]}): {text[:60]!r}")
 
     # Update heat score
     chat_heat[chat_id] = score_heat(text, chat_heat[chat_id])
