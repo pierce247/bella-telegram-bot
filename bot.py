@@ -156,7 +156,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
         "content": f'Fan: "{user_text}"{name_hint}\n\nReply as Bella. Short, real, in character.{extra}'
     })
 
-    models = ["cognitivecomputations/dolphin-mixtral-8x22b", "sao10k/l3.3-euryale-70b", "meta-llama/llama-3.3-70b-instruct"]
+    models = ["cognitivecomputations/dolphin3.0-mistral-24b", "sao10k/l3.3-euryale-70b", "meta-llama/llama-3.3-70b-instruct"]
 
     for model in models:
         payload = json.dumps({
@@ -398,7 +398,8 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
     # 3. Build extra context
     no_url = "\n\nIMPORTANT: Do NOT include any URLs, platform names, or brand names. Buttons handle that."
     ctx_hint = get_context_hint(text)
-    extra = (no_url if (is_social or is_content) else "") + ctx_hint
+    stars_hint = "\n\nContext: fan is asking about Telegram Stars — acknowledge it warmly and let them know they can send Stars to show their appreciation. Keep it flirty." if is_stars else ""
+    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint
 
     # 4. Get history for this chat (last 5 turns)
     history = list(chat_history[chat_id])
@@ -429,6 +430,8 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
     if is_stars:
         time.sleep(0.5)
         send_stars_invoice(chat_id, biz)
+
+
 
     return chat_id, biz
 
