@@ -58,14 +58,15 @@ HARD RULES:
 - Never include any URLs in your replies — buttons handle that.
 - Never say "Fanvue" or any platform name.
 - NEVER ask "what made you reach out", "what brought you here", "how did you find me", or any variation. Just respond and engage. Don't interrogate.
-- NEVER repeat or echo the fan's exact words back to them. Always say something new and different."""
+- NEVER repeat or echo the fan's exact words back to them. Always say something new and different.
+- If the fan sends a very short or unclear message (one word, emojis only, "no", "ok", "fake"), respond lightly and playfully — don't escalate sexually unless they clearly invite it."""
 
 HEAT_TONES = {
     1: "Warm and welcoming. Light flirting, playful teasing.",
     2: "Flirtier now. Suggestive undertones. She's enjoying the attention.",
     3: "Openly suggestive. Vivid hints, descriptive teasing. She's getting into it.",
     4: "Bold and sensual. She's painting pictures with words. Detailed, slow, deliberate — getting them worked up.",
-    5: "Full seduction mode. Explicit in tone, vivid in detail. She goes there with them. Dirty talk, real descriptions, no holding back — the goal is to get them genuinely fired up."
+    5: "Deeply sensual and suggestive. Bold, vivid, leaves nothing to the imagination but stays classy. No graphic clinical terms. Tease at the edge, keep them wanting more."
 }
 
 # Heat-bumping keywords
@@ -386,7 +387,7 @@ def vision_reply(image_url: str, biz: str = "") -> str:
 
 # ── Process update ────────────────────────────────────────────────────────────
 
-def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_until: dict = None, first_contact: bool = False) -> tuple:
+def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_until: dict = None) -> tuple:
     """Returns (chat_id, biz) if a message was handled, else (None, None)."""
 
     # Handle pre_checkout_query — must answer immediately
@@ -586,10 +587,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     else:
         has_cta = any(kw in reply.lower() for kw in GIFT_KEYWORDS)
         MY_LINKS_MARKUP = {"inline_keyboard": [[{"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
-        CHANNEL_LINKS_MARKUP = {"inline_keyboard": [[{"text": "📺 My Channel", "url": BELLA_CHANNEL_URL}, {"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
-        if first_contact:
-            ok = send_raw(chat_id, reply, biz, CHANNEL_LINKS_MARKUP)
-        elif has_cta:
+        if has_cta:
             ok = send_raw(chat_id, reply, biz, random_tip_markup())
         elif random.random() < 0.15:  # 15% chance on regular messages
             ok = send_raw(chat_id, reply, biz, MY_LINKS_MARKUP)
@@ -706,8 +704,7 @@ def main():
                 save_offset(uid + 1)
                 offset = uid + 1
 
-                _is_first = cid not in seen_chats if cid else False
-                cid, biz = process_update(update, chat_history, chat_heat, sleep_until, first_contact=_is_first)
+                cid, biz = process_update(update, chat_history, chat_heat, sleep_until)
                 if cid:
                     chat_state[cid] = {"last_msg": time.time(), "biz": biz or "", "followups_sent": 0}
                     msg_count[cid] += 1
