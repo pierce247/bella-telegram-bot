@@ -534,12 +534,12 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     no_url = "\n\nIMPORTANT: Do NOT include any URLs, platform names, or brand names. Buttons handle that."
     ctx_hint = get_context_hint(text)
     giveaway_hint = "\n\nContext: fan found Bella through a giveaway or contest — react with extra warmth and excitement, make them feel special and welcome. Then naturally push toward the channel and exclusive content." if is_giveaway else ""
-    new_fan_hint  = "\n\nContext: this is the very first message from this fan — give a warm, curious, flirty opener. Ask what brought them here. Make them feel like they made a good decision reaching out." if is_new_fan else ""
+    new_fan_hint  = ""  # removed — channel button handles new fan engagement
     goodnight_hint = "\n\nContext: fan is going to sleep — say a warm, flirty goodnight. Keep it short, sweet, leave them wanting more." if is_goodnight else ""
     call_hint   = "\n\nContext: fan is asking for a video call, phone call, or meetup — use a soft excuse first (busy, bad timing). If persistent, tease them with 'for the right price anything is possible' and ask what they have in mind." if is_call else ""
     custom_hint = "\n\nContext: fan is making a custom request — react with playful surprise, ask what they think it's worth, negotiate. Once they name a price, tell them to send it and you'll deliver." if is_custom else ""
     stars_hint = "\n\nContext: fan is asking about Telegram Stars — acknowledge it warmly and let them know they can send Stars to show their appreciation. Keep it flirty." if is_stars else ""
-    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + custom_hint + giveaway_hint + new_fan_hint
+    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + custom_hint + giveaway_hint
 
     # 4. Get history for this chat (last 5 turns)
     history = list(chat_history[chat_id])
@@ -604,9 +604,9 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 
 # ── Offset persistence ────────────────────────────────────────────────────────
 
-OFFSET_FILE  = "/tmp/bella_offset.txt"
-FANS_FILE    = "/tmp/bella_fans.json"  # persists fan chat_ids for broadcast
-DEDUP_FILE   = "/tmp/bella_dedup.txt"
+OFFSET_FILE  = "/data/bella_offset.txt"
+FANS_FILE    = "/data/bella_fans.json"  # persists fan chat_ids for broadcast
+DEDUP_FILE   = "/data/bella_dedup.txt"
 MAX_DEDUP    = 500  # keep last N update IDs on disk
 
 def load_fans() -> dict:
@@ -692,18 +692,7 @@ def main():
                 if cid:
                     chat_state[cid] = {"last_msg": time.time(), "biz": biz or "", "followups_sent": 0}
                     msg_count[cid] += 1
-                    # Fire channel join prompt exactly once after 3rd message exchange
-                    if msg_count[cid] == 3 and cid not in channel_prompted:
-                        channel_prompted.add(cid)
-                        state = chat_state.get(cid, {})
-                        biz_key = state.get("biz", "")
-                        time.sleep(2)
-                        channel_tease = random.choice([
-                            "oh and you should join my channel too 😏 I post there first",
-                            "p.s. my channel is where the real stuff drops 🌸",
-                            "btw join my channel if you want first access to everything 💕",
-                        ])
-                        send_raw(cid, channel_tease, biz_key, CHANNEL_MARKUP)
+
                     daily_stats["conversations"] += 1
                     if cid not in seen_chats:
                         seen_chats.add(cid)
