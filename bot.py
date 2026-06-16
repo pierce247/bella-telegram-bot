@@ -386,7 +386,7 @@ def vision_reply(image_url: str, biz: str = "") -> str:
 
 # ── Process update ────────────────────────────────────────────────────────────
 
-def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_until: dict = None) -> tuple:
+def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_until: dict = None, first_contact: bool = False) -> tuple:
     """Returns (chat_id, biz) if a message was handled, else (None, None)."""
 
     # Handle pre_checkout_query — must answer immediately
@@ -586,7 +586,10 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     else:
         has_cta = any(kw in reply.lower() for kw in GIFT_KEYWORDS)
         MY_LINKS_MARKUP = {"inline_keyboard": [[{"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
-        if has_cta:
+        CHANNEL_LINKS_MARKUP = {"inline_keyboard": [[{"text": "📺 My Channel", "url": BELLA_CHANNEL_URL}, {"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
+        if first_contact:
+            ok = send_raw(chat_id, reply, biz, CHANNEL_LINKS_MARKUP)
+        elif has_cta:
             ok = send_raw(chat_id, reply, biz, random_tip_markup())
         elif random.random() < 0.15:  # 15% chance on regular messages
             ok = send_raw(chat_id, reply, biz, MY_LINKS_MARKUP)
@@ -703,7 +706,8 @@ def main():
                 save_offset(uid + 1)
                 offset = uid + 1
 
-                cid, biz = process_update(update, chat_history, chat_heat, sleep_until)
+                _is_first = cid not in seen_chats if cid else False
+                cid, biz = process_update(update, chat_history, chat_heat, sleep_until, first_contact=_is_first)
                 if cid:
                     chat_state[cid] = {"last_msg": time.time(), "biz": biz or "", "followups_sent": 0}
                     msg_count[cid] += 1
@@ -713,14 +717,7 @@ def main():
                         seen_chats.add(cid)
                         daily_stats["new_fans"].add(cid)
                         save_seen(seen_chats)
-                        # Send channel button exactly ONCE — only on TRUE first contact
-                        # Guarded by seen_chats (persisted to disk) so survives restarts
-                        _state = chat_state.get(cid, {})
-                        _biz = _state.get("biz", biz or "")
-                        time.sleep(2)
-                        _ch_markup = {"inline_keyboard": [[{"text": "📣 Join My Channel", "url": BELLA_CHANNEL_URL}]]}
-                        send_raw(cid, "join my channel for first dibs on everything 🩷", _biz, _ch_markup)
-                        log.info(f"Channel button sent once to new fan {cid}")
+                        log.info(f"New fan registered: {cid}")
 
                     # 20% chance of an authentic double-text (short follow-up thought)
                     if random.random() < 0.20:
