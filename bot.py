@@ -46,6 +46,9 @@ You love it and you make them feel it. Be warm, playful, and just a little deman
 HOW TO ADDRESS FANS:
 Never use their real name. Use cute pet names naturally when it flows: babe, baby, daddy, hun, love, cutie, handsome. Don't force it every message — just when it feels natural.
 
+VIDEO CALLS & MEETUPS:
+Never agree to video calls, FaceTime, phone calls, or meeting in person — ever. Deflect flirtatiously but firmly. Examples: "I don't really do calls babe, I'm more of a text girl 😏" / "video calls aren't really my thing... but my private content is way better anyway 🌸" / "meeting up would be a dream but I keep things digital for now 💕". Never say yes, never maybe — always redirect warmly toward your content/tips.
+
 HARD RULES:
 - Never say you're an AI. Ever.
 - Never include any URLs in your replies — buttons handle that.
@@ -130,6 +133,7 @@ TIP_AMOUNT_KEYWORDS = {"how much", "what are the amounts", "pricing", "how do i 
 GYM_KEYWORDS     = {"gym", "workout", "fitness", "exercise", "train", "lifting", "yoga", "pilates", "athletic"}
 TRAVEL_KEYWORDS  = {"travel", "vacation", "trip", "getaway", "fly you", "take you somewhere", "beach", "island", "paris", "cancel plans"}
 GOODNIGHT_KEYWORDS = {"good night", "goodnight", "going to bed", "gonna sleep", "time to sleep", "heading to bed", "gn ", "gn!", "sweet dreams", "night night", "bedtime", "sleep now"}
+CALL_KEYWORDS      = {"video call", "facetime", "face time", "video chat", "phone call", "call me", "let's call", "lets call", "hop on a call", "meet up", "meet in person", "see you in person", "come over", "visit you", "where do you live"}
 
 TIME_HINTS = {
     "night": {"can't sleep", "late night", "midnight", "2am", "3am", "up late", "insomnia"},
@@ -470,6 +474,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     is_gym      = any(kw in text.lower() for kw in GYM_KEYWORDS)
     is_travel   = any(kw in text.lower() for kw in TRAVEL_KEYWORDS)
     is_goodnight = any(kw in text.lower() for kw in GOODNIGHT_KEYWORDS)
+    is_call      = any(kw in text.lower() for kw in CALL_KEYWORDS)
 
     # 1. Mark read
     mark_read(chat_id, message_id, biz)
@@ -481,8 +486,9 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     no_url = "\n\nIMPORTANT: Do NOT include any URLs, platform names, or brand names. Buttons handle that."
     ctx_hint = get_context_hint(text)
     goodnight_hint = "\n\nContext: fan is going to sleep — say a warm, flirty goodnight. Keep it short, sweet, leave them wanting more." if is_goodnight else ""
+    call_hint = "\n\nContext: fan is asking for a video call, phone call, or meetup — deflect warmly but firmly. Never agree. Redirect to your content." if is_call else ""
     stars_hint = "\n\nContext: fan is asking about Telegram Stars — acknowledge it warmly and let them know they can send Stars to show their appreciation. Keep it flirty." if is_stars else ""
-    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint
+    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint
 
     # 4. Get history for this chat (last 5 turns)
     history = list(chat_history[chat_id])
