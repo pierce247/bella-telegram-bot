@@ -453,18 +453,9 @@ def save_offset(offset: int) -> None:
 def main():
     log.info("🩷 Bella Telegram Bot starting up (v2 — memory + heat + stars thank-you)...")
 
-    # Skip old updates on startup
-    try:
-        result = get_updates(offset=-1)
-        if result:
-            latest = result[-1]["update_id"]
-            offset = latest + 1
-            save_offset(offset)
-            log.info(f"Startup: skipped to offset {offset}")
-        else:
-            offset = load_offset()
-    except:
-        offset = load_offset()
+    # Load persisted offset — don't skip on startup, let dedup handle it
+    offset = load_offset()
+    log.info(f"Starting from offset {offset}")
 
     replied_ids: set = set()
 
