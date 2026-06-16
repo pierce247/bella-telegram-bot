@@ -176,7 +176,7 @@ def clean_reply(text: str) -> str:
 def bella_reply(user_name: str, user_text: str, history: list,
                 heat: int = 1, extra: str = "") -> str:
     """Generate Bella's reply using conversation history and heat level."""
-    name_hint = f" (fan's name: {user_name}, use sparingly)" if user_name != "babe" else ""
+    name_hint = ""  # never use fan's name — always use "babe" naturally
     tone_note = f"\n\nCURRENT VIBE (heat {heat}/5): {HEAT_TONES[heat]}"
 
     system = BELLA_SYSTEM + tone_note
