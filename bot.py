@@ -126,8 +126,10 @@ STARS_KEYWORDS   = {"star", "stars", "⭐", "★", "telegram star", "send stars"
 COFFEE_KEYWORDS  = {"coffee", "café", "cafe", "latte", "espresso", "cappuccino", "brew", "cup of coffee"}
 DINNER_KEYWORDS  = {"dinner", "restaurant", "food", "eat", "hungry", "cook for you", "date", "take you out", "treat you to"}
 GIFT_BTN_KEYWORDS = {"gift", "present", "surprise you", "send you something", "get you something"}
+TIP_AMOUNT_KEYWORDS = {"how much", "what are the amounts", "pricing", "how do i tip", "how to tip", "tip options", "how can i pay", "payment options"}
 GYM_KEYWORDS     = {"gym", "workout", "fitness", "exercise", "train", "lifting", "yoga", "pilates", "athletic"}
 TRAVEL_KEYWORDS  = {"travel", "vacation", "trip", "getaway", "fly you", "take you somewhere", "beach", "island", "paris", "cancel plans"}
+GOODNIGHT_KEYWORDS = {"good night", "goodnight", "going to bed", "gonna sleep", "time to sleep", "heading to bed", "gn ", "gn!", "sweet dreams", "night night", "bedtime", "sleep now"}
 
 TIME_HINTS = {
     "night": {"can't sleep", "late night", "midnight", "2am", "3am", "up late", "insomnia"},
@@ -145,6 +147,11 @@ DINNER_MARKUP  = {"inline_keyboard": [[{"text": "🍽️ Take Me to Dinner", "ur
 GIFT_BTN_MARKUP = {"inline_keyboard": [[{"text": "🎁 Send Me a Gift", "url": "https://pay.bellavista.lol/x"}, {"text": "⭐ Gift Stars", "url": "https://t.me/bellavistaxoxo"}]]}
 GYM_MARKUP     = {"inline_keyboard": [[{"text": "💪 Sponsor My Gym", "url": "https://pay.bellavista.lol/x"}]]}
 TRAVEL_MARKUP  = {"inline_keyboard": [[{"text": "✈️ Take Me Away", "url": "https://pay.bellavista.lol/x"}]]}
+TIP_TIERS_MARKUP = {"inline_keyboard": [[
+    {"text": "💵 $15", "url": "https://pay.bellavista.lol/15"},
+    {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"},
+    {"text": "💵 $35", "url": "https://pay.bellavista.lol/35"}
+]]}
 
 def send_stars_invoice(chat_id: int, biz: str = "") -> None:
     p = {"chat_id": chat_id, "title": "🌸 Make a Wish — Send Me Stars",
@@ -346,7 +353,7 @@ def vision_reply(image_url: str, biz: str = "") -> str:
 
 # ── Process update ────────────────────────────────────────────────────────────
 
-def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
+def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_until: dict = None) -> tuple:
     """Returns (chat_id, biz) if a message was handled, else (None, None)."""
 
     # Handle pre_checkout_query — must answer immediately
@@ -440,6 +447,14 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
         user_name = name_clean.split()[0]  # use only first word of name
     biz: str = msg.get("business_connection_id", "")
 
+    # Check sleep mode
+    if sleep_until and chat_id in sleep_until:
+        if time.time() < sleep_until[chat_id]:
+            log.info(f"Chat {chat_id} is in sleep mode, skipping")
+            return chat_id, biz  # return chat_id so sleep_until resets on reply
+        else:
+            del sleep_until[chat_id]  # sleep over
+
     log.info(f"DM from {user_name} (chat={chat_id}, heat={chat_heat[chat_id]}): {text[:60]!r}")
 
     # Update heat score
@@ -451,8 +466,10 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
     is_coffee   = any(kw in text.lower() for kw in COFFEE_KEYWORDS)
     is_dinner   = any(kw in text.lower() for kw in DINNER_KEYWORDS)
     is_gift_btn = any(kw in text.lower() for kw in GIFT_BTN_KEYWORDS) and not is_stars
+    is_tip_amounts = any(kw in text.lower() for kw in TIP_AMOUNT_KEYWORDS)
     is_gym      = any(kw in text.lower() for kw in GYM_KEYWORDS)
     is_travel   = any(kw in text.lower() for kw in TRAVEL_KEYWORDS)
+    is_goodnight = any(kw in text.lower() for kw in GOODNIGHT_KEYWORDS)
 
     # 1. Mark read
     mark_read(chat_id, message_id, biz)
@@ -463,8 +480,9 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
     # 3. Build extra context
     no_url = "\n\nIMPORTANT: Do NOT include any URLs, platform names, or brand names. Buttons handle that."
     ctx_hint = get_context_hint(text)
+    goodnight_hint = "\n\nContext: fan is going to sleep — say a warm, flirty goodnight. Keep it short, sweet, leave them wanting more." if is_goodnight else ""
     stars_hint = "\n\nContext: fan is asking about Telegram Stars — acknowledge it warmly and let them know they can send Stars to show their appreciation. Keep it flirty." if is_stars else ""
-    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint
+    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint
 
     # 4. Get history for this chat (last 5 turns)
     history = list(chat_history[chat_id])
@@ -487,10 +505,17 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
         ok = send_raw(chat_id, reply, biz, COFFEE_MARKUP)
     elif is_dinner:
         ok = send_raw(chat_id, reply, biz, DINNER_MARKUP)
+    elif is_tip_amounts:
+        ok = send_raw(chat_id, reply, biz, TIP_TIERS_MARKUP)
     elif is_gift_btn:
         ok = send_raw(chat_id, reply, biz, GIFT_BTN_MARKUP)
     elif is_gym:
         ok = send_raw(chat_id, reply, biz, GYM_MARKUP)
+    elif is_goodnight:
+        ok = send_raw(chat_id, reply, biz)
+        if sleep_until is not None:
+            sleep_until[chat_id] = time.time() + 8 * 3600
+            log.info(f"Chat {chat_id} entering sleep mode for 8 hours")
     elif is_travel:
         ok = send_raw(chat_id, reply, biz, TRAVEL_MARKUP)
     elif is_social:
@@ -558,6 +583,7 @@ def main():
     chat_history: dict = defaultdict(lambda: deque(maxlen=10))  # last 5 turns = 10 messages
     chat_heat: dict    = defaultdict(lambda: 1)
     chat_state: dict   = {}  # for follow-up tracking
+    sleep_until: dict  = {}  # chat_id → timestamp when sleep mode ends
 
     # Follow-up schedule: (seconds_after_last_msg, [messages])
     FOLLOWUP_SCHEDULE = [
@@ -580,7 +606,7 @@ def main():
                 save_offset(uid + 1)
                 offset = uid + 1
 
-                cid, biz = process_update(update, chat_history, chat_heat)
+                cid, biz = process_update(update, chat_history, chat_heat, sleep_until)
                 if cid:
                     chat_state[cid] = {"last_msg": time.time(), "biz": biz or "", "followups_sent": 0}
                     daily_stats["conversations"] += 1
