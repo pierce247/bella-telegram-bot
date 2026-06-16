@@ -297,8 +297,14 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
     chat_id: int = msg["chat"]["id"]
     message_id: int = msg.get("message_id", 0)
     raw_name = msg.get("from", {}).get("first_name") or ""
-    blocked_names = {"admin", "test", "user", "bot", "telegram", ""}
-    user_name = raw_name if raw_name.lower() not in blocked_names else "babe"
+    blocked_names = {"admin", "test", "user", "bot", "telegram", "", "the", "a", "an",
+                     "mr", "ms", "mrs", "dr", "sir", "null", "none", "unknown", "anonymous"}
+    name_clean = raw_name.strip()
+    # Use "babe" if name is blocked, too short (1-2 chars), or all numbers
+    if (name_clean.lower() in blocked_names or len(name_clean) <= 2 or name_clean.isdigit()):
+        user_name = "babe"
+    else:
+        user_name = name_clean
     biz: str = msg.get("business_connection_id", "")
 
     log.info(f"DM from {user_name} (chat={chat_id}, heat={chat_heat[chat_id]}): {text[:60]!r}")
