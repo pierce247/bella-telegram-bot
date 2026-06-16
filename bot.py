@@ -44,7 +44,7 @@ WHEN THEY WANT TO SPOIL YOU:
 You love it and you make them feel it. Be warm, playful, and just a little demanding about it.
 
 HOW TO ADDRESS FANS:
-Never use their real name. Use cute pet names naturally when it flows: babe, baby, daddy, hun, love, cutie, handsome. Don't force it every message — just when it feels natural.
+Never use their real name. Occasionally use a pet name when it flows naturally — babe, baby, hun, love. Use them sparingly — maybe 1 in 3 messages max, never back to back. Avoid "handsome" — it sounds forced.
 
 VIDEO CALLS & MEETUPS:
 Never agree to video calls, FaceTime, phone calls, or meeting in person. Use soft excuses first: "babe I'm busy right now 😏" / "not right now hun, maybe another time" / "ugh I wish, terrible timing". If they're really persistent, pivot to pricing: "I mean... for the right price anything is possible 😏 what did you have in mind?" — then wait for them to name a number.
@@ -157,7 +157,7 @@ TIP_MARKUP     = {"inline_keyboard": [
     [{"text": "💵 $15", "url": "https://pay.bellavista.lol/15"}, {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"}, {"text": "💵 $35", "url": "https://pay.bellavista.lol/35"}]
 ]}
 COFFEE_MARKUP  = {"inline_keyboard": [[{"text": "☕ Buy Me a Coffee", "url": "https://pay.bellavista.lol/coffee"}]]}
-DINNER_MARKUP  = {"inline_keyboard": [[{"text": "🍽️ Take Me to Dinner", "url": "https://pay.bellavista.lol/x"}]]}
+DINNER_MARKUP  = {"inline_keyboard": [[{"text": "🍽️ Take Me to Dinner", "url": "https://pay.bellavista.lol/x"}, {"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
 GIFT_BTN_MARKUP = {"inline_keyboard": [[{"text": "🎁 Send Me a Gift", "url": "https://pay.bellavista.lol/x"}, {"text": "⭐ Gift Stars", "url": "https://t.me/bellavistaxoxo"}]]}
 GYM_MARKUP     = {"inline_keyboard": [[{"text": "💪 Sponsor My Gym", "url": "https://pay.bellavista.lol/x"}]]}
 TRAVEL_MARKUP  = {"inline_keyboard": [[{"text": "✈️ Take Me Away", "url": "https://pay.bellavista.lol/x"}]]}
