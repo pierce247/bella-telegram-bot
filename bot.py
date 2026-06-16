@@ -161,6 +161,18 @@ DINNER_MARKUP  = {"inline_keyboard": [[{"text": "🍽️ Take Me to Dinner", "ur
 GIFT_BTN_MARKUP = {"inline_keyboard": [[{"text": "🎁 Send Me a Gift", "url": "https://pay.bellavista.lol/x"}, {"text": "⭐ Gift Stars", "url": "https://t.me/bellavistaxoxo"}]]}
 GYM_MARKUP     = {"inline_keyboard": [[{"text": "💪 Sponsor My Gym", "url": "https://pay.bellavista.lol/x"}]]}
 TRAVEL_MARKUP  = {"inline_keyboard": [[{"text": "✈️ Take Me Away", "url": "https://pay.bellavista.lol/x"}]]}
+# Rotating tip button configurations
+TIP_ROTATIONS = [
+    {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}]]},
+    {"inline_keyboard": [[{"text": "💵 $15", "url": "https://pay.bellavista.lol/15"}, {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"}, {"text": "💵 $35", "url": "https://pay.bellavista.lol/35"}]]},
+    {"inline_keyboard": [[{"text": "💵 $50", "url": "https://pay.bellavista.lol/50"}, {"text": "💵 $75", "url": "https://pay.bellavista.lol/75"}, {"text": "💵 $100", "url": "https://pay.bellavista.lol/100"}]]},
+    {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"}]]},
+    {"inline_keyboard": [[{"text": "💵 $15", "url": "https://pay.bellavista.lol/15"}, {"text": "💵 $35", "url": "https://pay.bellavista.lol/35"}, {"text": "💵 $75", "url": "https://pay.bellavista.lol/75"}]]},
+]
+
+def random_tip_markup():
+    return random.choice(TIP_ROTATIONS)
+
 TIP_TIERS_MARKUP = {"inline_keyboard": [[
     {"text": "💵 $15", "url": "https://pay.bellavista.lol/15"},
     {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"},
@@ -518,7 +530,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 
     # 8. Send with appropriate buttons
     if is_content:
-        ok = send_raw(chat_id, reply, biz, CONTENT_MARKUP)
+        ok = send_raw(chat_id, reply, biz, random_tip_markup())
     elif is_coffee:
         ok = send_raw(chat_id, reply, biz, COFFEE_MARKUP)
     elif is_dinner:
@@ -540,7 +552,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         ok = send_raw(chat_id, reply, biz, SOCIAL_MARKUP)
     else:
         has_cta = any(kw in reply.lower() for kw in GIFT_KEYWORDS)
-        ok = send_raw(chat_id, reply, biz, TIP_MARKUP if has_cta else None)
+        ok = send_raw(chat_id, reply, biz, random_tip_markup() if has_cta else None)
 
     log.info(f"{'✅' if ok else '❌'} Sent to {user_name}")
 
