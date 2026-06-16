@@ -157,6 +157,9 @@ AI_LEAK_PREFIXES = (
 
 def clean_reply(text: str) -> str:
     """Strip AI meta-commentary, reasoning, and leaked instructions from reply."""
+    import re as _rec
+    # Strip trailing garbage characters (symbols, punctuation clusters)
+    text = _rec.sub(r'[-)(;&|@#%^*~]+;?\s*$', '', text).strip()
     lines = text.strip().split('\n')
     good_lines = []
     for line in lines:
@@ -179,7 +182,13 @@ def clean_reply(text: str) -> str:
 def bella_reply(user_name: str, user_text: str, history: list,
                 heat: int = 1, extra: str = "") -> str:
     """Generate Bella's reply using conversation history and heat level."""
-    name_hint = ""  # never use fan's real name — use cute pet names naturally: babe, baby, daddy, hun, love, cutie
+    # Detect if fan introduced their name in the message
+    import re as _re
+    _intro = _re.search(r"(?:i['']?m|my name is|call me|they call me)\s+([a-zA-Z]{2,15})", user_text, _re.I)
+    if _intro:
+        name_hint = f" (fan said their name is {_intro.group(1)}, use it occasionally)"
+    else:
+        name_hint = ""  # no name — use pet names sparingly, not every message
     tone_note = f"\n\nCURRENT VIBE (heat {heat}/5): {HEAT_TONES[heat]}"
 
     system = BELLA_SYSTEM + tone_note
@@ -191,7 +200,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
         "content": f'Fan: "{user_text}"{name_hint}\n\nReply as Bella in character.{extra}\n\nBE BRIEF. 1 sentence at heat 1-3. 2 short sentences MAX at heat 4-5. Text message length only.'
     })
 
-    models = ["cognitivecomputations/dolphin3.0-mistral-24b", "sao10k/l3.3-euryale-70b", "meta-llama/llama-3.3-70b-instruct"]
+    models = ["sao10k/l3.3-euryale-70b", "meta-llama/llama-3.3-70b-instruct"]
 
     for model in models:
         payload = json.dumps({
