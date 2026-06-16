@@ -144,6 +144,35 @@ def send_stars_invoice(chat_id: int, biz: str = "") -> None:
 
 # ── AI reply ──────────────────────────────────────────────────────────────────
 
+AI_LEAK_PREFIXES = (
+    "tip for future", "tip:", "note:", "note to", "remember:", "as bella",
+    "in character", "i should", "i would", "the user", "the fan", "the model",
+    "in this scenario", "i'll", "i will respond", "here's", "here is",
+    "response:", "bella's response", "my response", "[bella]", "(bella)",
+    "sure,", "certainly,", "of course,", "absolutely,",
+)
+
+def clean_reply(text: str) -> str:
+    """Strip AI meta-commentary, reasoning, and leaked instructions from reply."""
+    lines = text.strip().split('\n')
+    good_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        lower = stripped.lower()
+        # Drop any line that starts with AI meta-commentary
+        if any(lower.startswith(prefix) for prefix in AI_LEAK_PREFIXES):
+            log.warning(f"Stripped AI leak: {stripped[:60]!r}")
+            break  # stop at first meta line — everything after is also bad
+        good_lines.append(stripped)
+    result = " ".join(good_lines).strip()
+    # Strip wrapping quotes
+    if len(result) >= 2 and result[0] == result[-1] and result[0] in ('"', "'"):
+        result = result[1:-1].strip()
+    return result
+
+
 def bella_reply(user_name: str, user_text: str, history: list,
                 heat: int = 1, extra: str = "") -> str:
     """Generate Bella's reply using conversation history and heat level."""
@@ -177,10 +206,11 @@ def bella_reply(user_name: str, user_text: str, history: list,
             with urllib.request.urlopen(req, timeout=20) as r:
                 data = json.loads(r.read())
                 if "choices" in data:
-                    reply = data["choices"][0]["message"]["content"].strip()
-                    # Strip wrapping quotes the model sometimes adds
-                    if len(reply) >= 2 and reply[0] == reply[-1] and reply[0] in ('"', "'"):
-                        reply = reply[1:-1].strip()
+                    raw = data["choices"][0]["message"]["content"]
+                    reply = clean_reply(raw)
+                    if not reply:
+                        log.warning(f"Reply was empty after cleaning — trying next model")
+                        continue
                     log.info(f"[heat={heat}] Reply via {model}: {reply[:60]!r}")
                     return reply
                 log.error(f"Unexpected response ({model}): {data}")
