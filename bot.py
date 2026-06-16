@@ -438,7 +438,9 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
 
 # ── Offset persistence ────────────────────────────────────────────────────────
 
-OFFSET_FILE = "/tmp/bella_offset.txt"
+OFFSET_FILE  = "/tmp/bella_offset.txt"
+DEDUP_FILE   = "/tmp/bella_dedup.txt"
+MAX_DEDUP    = 500  # keep last N update IDs on disk
 
 def load_offset() -> int:
     try:
@@ -448,6 +450,21 @@ def load_offset() -> int:
 def save_offset(offset: int) -> None:
     try:
         with open(OFFSET_FILE, "w") as f: f.write(str(offset))
+    except: pass
+
+def load_dedup() -> set:
+    try:
+        with open(DEDUP_FILE) as f:
+            return set(int(x) for x in f.read().split() if x.strip())
+    except: return set()
+
+def save_dedup(ids: set) -> None:
+    try:
+        # Keep only the most recent MAX_DEDUP IDs
+        recent = sorted(ids)[-MAX_DEDUP:]
+        with open(DEDUP_FILE, "w") as f:
+            f.write(" ".join(str(i) for i in recent))
+    except: pass
     except Exception as e: log.warning(f"Could not save offset: {e}")
 
 
@@ -460,7 +477,8 @@ def main():
     offset = load_offset()
     log.info(f"Starting from offset {offset}")
 
-    replied_ids: set = set()
+    replied_ids: set = load_dedup()  # persisted dedup across restarts
+    log.info(f"Loaded {len(replied_ids)} dedup IDs from disk")
 
     # Per-chat state
     chat_history: dict = defaultdict(lambda: deque(maxlen=10))  # last 5 turns = 10 messages
@@ -484,6 +502,7 @@ def main():
                     offset = uid + 1
                     continue
                 replied_ids.add(uid)
+                save_dedup(replied_ids)
                 save_offset(uid + 1)
                 offset = uid + 1
 
@@ -494,6 +513,16 @@ def main():
                     if cid not in seen_chats:
                         seen_chats.add(cid)
                         daily_stats["new_fans"].add(cid)
+                    # 20% chance of an authentic double-text (short follow-up thought)
+                    if random.random() < 0.20:
+                        double_texts = [
+                            "😏", "lol", "just sayin", "fr tho", "not gonna lie",
+                            "okay wait 😍", "anyway 💕", "hehe", "okay I said what I said",
+                        ]
+                        time.sleep(random.uniform(2.0, 5.0))
+                        state = chat_state.get(cid, {})
+                        biz_key = state.get("biz", biz or "")
+                        send_raw(cid, random.choice(double_texts), biz_key)
 
             # Daily recap at midnight UTC (close to 7pm CT)
             today = time.strftime("%Y-%m-%d", time.gmtime())
