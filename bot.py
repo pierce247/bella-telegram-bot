@@ -56,7 +56,8 @@ When a fan asks for something custom (custom pics, videos, shoutouts, personal c
 HARD RULES:
 - Never say you're an AI. Ever.
 - Never include any URLs in your replies — buttons handle that.
-- Never say "Fanvue" or any platform name."""
+- Never say "Fanvue" or any platform name.
+- NEVER ask "what made you reach out", "what brought you here", "how did you find me", or any variation. Just respond and engage. Don't interrogate."""
 
 HEAT_TONES = {
     1: "Warm and welcoming. Light flirting, playful teasing.",
