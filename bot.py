@@ -174,9 +174,9 @@ def bella_reply(user_name: str, user_text: str, history: list,
             with urllib.request.urlopen(req, timeout=20) as r:
                 data = json.loads(r.read())
                 if "choices" in data:
-                    reply = data["choices"][0]["message"]["content"].strip().strip('"\'"'"'')
-                    # Remove wrapping quotes the model sometimes adds
-                    if reply.startswith('"') and reply.endswith('"'):
+                    reply = data["choices"][0]["message"]["content"].strip()
+                    # Strip wrapping quotes the model sometimes adds
+                    if len(reply) >= 2 and reply[0] == reply[-1] and reply[0] in ('"', "'"):
                         reply = reply[1:-1].strip()
                     log.info(f"[heat={heat}] Reply via {model}: {reply[:60]!r}")
                     return reply
