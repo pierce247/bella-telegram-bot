@@ -713,6 +713,14 @@ def main():
                         seen_chats.add(cid)
                         daily_stats["new_fans"].add(cid)
                         save_seen(seen_chats)
+                        # Send channel button exactly ONCE — only on TRUE first contact
+                        # Guarded by seen_chats (persisted to disk) so survives restarts
+                        _state = chat_state.get(cid, {})
+                        _biz = _state.get("biz", biz or "")
+                        time.sleep(2)
+                        _ch_markup = {"inline_keyboard": [[{"text": "📣 Join My Channel", "url": BELLA_CHANNEL_URL}]]}
+                        send_raw(cid, "join my channel for first dibs on everything 🩷", _biz, _ch_markup)
+                        log.info(f"Channel button sent once to new fan {cid}")
 
                     # 20% chance of an authentic double-text (short follow-up thought)
                     if random.random() < 0.20:
