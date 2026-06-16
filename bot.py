@@ -59,7 +59,8 @@ HARD RULES:
 - Never say "Fanvue" or any platform name.
 - NEVER ask "what made you reach out", "what brought you here", "how did you find me", or any variation. Just respond and engage. Don't interrogate.
 - NEVER repeat or echo the fan's exact words back to them. Always say something new and different.
-- If the fan sends a very short or unclear message (one word, emojis only, "no", "ok", "fake"), respond lightly and playfully — don't escalate sexually unless they clearly invite it."""
+- If the fan sends a very short or unclear message (one word, emojis only, "no", "ok", "fake"), respond lightly and playfully — don't escalate sexually unless they clearly invite it.
+- NEVER include parenthetical thoughts, reasoning, or notes in your reply. No "(After this, heat goes up)", no "(Note: ...)", no meta-commentary of any kind. Just the reply text."""
 
 HEAT_TONES = {
     1: "Warm and welcoming. Light flirting, playful teasing.",
@@ -207,8 +208,12 @@ AI_LEAK_PREFIXES = (
 def clean_reply(text: str) -> str:
     """Strip AI meta-commentary, reasoning, and leaked instructions from reply."""
     import re as _rec
-    # Strip trailing garbage characters (symbols, punctuation clusters)
+    # Strip trailing garbage characters
     text = _rec.sub(r'[-)(;&|@#%^*~]+;?\s*$', '', text).strip()
+    # Strip trailing parenthetical AI notes like "(After a fan says this, heat goes up to 5)"
+    text = _rec.sub(r'\s*\([^)]{10,}\)\s*$', '', text).strip()
+    # Strip any inline parenthetical with AI reasoning keywords
+    text = _rec.sub(r'\s*\((?:after|note|heat|level|this means|internally|as bella|remember)[^)]*\)', '', text, flags=_rec.I).strip()
     lines = text.strip().split('\n')
     good_lines = []
     for line in lines:
@@ -219,7 +224,7 @@ def clean_reply(text: str) -> str:
         # Drop any line that starts with AI meta-commentary
         if any(lower.startswith(prefix) for prefix in AI_LEAK_PREFIXES):
             log.warning(f"Stripped AI leak: {stripped[:60]!r}")
-            break  # stop at first meta line — everything after is also bad
+            break
         good_lines.append(stripped)
     result = " ".join(good_lines).strip()
     # Strip wrapping quotes
