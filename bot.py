@@ -16,6 +16,7 @@ log = logging.getLogger("bella-bot")
 
 BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 OPENROUTER_KEY = os.environ["OPENROUTER_API_KEY"]
+OWNER_CHAT_ID = int(os.environ.get("OWNER_CHAT_ID", "0"))  # your personal Telegram ID
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 # ── Persona ───────────────────────────────────────────────────────────────────
@@ -221,6 +222,21 @@ STARS_THANKYOU = [
     "I see you 🩷 you know how to make a girl smile",
 ]
 
+def notify_owner(text: str) -> None:
+    """Send a notification to Pierce's personal Telegram."""
+    if not OWNER_CHAT_ID:
+        return
+    tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": text})
+
+# ── Daily stats ───────────────────────────────────────────────────────────────
+
+def fresh_stats() -> dict:
+    return {"conversations": 0, "new_fans": set(), "stars_payments": 0,
+            "stars_total": 0, "followups_sent": 0, "date": time.strftime("%Y-%m-%d", time.gmtime())}
+
+daily_stats = fresh_stats()
+seen_chats: set = set()  # track new vs returning fans
+
 # ── Process update ────────────────────────────────────────────────────────────
 
 def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
@@ -233,16 +249,29 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict) -> tuple:
         log.info(f"Pre-checkout approved for {pcq.get('from', {}).get('id')}")
         return None, None
 
-    # Handle successful Stars payment — send thank-you
+    # Handle successful Stars payment — send thank-you + notify Pierce
     msg = update.get("message") or update.get("business_message")
     if msg and msg.get("successful_payment"):
         chat_id = msg["chat"]["id"]
         biz = msg.get("business_connection_id", "")
+        payment = msg["successful_payment"]
+        stars = payment.get("total_amount", 0)
+        fan_name = msg.get("from", {}).get("first_name", "Someone")
+
+        # Thank the fan
         thank_you = random.choice(STARS_THANKYOU)
         send_typing(chat_id, biz)
         time.sleep(1.5)
         send_raw(chat_id, thank_you, biz)
         log.info(f"Stars thank-you sent to {chat_id}")
+
+        # Notify Pierce
+        notify_owner(f"⭐ {fan_name} just sent {stars:,} Stars to Bella!\n💰 ≈ ${stars * 0.013:.2f} USD")
+
+        # Update stats
+        daily_stats["stars_payments"] += 1
+        daily_stats["stars_total"] += stars
+
         return chat_id, biz
 
     if not msg:
@@ -385,8 +414,26 @@ def main():
 
                 cid, biz = process_update(update, chat_history, chat_heat)
                 if cid:
-                    prev = chat_state.get(cid, {})
                     chat_state[cid] = {"last_msg": time.time(), "biz": biz or "", "followups_sent": 0}
+                    daily_stats["conversations"] += 1
+                    if cid not in seen_chats:
+                        seen_chats.add(cid)
+                        daily_stats["new_fans"].add(cid)
+
+            # Daily recap at midnight UTC (close to 7pm CT)
+            today = time.strftime("%Y-%m-%d", time.gmtime())
+            if today != daily_stats["date"] and OWNER_CHAT_ID:
+                recap = (
+                    f"📊 Bella Daily Recap — {daily_stats['date']}\n\n"
+                    f"💬 Conversations: {daily_stats['conversations']}\n"
+                    f"✨ New fans: {len(daily_stats['new_fans'])}\n"
+                    f"⭐ Stars payments: {daily_stats['stars_payments']}\n"
+                    f"💰 Stars earned: {daily_stats['stars_total']:,} (≈ ${daily_stats['stars_total'] * 0.013:.2f})\n"
+                    f"📩 Follow-ups sent: {daily_stats['followups_sent']}"
+                )
+                notify_owner(recap)
+                log.info(f"Daily recap sent for {daily_stats['date']}")
+                daily_stats.update(fresh_stats())
 
             # Multi-tier follow-up check
             now = time.time()
@@ -403,8 +450,9 @@ def main():
                         state["followups_sent"] = sent_count + 1
                         if result.get("ok"):
                             log.info(f"Follow-up #{sent_count+1} sent to {cid}: {msg_text!r}")
+                            daily_stats["followups_sent"] += 1
                         else:
-                            log.warning(f"Follow-up #{sent_count+1} failed to {cid}: {result.get('description','')} ")
+                            log.warning(f"Follow-up #{sent_count+1} failed to {cid}: {result.get('description','')}")
 
         except KeyboardInterrupt:
             log.info("Shutting down.")
