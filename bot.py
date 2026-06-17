@@ -162,32 +162,19 @@ DINNER_MARKUP  = {"inline_keyboard": [[{"text": "🍽️ Take Me to Dinner", "ur
 GIFT_BTN_MARKUP = {"inline_keyboard": [[{"text": "🎁 Send Me a Gift", "url": "https://pay.bellavista.lol/x"}, {"text": "⭐ Gift Stars", "url": "https://t.me/bellavistaxoxo"}]]}
 GYM_MARKUP     = {"inline_keyboard": [[{"text": "💪 Sponsor My Gym", "url": "https://pay.bellavista.lol/x"}]]}
 TRAVEL_MARKUP  = {"inline_keyboard": [[{"text": "✈️ Take Me Away", "url": "https://pay.bellavista.lol/x"}]]}
-# Rotating tip button configurations — always 2-3 buttons, heat-aware
-TIP_ROTATIONS_LOW = [   # heat 1-2 — social/discovery focused
-    {"inline_keyboard": [[{"text": "My Channel", "url": "https://t.me/bellavistaxo"}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]},
-    {"inline_keyboard": [[{"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}]]},
-    {"inline_keyboard": [[{"text": "☕ Buy Me a Coffee", "url": "https://pay.bellavista.lol/coffee"}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]},
-]
-TIP_ROTATIONS_MID = [   # heat 3 — tip + content
-    {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}]]},
+# The 4 button rotations — used everywhere
+TIP_ROTATIONS = [
+    {"inline_keyboard": [[{"text": "Spoil Me", "url": "https://pay.bellavista.lol/x"}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]},
     {"inline_keyboard": [[{"text": "$15", "url": "https://pay.bellavista.lol/15"}, {"text": "$25", "url": "https://pay.bellavista.lol/25"}, {"text": "$35", "url": "https://pay.bellavista.lol/35"}]]},
-    {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "$25", "url": "https://pay.bellavista.lol/25"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}]]},
-]
-TIP_ROTATIONS_HIGH = [  # heat 4-5 — bigger amounts + fanvue
-    {"inline_keyboard": [[{"text": "$50", "url": "https://pay.bellavista.lol/50"}, {"text": "$75", "url": "https://pay.bellavista.lol/75"}, {"text": "$100", "url": "https://pay.bellavista.lol/100"}]]},
-    {"inline_keyboard": [[{"text": "$69 😏", "url": "https://pay.bellavista.lol/69"}, {"text": "$35", "url": "https://pay.bellavista.lol/35"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}]]},
-    {"inline_keyboard": [[{"text": "$100", "url": "https://pay.bellavista.lol/100"}, {"text": "$250", "url": "https://pay.bellavista.lol/250"}]]},
     {"inline_keyboard": [[{"text": "$25", "url": "https://pay.bellavista.lol/25"}, {"text": "$50", "url": "https://pay.bellavista.lol/50"}, {"text": "$75", "url": "https://pay.bellavista.lol/75"}]]},
+    {"inline_keyboard": [[{"text": "Fanvue", "url": "https://fanvue.com/bellavistaxo"}, {"text": "Tip Bella", "url": "https://pay.bellavista.lol/x"}]]},
 ]
-TIP_ROTATIONS = TIP_ROTATIONS_MID  # default fallback
+TIP_ROTATIONS_LOW = TIP_ROTATIONS
+TIP_ROTATIONS_MID = TIP_ROTATIONS
+TIP_ROTATIONS_HIGH = TIP_ROTATIONS
 
 def random_tip_markup(heat: int = 3) -> dict:
-    if heat <= 2:
-        return random.choice(TIP_ROTATIONS_LOW)
-    elif heat <= 3:
-        return random.choice(TIP_ROTATIONS_MID)
-    else:
-        return random.choice(TIP_ROTATIONS_HIGH)
+    return random.choice(TIP_ROTATIONS)
 
 TIP_TIERS_MARKUP = {"inline_keyboard": [[
     {"text": "💵 $15", "url": "https://pay.bellavista.lol/15"},
