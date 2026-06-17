@@ -222,15 +222,20 @@ def send_stars_invoice(chat_id: int, biz: str = "") -> None:
 AI_LEAK_PREFIXES = (
     "tip for future", "tip:", "note:", "note to", "remember:", "as bella",
     "in character", "i should", "i would", "the user", "the fan", "the model",
-    "in this scenario", "i'll", "i will respond", "here's", "here is",
+    "in this scenario", "i'll respond", "i will respond", "here's my", "here is my",
     "response:", "bella's response", "my response", "[bella]", "(bella)",
     "sure,", "certainly,", "of course,", "absolutely,",
     "heat level", "heat:", "heat 1", "heat 2", "heat 3", "heat 4", "heat 5",
     "at heat", "the heat", "this is heat", "current heat",
     "internal note", "ai note", "character note", "roleplay note",
     "out of character", "[ooc]", "(ooc)",
-    "note: this response", "(note:", "indicating a cool", "as per the instructions",
-    "this is a", "this message", "this reply", "brief and", "slightly detached",
+    "note: this", "(note:", "indicating", "as per the", "per the instructions",
+    "this response", "this message is", "this reply", "brief and", "slightly detached",
+    "as an ai", "i'm an ai", "i am an ai", "language model", "large language",
+    "i'm actually", "in reality i", "to be honest i'm", "disclaimer:",
+    "my programming", "my training", "my guidelines", "my instructions",
+    "bella would", "bella should", "bella says", "she would say",
+    "[assistant]", "(assistant)", "assistant:", "ai:",
 )
 
 def clean_reply(text: str) -> str:
@@ -261,9 +266,15 @@ def clean_reply(text: str) -> str:
     # Strip wrapping quotes
     if len(result) >= 2 and result[0] == result[-1] and result[0] in ('"', "'"):
         result = result[1:-1].strip()
-    # Final cleanup: remove any remaining heat/level refs
+    # Final cleanup: remove any remaining heat/level refs and bot phrases
     result = _rec.sub(r'\s*\(heat[^)]*\)', '', result, flags=_rec.I).strip()
     result = _rec.sub(r'\bheat\s+(?:level\s+)?\d\b[^.]*', '', result, flags=_rec.I).strip()
+    # Hard bail: if result still contains dead giveaways, use fallback
+    _bot_tells = ["as an ai", "language model", "i'm programmed", "my guidelines",
+                  "bella would", "bella should", "[assistant]", "i cannot", "i can't engage"]
+    if any(tell in result.lower() for tell in _bot_tells):
+        log.warning(f"Full AI leak detected, discarding: {result[:60]!r}")
+        return ""  # triggers fallback to next model
     return result
 
 
