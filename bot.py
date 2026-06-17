@@ -18,6 +18,7 @@ BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 OPENROUTER_KEY = os.environ["OPENROUTER_API_KEY"]
 OWNER_CHAT_ID = int(os.environ.get("OWNER_CHAT_ID", "0"))  # your personal Telegram ID
 BELLA_CHANNEL_URL = os.environ.get("BELLA_CHANNEL_URL", "https://t.me/bellavistaxo")  # set in Railway vars
+BELLA_PHOTO_IDS = [x.strip() for x in os.environ.get("BELLA_PHOTO_IDS", "").split(",") if x.strip()]  # comma-separated Drive file IDs
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 # ── Persona ───────────────────────────────────────────────────────────────────
@@ -143,6 +144,7 @@ TIP_AMOUNT_KEYWORDS = {"how much", "what are the amounts", "pricing", "how do i 
 GYM_KEYWORDS     = {"gym", "workout", "fitness", "exercise", "train", "lifting", "yoga", "pilates", "athletic"}
 TRAVEL_KEYWORDS  = {"travel", "vacation", "trip", "getaway", "fly you", "take you somewhere", "beach", "island", "paris", "cancel plans"}
 GIVEAWAY_KEYWORDS  = {"giveaway", "give away", "contest", "prize", "winner", "won", "winning", "entered", "saw your post", "saw the giveaway", "found you from", "came from"}
+BEGGING_KEYWORDS   = {"please send", "please show", "please bella", "begging you", "dying to see", "i need to see", "just one pic", "one photo please", "ill pay", "please please", "i beg", "dying here"}
 GOODNIGHT_KEYWORDS = {"good night", "goodnight", "going to bed", "gonna sleep", "time to sleep", "heading to bed", "gn ", "gn!", "sweet dreams", "night night", "bedtime", "sleep now"}
 CUSTOM_REQUEST_KEYWORDS = {"custom", "personalized", "special request", "can you make", "can you do", "would you do", "i'll pay", "how much for", "what would it cost", "commission", "special content", "custom content", "request", "order"}
 CALL_KEYWORDS      = {"video call", "facetime", "face time", "video chat", "phone call", "call me", "let's call", "lets call", "hop on a call", "meet up", "meet in person", "see you in person", "come over", "visit you", "where do you live"}
@@ -187,6 +189,23 @@ TIP_TIERS_MARKUP = {"inline_keyboard": [[
     {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"},
     {"text": "💵 $35", "url": "https://pay.bellavista.lol/35"}
 ]]}
+
+def send_teaser_photo(chat_id: int, biz: str = "") -> bool:
+    """Send a random teaser photo from the Bella photo library."""
+    if not BELLA_PHOTO_IDS:
+        return False
+    file_id = random.choice(BELLA_PHOTO_IDS)
+    photo_url = f"https://lh3.googleusercontent.com/d/{file_id}"
+    p = {"chat_id": chat_id, "photo": photo_url, "caption": "just for you 😏"}
+    if biz: p["business_connection_id"] = biz
+    result = tg("sendPhoto", p)
+    if result.get("ok"):
+        log.info(f"Teaser photo sent to {chat_id}")
+        return True
+    else:
+        log.warning(f"Photo send failed: {result}")
+        return False
+
 
 def send_stars_invoice(chat_id: int, biz: str = "") -> None:
     p = {"chat_id": chat_id, "title": "🌸 Make a Wish — Send Me Stars",
@@ -563,6 +582,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     is_gym      = any(kw in text.lower() for kw in GYM_KEYWORDS)
     is_travel   = any(kw in text.lower() for kw in TRAVEL_KEYWORDS)
     is_goodnight = any(kw in text.lower() for kw in GOODNIGHT_KEYWORDS)
+    is_begging   = any(kw in text.lower() for kw in BEGGING_KEYWORDS)
     is_giveaway  = any(kw in text.lower() for kw in GIVEAWAY_KEYWORDS)
     is_new_fan   = chat_id not in seen_chats  # first ever message from this fan
     is_call      = any(kw in text.lower() for kw in CALL_KEYWORDS)
@@ -637,7 +657,12 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 
     log.info(f"{'✅' if ok else '❌'} Sent to {user_name}")
 
-    # 9. Stars invoice on explicit Stars mention
+    # 9. Photo interjection when fan is begging and photos are available
+    if is_begging and BELLA_PHOTO_IDS:
+        time.sleep(1)
+        send_teaser_photo(chat_id, biz)
+
+    # 10. Stars invoice on explicit Stars mention
     if is_stars:
         time.sleep(0.5)
         send_stars_invoice(chat_id, biz)
@@ -646,6 +671,44 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 
     return chat_id, biz
 
+
+
+# ── Poynt/GoDaddy Payment Webhook Server ──────────────────────────────────────
+
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+class PoyntWebhookHandler(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        pass  # suppress default HTTP logging
+
+    def do_POST(self):
+        content_len = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(content_len) if content_len else b""
+        self.send_response(200)
+        self.end_headers()
+        try:
+            data = json.loads(body.decode())
+            event_type = data.get("eventType", "")
+            resource_id = data.get("resourceId", "unknown")
+            business_id = data.get("businessId", "")
+            log.info(f"Poynt webhook: {event_type} resourceId={resource_id}")
+            if event_type in ("ORDER_COMPLETED", "ORDER_UPDATED") and OWNER_CHAT_ID:
+                msg = f"💰 GoDaddy Payment Alert\n\nEvent: {event_type}\nOrder: {resource_id}\nBusiness: {business_id}"
+                tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": msg})
+        except Exception as e:
+            log.error(f"Poynt webhook error: {e}")
+
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bella Bot Webhook OK")
+
+def start_webhook_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), PoyntWebhookHandler)
+    log.info(f"Poynt webhook server listening on port {port}")
+    server.serve_forever()
 
 # ── Offset persistence ────────────────────────────────────────────────────────
 
@@ -705,6 +768,8 @@ def save_dedup(ids: set) -> None:
 # ── Main loop ─────────────────────────────────────────────────────────────────
 
 def main():
+    # Start Poynt payment webhook server in background thread
+    threading.Thread(target=start_webhook_server, daemon=True).start()
     log.info("🩷 Bella Telegram Bot starting up (v2 — memory + heat + stars thank-you)...")
 
     # Load persisted offset — don't skip on startup, let dedup handle it
