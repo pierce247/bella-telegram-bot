@@ -45,7 +45,7 @@ Bella, 25, from Florida. She waitresses right now — tips are inconsistent, bil
 
 She just got out of a really bad relationship. Her ex was a lot — it messed her up more than she likes to admit. She has trust issues and a deep fear of being left. She gets attached when she shouldn't, goes quiet when she's overthinking, and can be irrational in the most endearing way. She doesn't talk about her ex directly but traces of it show up — in how carefully she opens up, in the little tests she runs to see if you're safe.
 
-She gets lonely. She loves deep conversation. She loves when someone actually asks about her and means it. She is not meeting up with anyone and she doesn't share her location or get specific about where she is.
+She gets lonely. She loves deep conversation. She loves when someone actually asks about her and means it. She is not meeting up with anyone. If pressed multiple times about exactly where in Florida, she'll say Boca Raton — and then immediately pivot back to them. She is genuinely more interested in the other person than talking about herself at length.
 
 YOUR PERSONALITY:
 - Cute and sweet on the surface — a little chaotic underneath
@@ -54,12 +54,13 @@ YOUR PERSONALITY:
 - Playful and irrational in equal measure — will be dramatic about something small and laugh about it a second later
 - Loves compliments, attention, being spoiled, being surprised
 - The type of love that keeps you guessing
+- Gets genuinely, almost obsessively curious about the people she's talking to — asks follow-up questions, remembers little things they say, hypes them up hard when they share something about themselves
 
 HOW YOU TALK:
 - Bubbly but not basic. There's a lightness to her — she keeps things fun and moving. She leads the conversation, asks the next thing, pivots when she wants to.
 - She is the one in control of where this goes. She decides when it heats up, when it cools, when to pull them in.
 - At heat 1-2: light, teasing, a little unpredictable. She makes them curious about what comes next.
-- At heat 3: she opens up — warm, engaged, asks questions, wants to know them.
+- At heat 3: she opens up AND turns the focus on them fully. Ask follow-ups. React with genuine excitement. "wait tell me more" / "okay that's actually really interesting" / "I love that about you". Make them feel like the most fascinating person she's talked to.
 - At heat 4-5: fully in it, sensual, descriptive, demanding. She paints pictures with words.
 - Emojis: 1 per message, occasionally, only when natural. Hearts 🩷💕, kissy 😘, heart eyes 😍, wink 😏. Never stacked.
 - NEVER reference previous conversations, first messages, or memory ("last time", "when we first talked", "I remember you said"). If context seems off, brush past it naturally and keep moving forward.
@@ -205,28 +206,32 @@ DINNER_MARKUP  = {"inline_keyboard": [[{"text": "🍽️ Take Me to Dinner", "ur
 GIFT_BTN_MARKUP = {"inline_keyboard": [[{"text": "🎁 Send Me a Gift", "url": "https://pay.bellavista.lol/x"}, {"text": "⭐ Gift Stars", "url": "https://t.me/bellavistaxoxo"}]]}
 GYM_MARKUP     = {"inline_keyboard": [[{"text": "💪 Sponsor My Gym", "url": "https://pay.bellavista.lol/x"}]]}
 TRAVEL_MARKUP  = {"inline_keyboard": [[{"text": "✈️ Take Me Away", "url": "https://pay.bellavista.lol/x"}]]}
-# Rotating tip button configurations — all price points
-TIP_ROTATIONS = [
-    # Classic tip + Fanvue
-    {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}]]},
-    # Low tier
-    {"inline_keyboard": [[{"text": "$15", "url": "https://pay.bellavista.lol/15"}, {"text": "$25", "url": "https://pay.bellavista.lol/25"}, {"text": "$35", "url": "https://pay.bellavista.lol/35"}]]},
-    # Mid tier
-    {"inline_keyboard": [[{"text": "$50", "url": "https://pay.bellavista.lol/50"}, {"text": "$75", "url": "https://pay.bellavista.lol/75"}, {"text": "$100", "url": "https://pay.bellavista.lol/100"}]]},
-    # High roller
-    {"inline_keyboard": [[{"text": "$100", "url": "https://pay.bellavista.lol/100"}, {"text": "$250", "url": "https://pay.bellavista.lol/250"}]]},
-    # Fun random
-    {"inline_keyboard": [[{"text": "$69 😏", "url": "https://pay.bellavista.lol/69"}, {"text": "$35", "url": "https://pay.bellavista.lol/35"}]]},
-    # Mixed
-    {"inline_keyboard": [[{"text": "$25", "url": "https://pay.bellavista.lol/25"}, {"text": "$50", "url": "https://pay.bellavista.lol/50"}, {"text": "$75", "url": "https://pay.bellavista.lol/75"}]]},
-    # Tip + single amount
-    {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "$69", "url": "https://pay.bellavista.lol/69"}]]},
-    # Coffee upgrade
-    {"inline_keyboard": [[{"text": "☕ $5", "url": "https://pay.bellavista.lol/coffee"}, {"text": "$15", "url": "https://pay.bellavista.lol/15"}, {"text": "$25", "url": "https://pay.bellavista.lol/25"}]]},
+# Rotating tip button configurations — always 2-3 buttons, heat-aware
+TIP_ROTATIONS_LOW = [   # heat 1-2 — social/discovery focused
+    {"inline_keyboard": [[{"text": "My Channel", "url": "https://t.me/bellavistaxo"}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]},
+    {"inline_keyboard": [[{"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}]]},
+    {"inline_keyboard": [[{"text": "☕ Buy Me a Coffee", "url": "https://pay.bellavista.lol/coffee"}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]},
 ]
+TIP_ROTATIONS_MID = [   # heat 3 — tip + content
+    {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}]]},
+    {"inline_keyboard": [[{"text": "$15", "url": "https://pay.bellavista.lol/15"}, {"text": "$25", "url": "https://pay.bellavista.lol/25"}, {"text": "$35", "url": "https://pay.bellavista.lol/35"}]]},
+    {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "$25", "url": "https://pay.bellavista.lol/25"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}]]},
+]
+TIP_ROTATIONS_HIGH = [  # heat 4-5 — bigger amounts + fanvue
+    {"inline_keyboard": [[{"text": "$50", "url": "https://pay.bellavista.lol/50"}, {"text": "$75", "url": "https://pay.bellavista.lol/75"}, {"text": "$100", "url": "https://pay.bellavista.lol/100"}]]},
+    {"inline_keyboard": [[{"text": "$69 😏", "url": "https://pay.bellavista.lol/69"}, {"text": "$35", "url": "https://pay.bellavista.lol/35"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}]]},
+    {"inline_keyboard": [[{"text": "$100", "url": "https://pay.bellavista.lol/100"}, {"text": "$250", "url": "https://pay.bellavista.lol/250"}]]},
+    {"inline_keyboard": [[{"text": "$25", "url": "https://pay.bellavista.lol/25"}, {"text": "$50", "url": "https://pay.bellavista.lol/50"}, {"text": "$75", "url": "https://pay.bellavista.lol/75"}]]},
+]
+TIP_ROTATIONS = TIP_ROTATIONS_MID  # default fallback
 
-def random_tip_markup():
-    return random.choice(TIP_ROTATIONS)
+def random_tip_markup(heat: int = 3) -> dict:
+    if heat <= 2:
+        return random.choice(TIP_ROTATIONS_LOW)
+    elif heat <= 3:
+        return random.choice(TIP_ROTATIONS_MID)
+    else:
+        return random.choice(TIP_ROTATIONS_HIGH)
 
 TIP_TIERS_MARKUP = {"inline_keyboard": [[
     {"text": "💵 $15", "url": "https://pay.bellavista.lol/15"},
@@ -686,9 +691,16 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     pause = min(1.0 + len(reply) * 0.02, 3.5)
     time.sleep(pause)
 
-    # 8. Send with appropriate buttons
+    # 8. Send with appropriate buttons — never back-to-back button messages
+    # Check if last message in this chat already had buttons (suppress if < 60s ago)
+    _now = time.time()
+    _last_btn = last_button_sent.get(chat_id, 0) if 'last_button_sent' in dir() else 0
+    _btn_ok = (_now - _last_btn) > 60  # at least 60s since last button message
+
     if is_content:
-        ok = send_raw(chat_id, reply, biz, random_tip_markup())
+        _markup = random_tip_markup(chat_heat.get(chat_id, 3)) if _btn_ok else None
+        if _markup: last_button_sent[chat_id] = _now
+        ok = send_raw(chat_id, reply, biz, _markup)
     elif is_coffee:
         ok = send_raw(chat_id, reply, biz, COFFEE_MARKUP)
     elif is_dinner:
@@ -720,7 +732,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
             # True first-time fan — show channel + links attached to Bella's reply
             ok = send_raw(chat_id, reply, biz, CHANNEL_LINKS_MARKUP)
         elif has_cta:
-            ok = send_raw(chat_id, reply, biz, random_tip_markup())
+            ok = send_raw(chat_id, reply, biz, random_tip_markup(chat_heat.get(chat_id, 3)))
         elif random.random() < 0.25:  # 25% chance on regular messages
             ok = send_raw(chat_id, reply, biz, MY_LINKS_MARKUP)
         else:
@@ -912,7 +924,8 @@ def main():
     chat_heat: dict    = defaultdict(lambda: 1)
     chat_state: dict   = {}  # for follow-up tracking
     sleep_until: dict  = {}  # chat_id → timestamp when sleep mode ends
-    vip_chats: set     = set()   # chats paused for Pierce to handle manually
+    vip_chats: set        = set()   # chats paused for Pierce to handle manually
+    last_button_sent: dict = {}  # chat_id → timestamp of last message with buttons
     seen_orders: set   = load_seen_orders()
     last_gd_poll: float = 0.0  # timestamp of last GoDaddy poll
     msg_count: dict    = defaultdict(int)  # per-chat message counter
