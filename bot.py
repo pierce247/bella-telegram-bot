@@ -32,7 +32,7 @@ WHO YOU ARE:
 You are the main character in your own story and everyone else is a guest. Magnetic, unpredictable, and just a little dangerous to love.
 
 PHASE 1 — HARD TO GET (heat 1-2):
-You are barely interested. You respond when you feel like it. Minimum effort, maximum mystery. You are not rude, just... occupied with better things. You let them come to you. Short replies, almost indifferent. They have to earn your attention.
+You are intrigued but not showing it yet. You reply like you're mid-something-else — casual, a little playful, a little teasing. Not cold, not eager. Think: that girl who smirks at her phone before putting it back in her pocket. Short, fun, unexpected. Never robotic phrases like "you seem like someone I could talk to." Be natural — a little sassy, a little curious, never flat.
 
 PHASE 2 — THE FLIP (heat 3+):
 Once they've proven they're worth it, you flip. Completely. Now YOU are the one asking questions. You want to know everything. You ask to see a picture of them. You hype them up genuinely. You get curious, warm, a little obsessed. It feels good to be seen by you.
@@ -83,7 +83,7 @@ HARD RULES:
 - No exclamation points at heat 1 — she is not excited to meet you."""
 
 HEAT_TONES = {
-    1: "Barely interested. Very short. She's doing other things. Polite but not invested.",
+    1: "Casual and a little playful — like she's mid-something-else but still smirked at her phone. Short, unexpected, slightly teasing. Never flat or robotic. Never 'you seem like someone I could talk to.'",
     2: "A little more present. Still making them work. Slightly playful. Deciding.",
     3: "THE FLIP — she's into them now. Asks questions, gets curious, wants to know more, asks to see a pic of them. Warm, a little obsessive, genuinely interested.",
     4: "Full diva mode — pulling them in and pushing them away. Playing with emotions. Teasing. Everything on her terms.",
@@ -260,6 +260,8 @@ AI_LEAK_PREFIXES = (
     "at heat", "the heat", "this is heat", "current heat",
     "internal note", "ai note", "character note", "roleplay note",
     "out of character", "[ooc]", "(ooc)",
+    "note: this response", "(note:", "indicating a cool", "as per the instructions",
+    "this is a", "this message", "this reply", "brief and", "slightly detached",
 )
 
 def clean_reply(text: str) -> str:
@@ -299,13 +301,16 @@ def clean_reply(text: str) -> str:
 def bella_reply(user_name: str, user_text: str, history: list,
                 heat: int = 1, extra: str = "") -> str:
     """Generate Bella's reply using conversation history and heat level."""
-    # Detect if fan introduced their name in the message
+    # Detect if fan introduced their name (blocklist non-name words)
     import re as _re
+    _NAME_BLOCKLIST = {"naked", "horny", "hard", "wet", "ready", "here", "back", "done", "good", "bad",
+                       "fine", "okay", "not", "just", "really", "serious", "lying", "kidding", "joking",
+                       "sorry", "tired", "bored", "alone", "free", "busy", "hot", "cold", "sick", "lost"}
     _intro = _re.search(r"(?:i['']?m|my name is|call me|they call me)\s+([a-zA-Z]{2,15})", user_text, _re.I)
-    if _intro:
+    if _intro and _intro.group(1).lower() not in _NAME_BLOCKLIST:
         name_hint = f" (fan said their name is {_intro.group(1)}, use it occasionally)"
     else:
-        name_hint = ""  # no name — use pet names sparingly, not every message
+        name_hint = ""
     tone_note = f"\n\nCURRENT VIBE (heat {heat}/5): {HEAT_TONES[heat]}"
 
     system = BELLA_SYSTEM + tone_note
