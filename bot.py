@@ -367,7 +367,31 @@ def bella_reply(user_name: str, user_text: str, history: list,
         return random.choice(["just okay?? 😏", "that's all I get?", "you're funny 🩷"])
     if any(kw in t for kw in ["what", "huh", "??"]):
         return random.choice(["you heard me 😏", "you know what I mean", "don't play dumb 🩷"])
-    return random.choice(["tell me something interesting", "you're being mysterious 😏", "what's on your mind?"])
+    # Last resort — force a fresh attempt with minimal prompt, no filter
+    try:
+        payload = json.dumps({
+            "model": "sao10k/l3.3-euryale-70b",
+            "max_tokens": 80,
+            "temperature": 0.95,
+            "messages": [
+                {"role": "system", "content": BELLA_SYSTEM},
+                {"role": "user", "content": f'Fan just said: "{user_text}". Reply as Bella. One short natural response.'}
+            ]
+        }).encode()
+        req = urllib.request.Request(
+            "https://openrouter.ai/api/v1/chat/completions", data=payload,
+            headers={"Authorization": f"Bearer {OPENROUTER_KEY}", "Content-Type": "application/json",
+                     "HTTP-Referer": "https://bellavistaxo.com", "X-Title": "Bella DM Bot"}
+        )
+        with urllib.request.urlopen(req, timeout=15) as r:
+            data = json.loads(r.read())
+            if "choices" in data:
+                raw = data["choices"][0]["message"]["content"].strip()
+                if raw and len(raw) < 300:
+                    return raw
+    except Exception:
+        pass
+    return ""  # process_update will force a retry if empty
 
 
 # ── Heat scoring ──────────────────────────────────────────────────────────────
