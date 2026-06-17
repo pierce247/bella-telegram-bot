@@ -330,9 +330,9 @@ def bella_reply(user_name: str, user_text: str, history: list,
         "content": f'Fan says: "{user_text}"{name_hint}\n\nReply as Bella. Never echo or repeat what the fan said. Say something fresh.{extra}\n\nBE BRIEF. 1 sentence at heat 1-3. 2 short sentences MAX at heat 4-5.\n\nAt heat 1: be cool and slightly detached — she noticed them but she\'s not impressed yet. No exclamation points, no "omg", no enthusiasm. Natural attraction, not performance.'
     })
 
-    models = ["sao10k/l3.3-euryale-70b", "anthracite-org/magnum-v4-72b", "sao10k/l3-euryale-70b", "meta-llama/llama-3.3-70b-instruct"]
-
-    for model in models:
+    # Single high-quality model — retry on 429, no fallback to worse models
+    model = "sao10k/l3.3-euryale-70b"
+    for attempt in range(3):
         payload = json.dumps({
             "model": model, "max_tokens": {1: 120, 2: 150, 3: 200, 4: 250, 5: 300}.get(heat, 200), "temperature": 0.9,
             "messages": [{"role": "system", "content": system}] + messages
@@ -345,21 +345,30 @@ def bella_reply(user_name: str, user_text: str, history: list,
                      "X-Title": "Bella DM Bot"}
         )
         try:
-            with urllib.request.urlopen(req, timeout=20) as r:
+            with urllib.request.urlopen(req, timeout=25) as r:
                 data = json.loads(r.read())
                 if "choices" in data:
                     raw = data["choices"][0]["message"]["content"]
                     reply = clean_reply(raw)
                     if not reply:
-                        log.warning(f"Reply was empty after cleaning — trying next model")
-                        continue
-                    log.info(f"[heat={heat}] Reply via {model}: {reply[:60]!r}")
+                        log.warning(f"Reply empty after cleaning (attempt {attempt+1})")
+                        break
+                    log.info(f"[heat={heat}] Reply: {reply[:60]!r}")
                     return reply
-                log.error(f"Unexpected response ({model}): {data}")
+                log.error(f"Unexpected response: {data}")
+                break
         except urllib.error.HTTPError as e:
-            log.error(f"OpenRouter HTTP {e.code} ({model}): {e.read().decode()}")
+            body = e.read().decode()
+            if e.code == 429:
+                retry_after = 12 if attempt < 2 else 0
+                log.warning(f"Euryale 429 — waiting {retry_after}s (attempt {attempt+1})")
+                if retry_after: time.sleep(retry_after)
+                continue  # retry
+            log.error(f"OpenRouter HTTP {e.code}: {body[:100]}")
+            break
         except Exception as e:
-            log.error(f"OpenRouter error ({model}): {e}")
+            log.error(f"OpenRouter error: {e}")
+            break
 
     # Context-aware fallbacks so silence never happens
     content_fallbacks = [
