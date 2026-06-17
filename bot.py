@@ -161,14 +161,14 @@ CONTENT_MARKUP = {"inline_keyboard": [
     [{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}],
     [{"text": "💵 $15", "url": "https://pay.bellavista.lol/15"}, {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"}, {"text": "💵 $35", "url": "https://pay.bellavista.lol/35"}]
 ]}
-SOCIAL_MARKUP  = {"inline_keyboard": [[{"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}, {"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}]]}
+SOCIAL_MARKUP  = {"inline_keyboard": [[{"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}, {"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}]]}
 TIP_MARKUP     = {"inline_keyboard": [
     [{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}],
     [{"text": "💵 $15", "url": "https://pay.bellavista.lol/15"}, {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"}, {"text": "💵 $35", "url": "https://pay.bellavista.lol/35"}]
 ]}
 None  # CHANNEL_MARKUP disabled = {"inline_keyboard": [[{"text": "📣 Join My Channel", "url": BELLA_CHANNEL_URL}]]}
 COFFEE_MARKUP  = {"inline_keyboard": [[{"text": "☕ Buy Me a Coffee", "url": "https://pay.bellavista.lol/coffee"}]]}
-DINNER_MARKUP  = {"inline_keyboard": [[{"text": "🍽️ Take Me to Dinner", "url": "https://pay.bellavista.lol/x"}, {"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
+DINNER_MARKUP  = {"inline_keyboard": [[{"text": "🍽️ Take Me to Dinner", "url": "https://pay.bellavista.lol/x"}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
 GIFT_BTN_MARKUP = {"inline_keyboard": [[{"text": "🎁 Send Me a Gift", "url": "https://pay.bellavista.lol/x"}, {"text": "⭐ Gift Stars", "url": "https://t.me/bellavistaxoxo"}]]}
 GYM_MARKUP     = {"inline_keyboard": [[{"text": "💪 Sponsor My Gym", "url": "https://pay.bellavista.lol/x"}]]}
 TRAVEL_MARKUP  = {"inline_keyboard": [[{"text": "✈️ Take Me Away", "url": "https://pay.bellavista.lol/x"}]]}
@@ -224,6 +224,10 @@ AI_LEAK_PREFIXES = (
     "in this scenario", "i'll", "i will respond", "here's", "here is",
     "response:", "bella's response", "my response", "[bella]", "(bella)",
     "sure,", "certainly,", "of course,", "absolutely,",
+    "heat level", "heat:", "heat 1", "heat 2", "heat 3", "heat 4", "heat 5",
+    "at heat", "the heat", "this is heat", "current heat",
+    "internal note", "ai note", "character note", "roleplay note",
+    "out of character", "[ooc]", "(ooc)",
 )
 
 def clean_reply(text: str) -> str:
@@ -235,6 +239,9 @@ def clean_reply(text: str) -> str:
     text = _rec.sub(r'\s*\([^)]{10,}\)\s*$', '', text).strip()
     # Strip any inline parenthetical with AI reasoning keywords
     text = _rec.sub(r'\s*\((?:after|note|heat|level|this means|internally|as bella|remember)[^)]*\)', '', text, flags=_rec.I).strip()
+    # Strip trailing heat level references
+    text = _rec.sub(r'\s*[-–]?\s*(?:heat|level)\s*\d[^.]*$', '', text, flags=_rec.I).strip()
+    text = _rec.sub(r'\s*\(heat goes[^)]*\)', '', text, flags=_rec.I).strip()
     lines = text.strip().split('\n')
     good_lines = []
     for line in lines:
@@ -251,6 +258,9 @@ def clean_reply(text: str) -> str:
     # Strip wrapping quotes
     if len(result) >= 2 and result[0] == result[-1] and result[0] in ('"', "'"):
         result = result[1:-1].strip()
+    # Final cleanup: remove any remaining heat/level refs
+    result = _rec.sub(r'\s*\(heat[^)]*\)', '', result, flags=_rec.I).strip()
+    result = _rec.sub(r'\bheat\s+(?:level\s+)?\d\b[^.]*', '', result, flags=_rec.I).strip()
     return result
 
 
@@ -644,8 +654,8 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         ok = send_raw(chat_id, reply, biz, SOCIAL_MARKUP)
     else:
         has_cta = any(kw in reply.lower() for kw in GIFT_KEYWORDS)
-        MY_LINKS_MARKUP = {"inline_keyboard": [[{"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
-        CHANNEL_LINKS_MARKUP = {"inline_keyboard": [[{"text": "✈️ My Channel", "url": BELLA_CHANNEL_URL}, {"text": "🔗 My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
+        MY_LINKS_MARKUP = {"inline_keyboard": [[{"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
+        CHANNEL_LINKS_MARKUP = {"inline_keyboard": [[{"text": "My Channel", "url": BELLA_CHANNEL_URL}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
         if first_contact:
             # True first-time fan — show channel + links attached to Bella's reply
             ok = send_raw(chat_id, reply, biz, CHANNEL_LINKS_MARKUP)
