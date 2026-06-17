@@ -190,13 +190,24 @@ DINNER_MARKUP  = {"inline_keyboard": [[{"text": "🍽️ Take Me to Dinner", "ur
 GIFT_BTN_MARKUP = {"inline_keyboard": [[{"text": "🎁 Send Me a Gift", "url": "https://pay.bellavista.lol/x"}, {"text": "⭐ Gift Stars", "url": "https://t.me/bellavistaxoxo"}]]}
 GYM_MARKUP     = {"inline_keyboard": [[{"text": "💪 Sponsor My Gym", "url": "https://pay.bellavista.lol/x"}]]}
 TRAVEL_MARKUP  = {"inline_keyboard": [[{"text": "✈️ Take Me Away", "url": "https://pay.bellavista.lol/x"}]]}
-# Rotating tip button configurations
+# Rotating tip button configurations — all price points
 TIP_ROTATIONS = [
+    # Classic tip + Fanvue
     {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}]]},
-    {"inline_keyboard": [[{"text": "💵 $15", "url": "https://pay.bellavista.lol/15"}, {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"}, {"text": "💵 $35", "url": "https://pay.bellavista.lol/35"}]]},
-    {"inline_keyboard": [[{"text": "💵 $50", "url": "https://pay.bellavista.lol/50"}, {"text": "💵 $75", "url": "https://pay.bellavista.lol/75"}, {"text": "💵 $100", "url": "https://pay.bellavista.lol/100"}]]},
-    {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"}]]},
-    {"inline_keyboard": [[{"text": "💵 $15", "url": "https://pay.bellavista.lol/15"}, {"text": "💵 $35", "url": "https://pay.bellavista.lol/35"}, {"text": "💵 $75", "url": "https://pay.bellavista.lol/75"}]]},
+    # Low tier
+    {"inline_keyboard": [[{"text": "$15", "url": "https://pay.bellavista.lol/15"}, {"text": "$25", "url": "https://pay.bellavista.lol/25"}, {"text": "$35", "url": "https://pay.bellavista.lol/35"}]]},
+    # Mid tier
+    {"inline_keyboard": [[{"text": "$50", "url": "https://pay.bellavista.lol/50"}, {"text": "$75", "url": "https://pay.bellavista.lol/75"}, {"text": "$100", "url": "https://pay.bellavista.lol/100"}]]},
+    # High roller
+    {"inline_keyboard": [[{"text": "$100", "url": "https://pay.bellavista.lol/100"}, {"text": "$250", "url": "https://pay.bellavista.lol/250"}]]},
+    # Fun random
+    {"inline_keyboard": [[{"text": "$69 😏", "url": "https://pay.bellavista.lol/69"}, {"text": "$35", "url": "https://pay.bellavista.lol/35"}]]},
+    # Mixed
+    {"inline_keyboard": [[{"text": "$25", "url": "https://pay.bellavista.lol/25"}, {"text": "$50", "url": "https://pay.bellavista.lol/50"}, {"text": "$75", "url": "https://pay.bellavista.lol/75"}]]},
+    # Tip + single amount
+    {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "$69", "url": "https://pay.bellavista.lol/69"}]]},
+    # Coffee upgrade
+    {"inline_keyboard": [[{"text": "☕ $5", "url": "https://pay.bellavista.lol/coffee"}, {"text": "$15", "url": "https://pay.bellavista.lol/15"}, {"text": "$25", "url": "https://pay.bellavista.lol/25"}]]},
 ]
 
 def random_tip_markup():
