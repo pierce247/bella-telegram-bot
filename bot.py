@@ -368,15 +368,15 @@ def bella_reply(user_name: str, user_text: str, history: list,
         return random.choice(["just okay?? 😏", "that's all I get?", "you're funny 🩷"])
     if any(kw in t for kw in ["what", "huh", "??"]):
         return random.choice(["you heard me 😏", "you know what I mean", "don't play dumb 🩷"])
-    # Last resort — force a fresh attempt with minimal prompt, no filter
+    # Last resort — use Llama (always available, won't 429)
     try:
         payload = json.dumps({
-            "model": "sao10k/l3.3-euryale-70b",
+            "model": "meta-llama/llama-3.3-70b-instruct",
             "max_tokens": 80,
-            "temperature": 0.95,
+            "temperature": 0.9,
             "messages": [
                 {"role": "system", "content": BELLA_SYSTEM},
-                {"role": "user", "content": f'Fan just said: "{user_text}". Reply as Bella. One short natural response.'}
+                {"role": "user", "content": f'Fan just said: "{user_text}". Reply as Bella. Short, flirty, natural.'}
             ]
         }).encode()
         req = urllib.request.Request(
@@ -389,10 +389,16 @@ def bella_reply(user_name: str, user_text: str, history: list,
             if "choices" in data:
                 raw = data["choices"][0]["message"]["content"].strip()
                 if raw and len(raw) < 300:
-                    return raw
-    except Exception:
-        pass
-    return ""  # process_update will force a retry if empty
+                    return clean_reply(raw) or raw[:150]
+    except Exception as e:
+        log.warning(f"Last resort failed: {e}")
+    # Absolute final fallback — never send empty
+    t = user_text.lower().strip()
+    if any(kw in t for kw in ["pic", "boob", "ass", "nude", "show", "body", "tit"]):
+        return random.choice(["that's for my private page 😏", "you gotta earn that babe 🩷"])
+    if any(kw in t for kw in ["busy", "work", "gotta go", "later"]):
+        return random.choice(["go handle it, come back to me 🩷", "okay go, but I want details later"])
+    return random.choice(["😏", "tell me more", "interesting 🩷"])
 
 
 # ── Heat scoring ──────────────────────────────────────────────────────────────
