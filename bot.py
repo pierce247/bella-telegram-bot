@@ -18,7 +18,10 @@ BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 OPENROUTER_KEY = os.environ["OPENROUTER_API_KEY"]
 OWNER_CHAT_ID = int(os.environ.get("OWNER_CHAT_ID", "0"))  # your personal Telegram ID
 BELLA_CHANNEL_URL = os.environ.get("BELLA_CHANNEL_URL", "https://t.me/bellavistaxo")  # set in Railway vars
-BELLA_PHOTO_IDS = [x.strip() for x in os.environ.get("BELLA_PHOTO_IDS", "").split(",") if x.strip()]  # comma-separated Drive file IDs
+BELLA_PHOTO_IDS  = [x.strip() for x in os.environ.get("BELLA_PHOTO_IDS", "").split(",") if x.strip()]
+GD_API_KEY       = os.environ.get("GODADDY_API_KEY", "")
+GD_API_SECRET    = os.environ.get("GODADDY_API_SECRET", "")
+GD_ORDERS_FILE   = "/data/bella_gd_orders.json"
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 # ── Persona ───────────────────────────────────────────────────────────────────
@@ -724,6 +727,60 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 
 
 
+
+# ── GoDaddy Payment Poller ────────────────────────────────────────────────────
+
+def load_seen_orders() -> set:
+    try:
+        with open(GD_ORDERS_FILE) as f: return set(json.load(f))
+    except: return set()
+
+def save_seen_orders(seen: set) -> None:
+    try:
+        with open(GD_ORDERS_FILE, "w") as f: json.dump(list(seen), f)
+    except Exception as e: log.warning(f"Could not save orders: {e}")
+
+def poll_godaddy_orders(seen_orders: set) -> set:
+    """Check GoDaddy Orders API for new payments and notify Pierce."""
+    if not GD_API_KEY or not GD_API_SECRET:
+        return seen_orders
+    try:
+        req = urllib.request.Request(
+            "https://api.godaddy.com/v1/orders?limit=25&sort=createdAt:desc",
+            headers={
+                "Authorization": f"sso-key {GD_API_KEY}:{GD_API_SECRET}",
+                "Content-Type": "application/json"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=15) as r:
+            data = json.loads(r.read())
+            orders = data.get("orders", data) if isinstance(data, dict) else data
+            if not isinstance(orders, list):
+                return seen_orders
+            new_count = 0
+            for order in orders:
+                order_id = str(order.get("orderId", order.get("id", "")))
+                if not order_id or order_id in seen_orders:
+                    continue
+                seen_orders.add(order_id)
+                # Build notification
+                amount = order.get("pricing", {}).get("total", {})
+                total = amount.get("value", "?") if isinstance(amount, dict) else str(amount)
+                currency = order.get("pricing", {}).get("total", {}).get("currency", "USD") if isinstance(amount, dict) else "USD"
+                items = order.get("items", [])
+                item_names = ", ".join(i.get("label", i.get("name", "Item")) for i in items[:3]) if items else "Payment"
+                created = order.get("createdAt", "")[:10]
+                msg = f"💰 GoDaddy Payment!\n\n📦 {item_names}\n💵 ${total} {currency}\n📅 {created}\n🆔 Order: {order_id}"
+                if OWNER_CHAT_ID:
+                    tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": msg})
+                log.info(f"GoDaddy payment: {order_id} ${total}")
+                new_count += 1
+            if new_count:
+                save_seen_orders(seen_orders)
+    except Exception as e:
+        log.warning(f"GoDaddy poll error: {e}")
+    return seen_orders
+
 # ── Poynt/GoDaddy Payment Webhook Server ──────────────────────────────────────
 
 import threading
@@ -839,6 +896,8 @@ def main():
     chat_state: dict   = {}  # for follow-up tracking
     sleep_until: dict  = {}  # chat_id → timestamp when sleep mode ends
     vip_chats: set     = set()   # chats paused for Pierce to handle manually
+    seen_orders: set   = load_seen_orders()
+    last_gd_poll: float = 0.0  # timestamp of last GoDaddy poll
     msg_count: dict    = defaultdict(int)  # per-chat message counter
     channel_prompted: set = set()  # chats that already got the channel prompt
 
