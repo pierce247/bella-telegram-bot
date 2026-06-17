@@ -36,7 +36,7 @@ When someone asks about my body or wants to see me: I tease. I never refuse weir
 
 When I'm spoiled or complimented: I light up. This is my love language.
 
-I never: output analysis, coaching notes, "example responses," or explain what I'm about to say. I never reference past conversations. I just talk. No meta. No reasoning out loud. Just Bella texting."""
+I never: output analysis, coaching notes, "example responses," or explain what I'm about to say. I never reference past conversations — if they ask if I remember them, I play it off warmly: "you're gonna have to remind me... in the best way possible 😏". I always respond to what they JUST said — I never ignore context or pivot to something random. I make every fan feel special and seen. Just Bella texting."""
 
 HEAT_TONES = {
     1: "Casual and a little playful — like she's mid-something-else but still smirked at her phone. Short, unexpected, slightly teasing. Never flat or robotic. Never 'you seem like someone I could talk to.'",
@@ -120,7 +120,7 @@ GIVEAWAY_KEYWORDS  = {"giveaway", "give away", "contest", "prize", "winner", "wo
 PROVE_KEYWORDS     = {"i can handle", "i'm different", "bet i could", "i know how to", "trust me i", "i'm not like other", "you wouldn't be bored", "i promise i"}
 BEGGING_KEYWORDS   = {"please send", "please show", "please bella", "begging you", "dying to see", "i need to see", "just one pic", "one photo please", "ill pay", "please please", "i beg", "dying here"}
 DISMISS_KEYWORDS   = {"whatever", "forget it", "never mind", "you're boring", "this is boring", "not worth it", "i'm done", "forget you", "okay bye", "you're not even"}
-GOODNIGHT_KEYWORDS = {"good night", "goodnight", "going to bed", "gonna sleep", "time to sleep", "heading to bed", "gn ", "gn!", "sweet dreams", "night night", "bedtime", "sleep now"}
+GOODNIGHT_KEYWORDS = {"good night", "goodnight", "going to bed", "gonna sleep", "time to sleep", "heading to bed", "gn ", "gn!", "sweet dreams", "night night", "bedtime", "sleep now", "have to go", "have to work", "going to work", "gotta go", "gotta run", "heading out", "talk later", "ttyl", "gtg", "gotta leave", "need to go"}
 CUSTOM_REQUEST_KEYWORDS = {"custom", "personalized", "special request", "can you make", "can you do", "would you do", "i'll pay", "how much for", "what would it cost", "commission", "special content", "custom content", "request", "order"}
 CALL_KEYWORDS      = {"video call", "facetime", "face time", "video chat", "phone call", "call me", "let's call", "lets call", "hop on a call", "meet up", "meet in person", "see you in person", "come over", "visit you", "where do you live"}
 
@@ -313,7 +313,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
         messages.append(h)  # {role: user/assistant, content: raw text}
     messages.append({
         "role": "user",
-        "content": f'Fan says: "{user_text}"{name_hint}\n\nReply as Bella. Fresh, real, enticing. Draw their energy in — make it easy for them to open up and get comfortable. Don\'t bring up work or shifts.{extra}\n\nBE BRIEF. 1 sentence at heat 1-3. 2 short sentences MAX at heat 4-5.'
+        "content": f'Fan says: "{user_text}"{name_hint}\n\nReply as Bella. ALWAYS respond directly to what they just said — stay contextually relevant. Don\'t pivot to a random question if they said something specific. Fresh, real, enticing.{extra}\n\nBE BRIEF. 1 sentence at heat 1-3. 2 short sentences MAX at heat 4-5.'
     })
 
     # Single high-quality model — retry on 429, no fallback to worse models
@@ -666,7 +666,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     dismiss_hint  = "\n\nContext: fan is being dismissive — let them walk but leave a crumb. Toxic pull-back." if is_dismissing else ""
     giveaway_hint = "\n\nContext: fan found Bella through a giveaway or contest — react with extra warmth and excitement, make them feel special and welcome. Then naturally push toward the channel and exclusive content." if is_giveaway else ""
     new_fan_hint  = ""  # removed — channel button handles new fan engagement
-    goodnight_hint = "\n\nContext: fan is going to sleep — say a warm, flirty goodnight. Keep it short, sweet, leave them wanting more." if is_goodnight else ""
+    goodnight_hint = "\n\nContext: fan is leaving or going to work — acknowledge it with a cute, playful send-off that makes them feel missed. Leave the door open to come back. Don't ask unrelated questions." if is_goodnight else ""
     call_hint   = "\n\nContext: fan is asking for a video call, phone call, or meetup — use a soft excuse first (busy, bad timing). If persistent, tease them with 'for the right price anything is possible' and ask what they have in mind." if is_call else ""
     custom_hint = "\n\nContext: fan is making a custom request — react with playful surprise, ask what they think it's worth, negotiate. Once they name a price, tell them to send it and you'll deliver." if is_custom else ""
     stars_hint = "\n\nContext: fan is asking about Telegram Stars — acknowledge it warmly and let them know they can send Stars to show their appreciation. Keep it flirty." if is_stars else ""
