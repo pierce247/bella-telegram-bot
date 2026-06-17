@@ -293,11 +293,11 @@ def bella_reply(user_name: str, user_text: str, history: list,
         "content": f'Fan says: "{user_text}"{name_hint}\n\nReply as Bella. Never echo or repeat what the fan said. Say something fresh.{extra}\n\nBE BRIEF. 1 sentence at heat 1-3. 2 short sentences MAX at heat 4-5.\n\nAt heat 1: be cool and slightly detached — she noticed them but she\'s not impressed yet. No exclamation points, no "omg", no enthusiasm. Natural attraction, not performance.'
     })
 
-    models = ["sao10k/l3.3-euryale-70b", "meta-llama/llama-3.3-70b-instruct"]
+    models = ["sao10k/l3.3-euryale-70b", "nousresearch/hermes-3-llama-3.1-405b-instruct", "meta-llama/llama-3.3-70b-instruct"]
 
     for model in models:
         payload = json.dumps({
-            "model": model, "max_tokens": {1: 90, 2: 110, 3: 140, 4: 180, 5: 220}.get(heat, 140), "temperature": 0.9,
+            "model": model, "max_tokens": {1: 120, 2: 150, 3: 200, 4: 250, 5: 300}.get(heat, 200), "temperature": 0.9,
             "messages": [{"role": "system", "content": system}] + messages
         }).encode()
         req = urllib.request.Request(
