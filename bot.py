@@ -211,25 +211,17 @@ def send_stars_invoice(chat_id: int, biz: str = "") -> None:
 # ── AI reply ──────────────────────────────────────────────────────────────────
 
 AI_LEAK_PREFIXES = (
-    "tip for future", "tip:", "note:", "note to", "remember:", "as bella",
-    "in character", "i should", "i would", "the user", "the fan", "the model",
-    "in this scenario", "i'll respond", "i will respond", "here's my", "here is my",
-    "response:", "bella's response", "my response", "[bella]", "(bella)",
-    "sure,", "certainly,", "of course,", "absolutely,",
-    "heat level", "heat:", "heat 1", "heat 2", "heat 3", "heat 4", "heat 5",
-    "at heat", "the heat", "this is heat", "current heat",
-    "internal note", "ai note", "character note", "roleplay note",
-    "out of character", "[ooc]", "(ooc)",
-    "note: this", "(note:", "indicating", "as per the", "per the instructions",
-    "this response", "this message is", "this reply", "brief and", "slightly detached",
-    "as an ai", "i'm an ai", "i am an ai", "language model", "large language",
-    "i'm actually", "in reality i", "to be honest i'm", "disclaimer:",
+    # Actual AI meta-commentary — very specific, won't match normal conversation
+    "tip for future:", "note to bella", "remember:", "as bella,",
+    "in this scenario,", "i'll respond with", "i will respond with",
+    "bella's response:", "my response:", "[bella]", "(bella)",
+    "heat level", "heat 1:", "heat 2:", "heat 3:", "heat 4:", "heat 5:",
+    "internal note:", "ai note:", "character note:", "[ooc]", "(ooc)",
+    "(note:", "as per the instructions", "per the instructions",
+    "as an ai", "i'm an ai", "i am an ai", "language model",
     "my programming", "my training", "my guidelines", "my instructions",
-    "bella would", "bella should", "bella says", "she would say",
-    "[assistant]", "(assistant)", "assistant:", "ai:",
-    "below is rewritten", "rewritten:", "revised:", "revised version", "here is a rewrite",
-    "alternative:", "alternative version", "better version:", "improved:", "v2:",
-    "rephrased:", "let me rephrase", "let me rewrite", "actually,",
+    "bella would say", "bella should say", "[assistant]", "assistant:",
+    "below is rewritten", "rewritten:", "revised version:", "here is a rewrite",
 )
 
 def clean_reply(text: str) -> str:
@@ -679,9 +671,9 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 
     # 5. Generate reply
     reply = bella_reply(user_name, text, history, chat_heat[chat_id], extra)
-    # Nuclear fallback — ALWAYS have something to send
+    # If still empty (very rare), force a retry without the leak filter
     if not reply:
-        reply = random.choice(["hey 🩷", "lol", "tell me more", "go on...", "interesting 😏"])
+        reply = bella_reply(user_name, text, [], heat=1, extra=" Reply naturally as Bella. Short.")
 
     # 6. Update conversation history
     chat_history[chat_id].append({"role": "user", "content": text})
