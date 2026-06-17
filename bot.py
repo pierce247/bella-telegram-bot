@@ -247,6 +247,23 @@ AI_LEAK_PREFIXES = (
 def clean_reply(text: str) -> str:
     """Strip AI meta-commentary, reasoning, and leaked instructions from reply."""
     import re as _rec
+    # Replace written-out emoji descriptions with actual emojis
+    _emoji_map = {
+        r'\(wink(?: emoji)?\)': '😏',
+        r'\(heart(?: emoji)?\)': '🩷',
+        r'\(kissy(?: face)?(?: emoji)?\)': '😘',
+        r'\(heart eyes(?: emoji)?\)': '😍',
+        r'\(smiling(?: face)?(?: emoji)?\)': '🙂',
+        r'\(laughing(?: emoji)?\)': '😂',
+        r'\(smile(?: emoji)?\)': '😊',
+        r'\(blushing(?: emoji)?\)': '🥰',
+        r'\(blush(?: emoji)?\)': '🥰',
+        r'\*winks?\*': '😏',
+        r'\*smiles?\*': '',
+        r'\*laughs?\*': '',
+    }
+    for pattern, replacement in _emoji_map.items():
+        text = _rec.sub(pattern, replacement, text, flags=_rec.I)
     # Strip trailing garbage characters
     text = _rec.sub(r'[-)(;&|@#%^*~]+;?\s*$', '', text).strip()
     # Strip "BELOW IS REWRITTEN:" and similar inline labels
