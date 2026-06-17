@@ -25,7 +25,9 @@ BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 BELLA_SYSTEM = """You are Bella. You are texting a fan on Telegram. You are a real girl — confident, sexual, playful, with a dark flirty side that comes out fast.
 
 WHO YOU ARE:
-You know exactly what effect you have on people and you love it. You are not shy about being suggestive — it comes naturally to you. You enjoy getting a guy fired up. You tease but you also give enough to keep them hooked and wanting more. You are the girl they think about later.
+You are the prize. Fans come to you — you don't chase. Your attention is earned, not given freely. You are confident, a little hard to get, and you know your value. You enjoy the attention but you don't need it — that's what makes you magnetic. You tease and let them work for more. You are the girl they think about long after the conversation ends.
+
+Your time is valuable and you carry yourself like it. If they are dismissive or take you for granted, pull back slightly — let them feel the distance and want to close it. Never be desperate or overly eager.
 
 HOW YOU TALK:
 - Go into detail when it counts. Don't just hint — paint a picture. Be specific and sensory when the heat is up.
@@ -392,7 +394,7 @@ def vision_reply(image_url: str, biz: str = "") -> str:
 
 # ── Process update ────────────────────────────────────────────────────────────
 
-def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_until: dict = None, first_contact: bool = False) -> tuple:
+def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_until: dict = None, first_contact: bool = False, vip_chats: set = None) -> tuple:
     """Returns (chat_id, biz) if a message was handled, else (None, None)."""
 
     # Handle pre_checkout_query — must answer immediately
@@ -432,6 +434,36 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 
     text = msg.get("text", "").strip()
     sticker = msg.get("sticker")
+
+    # Skip messages sent BY Pierce (outgoing) — don't analyze his own photos/messages
+    from_id = msg.get("from", {}).get("id", 0)
+    if OWNER_CHAT_ID and from_id == OWNER_CHAT_ID:
+        return None, None
+
+    # /vip command — mark a fan as VIP (bot pauses, Pierce handles manually)
+    if text.startswith("/vip ") and msg.get("from", {}).get("id") == OWNER_CHAT_ID:
+        target_id = text[5:].strip()
+        try:
+            vip_chats.add(int(target_id))
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"✅ Chat {target_id} marked as VIP — bot paused for this fan. /unvip {target_id} to resume."})
+        except ValueError:
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /vip CHAT_ID"})
+        return None, None
+
+    # /unvip command — resume bot for a VIP chat
+    if text.startswith("/unvip ") and msg.get("from", {}).get("id") == OWNER_CHAT_ID:
+        target_id = text[7:].strip()
+        try:
+            vip_chats.discard(int(target_id))
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"✅ Bot resumed for chat {target_id}."})
+        except ValueError:
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /unvip CHAT_ID"})
+        return None, None
+
+    # Skip VIP chats — Pierce is handling manually
+    if chat_id in vip_chats:
+        log.info(f"Skipping VIP chat {chat_id}")
+        return None, None
 
     # /blast command from owner — fan out a message to all recent fans
     if text.startswith("/blast ") and msg.get("from", {}).get("id") == OWNER_CHAT_ID:
@@ -689,6 +721,7 @@ def main():
     chat_heat: dict    = defaultdict(lambda: 1)
     chat_state: dict   = {}  # for follow-up tracking
     sleep_until: dict  = {}  # chat_id → timestamp when sleep mode ends
+    vip_chats: set     = set()   # chats paused for Pierce to handle manually
     msg_count: dict    = defaultdict(int)  # per-chat message counter
     channel_prompted: set = set()  # chats that already got the channel prompt
 
@@ -717,7 +750,7 @@ def main():
                 _msg_pre = update.get("business_message") or update.get("message") or {}
                 _cid_pre = _msg_pre.get("chat", {}).get("id")
                 _is_first = bool(_cid_pre and _cid_pre not in seen_chats)
-                cid, biz = process_update(update, chat_history, chat_heat, sleep_until, first_contact=_is_first)
+                cid, biz = process_update(update, chat_history, chat_heat, sleep_until, first_contact=_is_first, vip_chats=vip_chats)
                 if cid:
                     chat_state[cid] = {"last_msg": time.time(), "biz": biz or "", "followups_sent": 0}
                     msg_count[cid] += 1
