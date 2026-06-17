@@ -237,6 +237,9 @@ AI_LEAK_PREFIXES = (
     "my programming", "my training", "my guidelines", "my instructions",
     "bella would", "bella should", "bella says", "she would say",
     "[assistant]", "(assistant)", "assistant:", "ai:",
+    "below is rewritten", "rewritten:", "revised:", "revised version", "here is a rewrite",
+    "alternative:", "alternative version", "better version:", "improved:", "v2:",
+    "rephrased:", "let me rephrase", "let me rewrite", "actually,",
 )
 
 def clean_reply(text: str) -> str:
@@ -244,6 +247,9 @@ def clean_reply(text: str) -> str:
     import re as _rec
     # Strip trailing garbage characters
     text = _rec.sub(r'[-)(;&|@#%^*~]+;?\s*$', '', text).strip()
+    # Strip "BELOW IS REWRITTEN:" and similar inline labels
+    text = _rec.sub(r'(?:BELOW IS REWRITTEN|REWRITTEN|REVISED|REPHRASED)[:\s]*', '', text, flags=_rec.I).strip()
+    text = _rec.sub(r'\b(?:BELOW IS REWRITTEN:|REWRITTEN:|REVISED:).*', '', text, flags=_rec.I).strip()
     # Strip trailing parenthetical AI notes like "(After a fan says this, heat goes up to 5)"
     text = _rec.sub(r'\s*\([^)]{10,}\)\s*$', '', text).strip()
     # Strip any inline parenthetical with AI reasoning keywords
