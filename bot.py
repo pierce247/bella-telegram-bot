@@ -479,9 +479,10 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
             tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /unvip CHAT_ID"})
         return None, None
 
-    # Skip VIP chats — Pierce is handling manually
-    if chat_id in vip_chats:
-        log.info(f"Skipping VIP chat {chat_id}")
+    # Skip VIP chats — Pierce is handling manually (extract chat_id early for this check)
+    _early_chat_id = msg.get("chat", {}).get("id") if msg else None
+    if vip_chats and _early_chat_id and _early_chat_id in vip_chats:
+        log.info(f"Skipping VIP chat {_early_chat_id}")
         return None, None
 
     # /blast command from owner — fan out a message to all recent fans
