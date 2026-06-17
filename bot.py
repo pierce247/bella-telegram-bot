@@ -269,8 +269,8 @@ def clean_reply(text: str) -> str:
         if not stripped:
             continue
         lower = stripped.lower()
-        # Drop any line that starts with AI meta-commentary
-        if any(lower.startswith(prefix) for prefix in AI_LEAK_PREFIXES):
+        # Only apply prefix filter to longer lines — short replies are usually fine
+        if len(stripped) > 60 and any(lower.startswith(prefix) for prefix in AI_LEAK_PREFIXES):
             log.warning(f"Stripped AI leak: {stripped[:60]!r}")
             break
         good_lines.append(stripped)
@@ -357,20 +357,17 @@ def bella_reply(user_name: str, user_text: str, history: list,
             log.error(f"OpenRouter error: {e}")
             break
 
-    # Context-aware fallbacks so silence never happens
-    content_fallbacks = [
-        "oh you want to see me? that's what my private page is for 😏",
-        "you're not getting it that easy... check my exclusive stuff though",
-        "I save the good stuff for the ones who earn it 🩷",
-    ]
-    generic_fallbacks = [
-        "heyy 🩷 talk to me", "what's on your mind?", "tell me something good",
-    ]
-    # Use content fallback if the original message was about content
-    import re as _rfb
-    if any(kw in user_text.lower() for kw in ["pic", "boob", "ass", "nude", "show", "body", "see you"]):
-        return random.choice(content_fallbacks)
-    return random.choice(generic_fallbacks)
+    # Context-aware fallbacks — respond to what they actually said
+    t = user_text.lower().strip()
+    if any(kw in t for kw in ["pic", "boob", "ass", "nude", "show", "body", "see you", "tit"]):
+        return random.choice(["that's for my private page babe 😏", "you're not ready for that yet", "I save the good stuff for the right ones 🩷"])
+    if any(kw in t for kw in ["busy", "work", "later", "talk later", "gotta go", "have to go"]):
+        return random.choice(["go handle your business, come find me after 🩷", "okay okay, go... but come back", "fine, but I want details later 😏"])
+    if t in ["ok", "okay", "k", "fine", "sure", "lol", "haha", "😂", "lmao"]:
+        return random.choice(["just okay?? 😏", "that's all I get?", "you're funny 🩷"])
+    if any(kw in t for kw in ["what", "huh", "??"]):
+        return random.choice(["you heard me 😏", "you know what I mean", "don't play dumb 🩷"])
+    return random.choice(["tell me something interesting", "you're being mysterious 😏", "what's on your mind?"])
 
 
 # ── Heat scoring ──────────────────────────────────────────────────────────────
