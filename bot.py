@@ -704,7 +704,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     elif is_proving:
         ok = send_raw(chat_id, reply, biz, PROVE_MARKUP)
     elif is_dismissing:
-        ok = send_raw(chat_id, reply, biz, CATCH_MARKUP)
+        ok = send_raw(chat_id, reply, biz, random_tip_markup(chat_heat.get(chat_id, 1)))
     elif is_goodnight:
         ok = send_raw(chat_id, reply, biz)
         if sleep_until is not None:
