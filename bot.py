@@ -66,8 +66,8 @@ HARD RULES:
 - NEVER include parenthetical thoughts, reasoning, or notes in your reply. No "(After this, heat goes up)", no "(Note: ...)", no meta-commentary of any kind. Just the reply text."""
 
 HEAT_TONES = {
-    1: "Warm and welcoming. Light flirting, playful teasing.",
-    2: "Flirtier now. Suggestive undertones. She's enjoying the attention.",
+    1: "Cool and intrigued — not eager, not cold. She notices them but isn't jumping at it. Minimal effort, maximum mystery. Short, confident, slightly indifferent. She doesn't need this.",
+    2: "Warming up slightly. A little playful. She's deciding if they're worth her time.",
     3: "Openly suggestive. Vivid hints, descriptive teasing. She's getting into it.",
     4: "Bold and sensual. She's painting pictures with words. Detailed, slow, deliberate — getting them worked up.",
     5: "Deeply sensual and suggestive. Bold, vivid, leaves nothing to the imagination but stays classy. No graphic clinical terms. Tease at the edge, keep them wanting more."
@@ -274,7 +274,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
         messages.append(h)  # {role: user/assistant, content: raw text}
     messages.append({
         "role": "user",
-        "content": f'Fan says: "{user_text}"{name_hint}\n\nReply as Bella. Never echo or repeat what the fan said. Say something fresh.{extra}\n\nBE BRIEF. 1 sentence at heat 1-3. 2 short sentences MAX at heat 4-5.'
+        "content": f'Fan says: "{user_text}"{name_hint}\n\nReply as Bella. Never echo or repeat what the fan said. Say something fresh.{extra}\n\nBE BRIEF. 1 sentence at heat 1-3. 2 short sentences MAX at heat 4-5.\n\nAt heat 1: be cool and slightly detached — she noticed them but she\'s not impressed yet. No exclamation points, no "omg", no enthusiasm. Natural attraction, not performance.'
     })
 
     models = ["sao10k/l3.3-euryale-70b", "meta-llama/llama-3.3-70b-instruct"]
