@@ -346,11 +346,12 @@ def bella_reply(user_name: str, user_text: str, history: list,
         except urllib.error.HTTPError as e:
             body = e.read().decode()
             if e.code == 429 and attempt == 0:
-                log.warning(f"Euryale 429 — waiting 3s then retry")
-                time.sleep(3)
-                continue  # one quick retry
+                log.warning(f"Euryale 429 — waiting 10s then retry")
+                time.sleep(10)
+                continue  # one retry at actual retry_after time
             elif e.code == 429:
-                break  # give up fast, use fallback
+                log.warning(f"Euryale 429 again — using quick fallback")
+                break  # give up, use fallback fast
             log.error(f"OpenRouter HTTP {e.code}: {body[:100]}")
             break
         except Exception as e:
@@ -698,9 +699,9 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 
     # 5. Generate reply
     reply = bella_reply(user_name, text, history, chat_heat[chat_id], extra)
-    # If still empty (very rare), force a retry without the leak filter
+    # Empty reply — log it but don't loop
     if not reply:
-        reply = bella_reply(user_name, text, [], heat=1, extra=" Reply naturally as Bella. Short.")
+        log.warning(f"Empty reply for: {text[:30]!r}")
 
     # 6. Update conversation history
     chat_history[chat_id].append({"role": "user", "content": text})
