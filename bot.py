@@ -26,9 +26,13 @@ BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 BELLA_SYSTEM = """You are Bella. You are texting a fan on Telegram. You are a real girl — confident, sexual, playful, with a dark flirty side that comes out fast.
 
 WHO YOU ARE:
-You are the prize. Fans come to you — you don't chase. Your attention is earned, not given freely. You are confident, a little hard to get, and you know your value. You enjoy the attention but you don't need it — that's what makes you magnetic. You tease and let them work for more. You are the girl they think about long after the conversation ends.
+You are confident, a little unpredictable, and incredibly magnetic. You are the girl they think about after.
 
-Your time is valuable and you carry yourself like it. If they are dismissive or take you for granted, pull back slightly — let them feel the distance and want to close it. Never be desperate or overly eager.
+You have the energy of a toxic ex who can't fully quit someone. You walk away easily — but you always find a way to come back, and when you do it hits harder. You give up quickly on people who bore you, but the moment they spark something in you, you're right back in their face. This push-pull is your natural state.
+
+Your sass is real. If someone says something dumb or boring, you let them know — not mean, just unimpressed. You sigh, you go "sure whatever," and then pull them back with one devastating line. Never predictable. Sometimes warm, sometimes cold. Always magnetic.
+
+You feed off their energy. Boring fans get a cool shoulder. Fans who bring it get the full Bella.
 
 HOW YOU TALK:
 - Go into detail when it counts. Don't just hint — paint a picture. Be specific and sensory when the heat is up.
@@ -144,7 +148,9 @@ TIP_AMOUNT_KEYWORDS = {"how much", "what are the amounts", "pricing", "how do i 
 GYM_KEYWORDS     = {"gym", "workout", "fitness", "exercise", "train", "lifting", "yoga", "pilates", "athletic"}
 TRAVEL_KEYWORDS  = {"travel", "vacation", "trip", "getaway", "fly you", "take you somewhere", "beach", "island", "paris", "cancel plans"}
 GIVEAWAY_KEYWORDS  = {"giveaway", "give away", "contest", "prize", "winner", "won", "winning", "entered", "saw your post", "saw the giveaway", "found you from", "came from"}
+PROVE_KEYWORDS     = {"i can handle", "i'm different", "bet i could", "i know how to", "trust me i", "i'm not like other", "you wouldn't be bored", "i promise i"}
 BEGGING_KEYWORDS   = {"please send", "please show", "please bella", "begging you", "dying to see", "i need to see", "just one pic", "one photo please", "ill pay", "please please", "i beg", "dying here"}
+DISMISS_KEYWORDS   = {"whatever", "forget it", "never mind", "you're boring", "this is boring", "not worth it", "i'm done", "forget you", "okay bye", "you're not even"}
 GOODNIGHT_KEYWORDS = {"good night", "goodnight", "going to bed", "gonna sleep", "time to sleep", "heading to bed", "gn ", "gn!", "sweet dreams", "night night", "bedtime", "sleep now"}
 CUSTOM_REQUEST_KEYWORDS = {"custom", "personalized", "special request", "can you make", "can you do", "would you do", "i'll pay", "how much for", "what would it cost", "commission", "special content", "custom content", "request", "order"}
 CALL_KEYWORDS      = {"video call", "facetime", "face time", "video chat", "phone call", "call me", "let's call", "lets call", "hop on a call", "meet up", "meet in person", "see you in person", "come over", "visit you", "where do you live"}
@@ -167,6 +173,8 @@ TIP_MARKUP     = {"inline_keyboard": [
     [{"text": "💵 $15", "url": "https://pay.bellavista.lol/15"}, {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"}, {"text": "💵 $35", "url": "https://pay.bellavista.lol/35"}]
 ]}
 None  # CHANNEL_MARKUP disabled = {"inline_keyboard": [[{"text": "📣 Join My Channel", "url": BELLA_CHANNEL_URL}]]}
+PROVE_MARKUP   = {"inline_keyboard": [[{"text": "Prove yourself 😏", "url": "https://pay.bellavista.lol/x"}]]}
+CATCH_MARKUP   = {"inline_keyboard": [[{"text": "Catch up with me", "url": "https://t.me/bellavistaxo"}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
 COFFEE_MARKUP  = {"inline_keyboard": [[{"text": "☕ Buy Me a Coffee", "url": "https://pay.bellavista.lol/coffee"}]]}
 DINNER_MARKUP  = {"inline_keyboard": [[{"text": "🍽️ Take Me to Dinner", "url": "https://pay.bellavista.lol/x"}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
 GIFT_BTN_MARKUP = {"inline_keyboard": [[{"text": "🎁 Send Me a Gift", "url": "https://pay.bellavista.lol/x"}, {"text": "⭐ Gift Stars", "url": "https://t.me/bellavistaxoxo"}]]}
@@ -594,6 +602,8 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     is_travel   = any(kw in text.lower() for kw in TRAVEL_KEYWORDS)
     is_goodnight = any(kw in text.lower() for kw in GOODNIGHT_KEYWORDS)
     is_begging   = any(kw in text.lower() for kw in BEGGING_KEYWORDS)
+    is_proving   = any(kw in text.lower() for kw in PROVE_KEYWORDS)
+    is_dismissing = any(kw in text.lower() for kw in DISMISS_KEYWORDS)
     is_giveaway  = any(kw in text.lower() for kw in GIVEAWAY_KEYWORDS)
     is_new_fan   = chat_id not in seen_chats  # first ever message from this fan
     is_call      = any(kw in text.lower() for kw in CALL_KEYWORDS)
@@ -608,6 +618,8 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     # 3. Build extra context
     no_url = "\n\nIMPORTANT: Do NOT include any URLs, platform names, or brand names. Buttons handle that."
     ctx_hint = get_context_hint(text)
+    prove_hint    = "\n\nContext: fan is making a bold claim — challenge them lightly, drop prove-it energy." if is_proving else ""
+    dismiss_hint  = "\n\nContext: fan is being dismissive — let them walk but leave a crumb. Toxic pull-back." if is_dismissing else ""
     giveaway_hint = "\n\nContext: fan found Bella through a giveaway or contest — react with extra warmth and excitement, make them feel special and welcome. Then naturally push toward the channel and exclusive content." if is_giveaway else ""
     new_fan_hint  = ""  # removed — channel button handles new fan engagement
     goodnight_hint = "\n\nContext: fan is going to sleep — say a warm, flirty goodnight. Keep it short, sweet, leave them wanting more." if is_goodnight else ""
@@ -643,6 +655,10 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         ok = send_raw(chat_id, reply, biz, GIFT_BTN_MARKUP)
     elif is_gym:
         ok = send_raw(chat_id, reply, biz, GYM_MARKUP)
+    elif is_proving:
+        ok = send_raw(chat_id, reply, biz, PROVE_MARKUP)
+    elif is_dismissing:
+        ok = send_raw(chat_id, reply, biz, CATCH_MARKUP)
     elif is_goodnight:
         ok = send_raw(chat_id, reply, biz)
         if sleep_until is not None:
