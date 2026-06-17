@@ -686,14 +686,8 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 
     # 8. Send with appropriate buttons — never back-to-back button messages
     # Check if last message in this chat already had buttons (suppress if < 60s ago)
-    _now = time.time()
-    _last_btn = last_button_sent.get(chat_id, 0) if 'last_button_sent' in dir() else 0
-    _btn_ok = (_now - _last_btn) > 60  # at least 60s since last button message
-
     if is_content:
-        _markup = random_tip_markup(chat_heat.get(chat_id, 3)) if _btn_ok else None
-        if _markup: last_button_sent[chat_id] = _now
-        ok = send_raw(chat_id, reply, biz, _markup)
+        ok = send_raw(chat_id, reply, biz, random_tip_markup(chat_heat.get(chat_id, 3)))
     elif is_coffee:
         ok = send_raw(chat_id, reply, biz, COFFEE_MARKUP)
     elif is_dinner:
