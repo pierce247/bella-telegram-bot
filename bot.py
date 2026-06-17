@@ -359,11 +359,12 @@ def bella_reply(user_name: str, user_text: str, history: list,
                 break
         except urllib.error.HTTPError as e:
             body = e.read().decode()
-            if e.code == 429:
-                retry_after = 12 if attempt < 2 else 0
-                log.warning(f"Euryale 429 — waiting {retry_after}s (attempt {attempt+1})")
-                if retry_after: time.sleep(retry_after)
-                continue  # retry
+            if e.code == 429 and attempt == 0:
+                log.warning(f"Euryale 429 — waiting 3s then retry")
+                time.sleep(3)
+                continue  # one quick retry
+            elif e.code == 429:
+                break  # give up fast, use fallback
             log.error(f"OpenRouter HTTP {e.code}: {body[:100]}")
             break
         except Exception as e:
