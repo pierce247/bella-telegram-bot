@@ -281,7 +281,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
 
     for model in models:
         payload = json.dumps({
-            "model": model, "max_tokens": {1: 60, 2: 75, 3: 100, 4: 130, 5: 160}.get(heat, 100), "temperature": 0.9,
+            "model": model, "max_tokens": {1: 90, 2: 110, 3: 140, 4: 180, 5: 220}.get(heat, 140), "temperature": 0.9,
             "messages": [{"role": "system", "content": system}] + messages
         }).encode()
         req = urllib.request.Request(
@@ -714,8 +714,9 @@ def start_webhook_server():
 # ── Offset persistence ────────────────────────────────────────────────────────
 
 OFFSET_FILE  = "/data/bella_offset.txt"
-FANS_FILE    = "/data/bella_fans.json"  # persists fan chat_ids for broadcast
+FANS_FILE    = "/data/bella_fans.json"
 DEDUP_FILE   = "/data/bella_dedup.txt"
+SEEN_FILE    = "/data/bella_seen.json"
 MAX_DEDUP    = 500  # keep last N update IDs on disk
 
 def load_seen() -> set:
