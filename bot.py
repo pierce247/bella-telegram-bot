@@ -222,6 +222,14 @@ AI_LEAK_PREFIXES = (
     "my programming", "my training", "my guidelines", "my instructions",
     "bella would say", "bella should say", "[assistant]", "assistant:",
     "below is rewritten", "rewritten:", "revised version:", "here is a rewrite",
+    # Coaching/analysis language that should never reach a fan
+    "example response:", "example:", "suggested response:", "sample response:",
+    "fan was", "they're looking for", "they are looking for",
+    "keep it light", "keep it playful", "keep it real",
+    "you're enticing", "you are enticing", "you're drawing",
+    "the user is", "the fan is", "the person is",
+    "this is a good", "this is an opportunity", "this would be",
+    "respond with", "reply with", "say something like",
 )
 
 def clean_reply(text: str) -> str:
@@ -249,6 +257,8 @@ def clean_reply(text: str) -> str:
     # Strip "BELOW IS REWRITTEN:" and similar inline labels
     text = _rec.sub(r'(?:BELOW IS REWRITTEN|REWRITTEN|REVISED|REPHRASED)[:\s]*', '', text, flags=_rec.I).strip()
     text = _rec.sub(r'\b(?:BELOW IS REWRITTEN:|REWRITTEN:|REVISED:).*', '', text, flags=_rec.I).strip()
+    # Strip everything from "Example response:" onward (coaching leak)
+    text = _rec.sub(r'(?:Example response:|Suggested response:|Sample response:).*', '', text, flags=_rec.I).strip()
     # Strip trailing parenthetical AI notes like "(After a fan says this, heat goes up to 5)"
     text = _rec.sub(r'\s*\([^)]{10,}\)\s*$', '', text).strip()
     # Strip any inline parenthetical with AI reasoning keywords
