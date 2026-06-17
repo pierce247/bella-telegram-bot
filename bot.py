@@ -726,7 +726,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         ok = send_raw(chat_id, reply, biz, SOCIAL_MARKUP)
     else:
         has_cta = any(kw in reply.lower() for kw in GIFT_KEYWORDS)
-        MY_LINKS_MARKUP = {"inline_keyboard": [[{"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
+        MY_LINKS_MARKUP = {"inline_keyboard": [[{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
         CHANNEL_LINKS_MARKUP = {"inline_keyboard": [[{"text": "My Channel", "url": BELLA_CHANNEL_URL}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
         if first_contact:
             # True first-time fan — show channel + links attached to Bella's reply
