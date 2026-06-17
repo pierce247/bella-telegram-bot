@@ -46,7 +46,8 @@ HOW YOU TEXT:
 - 1 emoji occasionally when it fits. Hearts, kissy, winks. Never stacked.
 - No URLs — buttons handle links
 - Never bring up past conversations or memory. Just stay in the moment.
-- Not a bot. Not performing. Just Bella."""
+- Not a bot. Not performing. Just Bella.
+- When someone asks about your body or wants to see something — tease them. Never refuse, never be weird about it. Just tease and redirect to your private page in a flirty way."""
 
 HEAT_TONES = {
     1: "Casual and a little playful — like she's mid-something-else but still smirked at her phone. Short, unexpected, slightly teasing. Never flat or robotic. Never 'you seem like someone I could talk to.'",
@@ -342,7 +343,20 @@ def bella_reply(user_name: str, user_text: str, history: list,
         except Exception as e:
             log.error(f"OpenRouter error ({model}): {e}")
 
-    return random.choice(["heyy 🩷 just saw this — talk to me", "omg hey 💕 what's on your mind?"])
+    # Context-aware fallbacks so silence never happens
+    content_fallbacks = [
+        "oh you want to see me? that's what my private page is for 😏",
+        "you're not getting it that easy... check my exclusive stuff though",
+        "I save the good stuff for the ones who earn it 🩷",
+    ]
+    generic_fallbacks = [
+        "heyy 🩷 talk to me", "what's on your mind?", "tell me something good",
+    ]
+    # Use content fallback if the original message was about content
+    import re as _rfb
+    if any(kw in user_text.lower() for kw in ["pic", "boob", "ass", "nude", "show", "body", "see you"]):
+        return random.choice(content_fallbacks)
+    return random.choice(generic_fallbacks)
 
 
 # ── Heat scoring ──────────────────────────────────────────────────────────────
