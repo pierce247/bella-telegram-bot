@@ -338,11 +338,11 @@ def bella_reply(user_name: str, user_text: str, history: list,
                 if "choices" in data:
                     raw = data["choices"][0]["message"]["content"]
                     reply = clean_reply(raw)
-                    if not reply:
-                        log.warning(f"Reply empty after cleaning (attempt {attempt+1})")
-                        break
-                    log.info(f"[heat={heat}] Reply: {reply[:60]!r}")
-                    return reply
+                    if reply:
+                        log.info(f"[heat={heat}] Reply: {reply[:60]!r}")
+                        return reply
+                    log.warning(f"Reply empty after cleaning — retrying")
+                    continue  # try again, don't give up immediately
                 log.error(f"Unexpected response: {data}")
                 break
         except urllib.error.HTTPError as e:
@@ -679,6 +679,9 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 
     # 5. Generate reply
     reply = bella_reply(user_name, text, history, chat_heat[chat_id], extra)
+    # Nuclear fallback — ALWAYS have something to send
+    if not reply:
+        reply = random.choice(["hey 🩷", "lol", "tell me more", "go on...", "interesting 😏"])
 
     # 6. Update conversation history
     chat_history[chat_id].append({"role": "user", "content": text})
