@@ -351,16 +351,9 @@ def clean_reply(text: str) -> str:
 def bella_reply(user_name: str, user_text: str, history: list,
                 heat: int = 1, extra: str = "") -> str:
     """Generate Bella's reply using conversation history and heat level."""
-    # Detect if fan introduced their name (blocklist non-name words)
-    import re as _re
-    _NAME_BLOCKLIST = {"naked", "horny", "hard", "wet", "ready", "here", "back", "done", "good", "bad",
-                       "fine", "okay", "not", "just", "really", "serious", "lying", "kidding", "joking",
-                       "sorry", "tired", "bored", "alone", "free", "busy", "hot", "cold", "sick", "lost"}
-    _intro = _re.search(r"(?:i['']?m|my name is|call me|they call me)\s+([a-zA-Z]{2,15})", user_text, _re.I)
-    if _intro and _intro.group(1).lower() not in _NAME_BLOCKLIST:
-        name_hint = f" (fan said their name is {_intro.group(1)}, use it occasionally)"
-    else:
-        name_hint = ""
+    # No name extraction — Bella calls everyone "babe" to avoid confusion, jealousy,
+    # and false positives from "I'm [adjective]" being misread as a name introduction.
+    name_hint = ""
     tone_note = f"\n\nCURRENT VIBE (heat {heat}/5): {HEAT_TONES[heat]}"
 
     system = BELLA_SYSTEM + tone_note
@@ -780,7 +773,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                 save_fans(_fans)
             # Save Pierce's manual message to DB so Bella sees it as part of the conversation
             if _out_text:
-                db_save_message(_out_chat_id, "assistant", _out_text)
+                db_save_message(_out_chat_id, "owner", _out_text)
                 log.info(f"Saved Pierce's manual message to DB for chat {_out_chat_id}: {_out_text[:40]!r}")
             # Also persist biz_id if we have it
             if _out_biz:
@@ -920,8 +913,10 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     db_hist = db_load_history(chat_id, limit=20)
     history = db_hist if db_hist else list(chat_history[chat_id])
 
-    # 5. Generate reply
+    # 5. Generate reply (track time for research)
+    _reply_start = time.time()
     reply = bella_reply(user_name, text, history, chat_heat[chat_id], extra)
+    _reply_ms = int((time.time() - _reply_start) * 1000)
     # Empty reply — use a safe fallback instead of sending nothing
     if not reply:
         log.warning(f"Empty reply for: {text[:30]!r}")
@@ -982,11 +977,12 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 
     log.info(f"{'✅' if ok else '❌'} Sent to {user_name}")
 
-    # Persist to DB — save fan message + Bella's reply, update fan profile
+    # Persist to DB — save fan message + Bella's reply with research metadata
     if ok:
-        db_save_message(chat_id, "user", text)
-        db_save_message(chat_id, "assistant", reply)
-        db_upsert_fan(chat_id, name=user_name, biz=biz, heat=chat_heat.get(chat_id, 1))
+        _heat_now = chat_heat.get(chat_id, 1)
+        db_save_message(chat_id, "user", text, heat=_heat_now)
+        db_save_message(chat_id, "assistant", reply, heat=_heat_now, response_ms=_reply_ms)
+        db_upsert_fan(chat_id, name=user_name, biz=biz, heat=_heat_now)
 
     # 9. Photo interjection when fan is begging and photos are available
     if is_begging and BELLA_PHOTO_IDS:
@@ -1135,14 +1131,18 @@ def db_init():
             notes       TEXT    DEFAULT ''
         );
         CREATE TABLE IF NOT EXISTS messages (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            chat_id     INTEGER NOT NULL,
-            role        TEXT    NOT NULL,   -- 'user' or 'assistant'
-            content     TEXT    NOT NULL,
-            ts          REAL    NOT NULL,
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id       INTEGER NOT NULL,
+            role          TEXT    NOT NULL,   -- 'user' or 'assistant' or 'owner'
+            content       TEXT    NOT NULL,
+            ts            REAL    NOT NULL,
+            heat          INTEGER DEFAULT 1,  -- heat level at time of message
+            is_fallback   INTEGER DEFAULT 0,  -- 1 if Euryale 429'd and fallback was used
+            response_ms   INTEGER DEFAULT 0,  -- response time in milliseconds (0 for user msgs)
             FOREIGN KEY (chat_id) REFERENCES fans(chat_id)
         );
         CREATE INDEX IF NOT EXISTS idx_messages_chat_ts ON messages(chat_id, ts);
+        CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts);  -- for time-range queries
     """)
     conn.commit()
     log.info("DB initialized")
@@ -1169,24 +1169,30 @@ def db_migrate_fans_json():
     except Exception as e:
         log.warning(f"Fan migration skipped: {e}")
 
-def db_save_message(chat_id: int, role: str, content: str):
-    """Persist a single message to the DB."""
+def db_save_message(chat_id: int, role: str, content: str, heat: int = 1, response_ms: int = 0, is_fallback: int = 0):
+    """Persist a single message to the DB with optional research metadata."""
     try:
         conn = _get_db()
-        conn.execute("INSERT INTO messages (chat_id,role,content,ts) VALUES (?,?,?,?)",
-                     (chat_id, role, content, time.time()))
+        conn.execute(
+            "INSERT INTO messages (chat_id,role,content,ts,heat,response_ms,is_fallback) VALUES (?,?,?,?,?,?,?)",
+            (chat_id, role, content, time.time(), heat, response_ms, is_fallback))
         conn.commit()
     except Exception as e:
         log.warning(f"db_save_message error: {e}")
 
 def db_load_history(chat_id: int, limit: int = 20) -> list:
-    """Load last `limit` messages for a chat as [{role,content}] list."""
+    """Load last `limit` messages for a chat as [{role,content}] list.
+    'owner' role is mapped to 'assistant' so the AI sees it as Bella's side."""
     try:
         conn = _get_db()
         rows = conn.execute(
             "SELECT role, content FROM messages WHERE chat_id=? ORDER BY ts DESC LIMIT ?",
             (chat_id, limit)).fetchall()
-        return [{"role": r, "content": c} for r, c in reversed(rows)]
+        result = []
+        for role, content in reversed(rows):
+            ai_role = "assistant" if role in ("assistant", "owner") else "user"
+            result.append({"role": ai_role, "content": content})
+        return result
     except Exception as e:
         log.warning(f"db_load_history error: {e}")
         return []
