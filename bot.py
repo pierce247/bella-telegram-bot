@@ -1041,6 +1041,29 @@ def main():
     threading.Thread(target=start_webhook_server, daemon=True).start()
     log.info("🩷 Bella Telegram Bot starting up (v2 — memory + heat + stars thank-you)...")
 
+    # ── Watchdog ──────────────────────────────────────────────────────────────
+    # Monitors the poll loop heartbeat. If it stalls >90s, kills the process
+    # so Railway auto-restarts it cleanly.
+    _heartbeat = {"ts": time.time()}
+    WATCHDOG_TIMEOUT = 90  # seconds before declaring a stall
+
+    def _watchdog():
+        while True:
+            time.sleep(30)
+            elapsed = time.time() - _heartbeat["ts"]
+            if elapsed > WATCHDOG_TIMEOUT:
+                log.error(f"🚨 Watchdog: poll loop stalled {elapsed:.0f}s — forcing restart")
+                if OWNER_CHAT_ID:
+                    try:
+                        tg("sendMessage", {"chat_id": OWNER_CHAT_ID,
+                            "text": f"⚠️ Bella bot stalled ({elapsed:.0f}s) — auto-restarting now"})
+                    except Exception:
+                        pass
+                os._exit(1)
+
+    threading.Thread(target=_watchdog, daemon=True, name="watchdog").start()
+    log.info(f"Watchdog started (timeout={WATCHDOG_TIMEOUT}s)")
+
     # Load persisted offset — don't skip on startup, let dedup handle it
     offset = load_offset()
     log.info(f"Starting from offset {offset}")
@@ -1085,6 +1108,7 @@ def main():
 
     while True:
         try:
+            _heartbeat["ts"] = time.time()  # watchdog heartbeat
             updates = get_updates(offset)
             for update in updates:
                 uid = update["update_id"]
