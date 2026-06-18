@@ -297,12 +297,54 @@ def clean_reply(text: str) -> str:
     # Final cleanup: remove any remaining heat/level refs and bot phrases
     result = _rec.sub(r'\s*\(heat[^)]*\)', '', result, flags=_rec.I).strip()
     result = _rec.sub(r'\bheat\s+(?:level\s+)?\d\b[^.]*', '', result, flags=_rec.I).strip()
-    # Hard bail: if result still contains dead giveaways, use fallback
+    # Hard bail — dead AI giveaways: discard and let fallback handle it
     _bot_tells = ["as an ai", "language model", "i'm programmed", "my guidelines",
-                  "bella would", "bella should", "[assistant]", "i cannot", "i can't engage"]
+                  "bella would", "bella should", "[assistant]"]
     if any(tell in result.lower() for tell in _bot_tells):
         log.warning(f"Full AI leak detected, discarding: {result[:60]!r}")
         return ""  # triggers fallback to next model
+
+    # Safety refusal detection — specific phrases only, not broad keywords.
+    # Swap with in-character Bella response so fans never see bot-speak.
+    _refusal_phrases = [
+        "i can't respond to that request",
+        "i can't engage in flirtation",
+        "i couldn't make out what you were saying",
+        "i'm not able to engage",
+        "i'm not able to respond",
+        "i cannot fulfill",
+        "i can't fulfill",
+        "i'm unable to",
+        "i cannot assist with",
+        "i can't assist with",
+        "i can't provide",
+        "i cannot provide",
+        "i'm sorry, i can't",
+        "sorry, i can't",
+        "as an ai assistant",
+        "as a language model",
+        "my purpose is to",
+        "i was designed to",
+        "i don't feel comfortable",
+        "not comfortable with",
+        "that's not something i",
+        "i'm not going to",
+        "i won't be able to",
+        "content policy",
+        "violates my",
+        "against my guidelines",
+    ]
+    _result_lower = result.lower()
+    if any(phrase in _result_lower for phrase in _refusal_phrases):
+        log.warning(f"Safety refusal intercepted, swapping: {result[:60]!r}")
+        return random.choice([
+            "say that again? 😏",
+            "wait what 🩷 my brain glitched",
+            "omg hold on, say that again",
+            "lol I spaced out for a sec 😅 what were you saying",
+            "I missed that — what did you say 🩷",
+            "hold on, I got distracted 😏",
+        ])
     return result
 
 
@@ -608,6 +650,37 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                 tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "No chats currently in sleep mode."})
         return None, None
 
+    # /fan CHAT_ID — show fan profile from DB
+    if text.startswith("/fan") and from_id == OWNER_CHAT_ID:
+        target = text[4:].strip()
+        if target:
+            try:
+                cid_fan = int(target)
+                fan = db_get_fan(cid_fan)
+                if fan:
+                    first = time.strftime("%b %d", time.localtime(fan["first_seen"])) if fan["first_seen"] else "?"
+                    last = time.strftime("%b %d %H:%M", time.localtime(fan["last_seen"])) if fan["last_seen"] else "?"
+                    # Get last 3 message pairs for preview
+                    hist = db_load_history(cid_fan, limit=6)
+                    preview = ""
+                    for m in hist[-4:]:
+                        icon = "👤" if m["role"] == "user" else "💬"
+                        preview += f"\n{icon} {m['content'][:60]}"
+                    tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": (
+                        f"👤 Fan Profile: {fan['name'] or '?'} ({cid_fan})\n"
+                        f"🔥 Heat: {fan['heat']}/5\n"
+                        f"💬 Messages: {fan['msg_count']}\n"
+                        f"📅 First seen: {first}\n"
+                        f"🕐 Last active: {last}\n"
+                        f"📝 Notes: {fan['notes'] or 'none'}\n"
+                        f"\nRecent chat:{preview}"
+                    )})
+                else:
+                    tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"No DB record for chat {cid_fan} yet."})
+            except ValueError:
+                tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /fan CHAT_ID"})
+        return None, None
+
     # /status command — show bot health summary
     if text.strip() == "/status" and from_id == OWNER_CHAT_ID:
         fans = load_fans()
@@ -629,7 +702,8 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
             f"/vip <chat_id> — pause bot for fan\n"
             f"/unvip <chat_id> — resume fan\n"
             f"/wake <chat_id> — clear sleep mode\n"
-            f"/wake — list all sleeping chats"
+            f"/wake — list all sleeping chats\n"
+            f"/fan <chat_id> — show fan profile + chat history"
         )})
         return None, None
 
@@ -837,8 +911,9 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     stars_hint = "\n\nContext: fan is asking about Telegram Stars — acknowledge it warmly and let them know they can send Stars to show their appreciation. Keep it flirty." if is_stars else ""
     extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + custom_hint
 
-    # 4. Get history for this chat (last 5 turns)
-    history = list(chat_history[chat_id])
+    # 4. Get history for this chat — DB first (survives restarts), fall back to in-memory
+    db_hist = db_load_history(chat_id, limit=20)
+    history = db_hist if db_hist else list(chat_history[chat_id])
 
     # 5. Generate reply
     reply = bella_reply(user_name, text, history, chat_heat[chat_id], extra)
@@ -901,6 +976,12 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
             ok = send_raw(chat_id, reply, biz)
 
     log.info(f"{'✅' if ok else '❌'} Sent to {user_name}")
+
+    # Persist to DB — save fan message + Bella's reply, update fan profile
+    if ok:
+        db_save_message(chat_id, "user", text)
+        db_save_message(chat_id, "assistant", reply)
+        db_upsert_fan(chat_id, name=user_name, biz=biz, heat=chat_heat.get(chat_id, 1))
 
     # 9. Photo interjection when fan is begging and photos are available
     if is_begging and BELLA_PHOTO_IDS:
@@ -1016,6 +1097,126 @@ FANS_FILE    = "/data/bella_fans.json"
 DEDUP_FILE   = "/data/bella_dedup.txt"
 SEEN_FILE    = "/data/bella_seen.json"
 BIZ_FILE     = "/data/bella_biz_id.txt"
+DB_FILE      = "/data/bella.db"
+
+# ── SQLite persistent memory ───────────────────────────────────────────────────
+
+import sqlite3 as _sqlite3
+import threading as _threading
+
+_db_local = _threading.local()  # thread-local connections (safe for threaded processing)
+
+def _get_db():
+    """Get a thread-local SQLite connection."""
+    if not hasattr(_db_local, "conn"):
+        conn = _sqlite3.connect(DB_FILE, check_same_thread=False)
+        conn.execute("PRAGMA journal_mode=WAL")   # safe concurrent writes
+        conn.execute("PRAGMA synchronous=NORMAL")
+        _db_local.conn = conn
+    return _db_local.conn
+
+def db_init():
+    """Create tables if they don't exist and migrate fans.json data."""
+    conn = _get_db()
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS fans (
+            chat_id     INTEGER PRIMARY KEY,
+            name        TEXT    DEFAULT '',
+            biz         TEXT    DEFAULT '',
+            heat        INTEGER DEFAULT 1,
+            first_seen  REAL    DEFAULT 0,
+            last_seen   REAL    DEFAULT 0,
+            msg_count   INTEGER DEFAULT 0,
+            notes       TEXT    DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS messages (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id     INTEGER NOT NULL,
+            role        TEXT    NOT NULL,   -- 'user' or 'assistant'
+            content     TEXT    NOT NULL,
+            ts          REAL    NOT NULL,
+            FOREIGN KEY (chat_id) REFERENCES fans(chat_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_messages_chat_ts ON messages(chat_id, ts);
+    """)
+    conn.commit()
+    log.info("DB initialized")
+
+def db_migrate_fans_json():
+    """One-time migration: import bella_fans.json into DB if fans table is empty."""
+    conn = _get_db()
+    count = conn.execute("SELECT COUNT(*) FROM fans").fetchone()[0]
+    if count > 0:
+        return  # already migrated
+    try:
+        import json as _json
+        with open(FANS_FILE) as f:
+            fans = _json.load(f)
+        now = time.time()
+        rows = [(int(cid), d.get("name",""), d.get("biz",""), 1,
+                 d.get("last_seen", now), d.get("last_seen", now), 0)
+                for cid, d in fans.items()]
+        conn.executemany(
+            "INSERT OR IGNORE INTO fans (chat_id,name,biz,heat,first_seen,last_seen,msg_count) VALUES (?,?,?,?,?,?,?)",
+            rows)
+        conn.commit()
+        log.info(f"Migrated {len(rows)} fans from bella_fans.json into DB")
+    except Exception as e:
+        log.warning(f"Fan migration skipped: {e}")
+
+def db_save_message(chat_id: int, role: str, content: str):
+    """Persist a single message to the DB."""
+    try:
+        conn = _get_db()
+        conn.execute("INSERT INTO messages (chat_id,role,content,ts) VALUES (?,?,?,?)",
+                     (chat_id, role, content, time.time()))
+        conn.commit()
+    except Exception as e:
+        log.warning(f"db_save_message error: {e}")
+
+def db_load_history(chat_id: int, limit: int = 20) -> list:
+    """Load last `limit` messages for a chat as [{role,content}] list."""
+    try:
+        conn = _get_db()
+        rows = conn.execute(
+            "SELECT role, content FROM messages WHERE chat_id=? ORDER BY ts DESC LIMIT ?",
+            (chat_id, limit)).fetchall()
+        return [{"role": r, "content": c} for r, c in reversed(rows)]
+    except Exception as e:
+        log.warning(f"db_load_history error: {e}")
+        return []
+
+def db_upsert_fan(chat_id: int, name: str = None, biz: str = None, heat: int = None):
+    """Insert or update a fan record."""
+    try:
+        conn = _get_db()
+        now = time.time()
+        conn.execute("""
+            INSERT INTO fans (chat_id, name, biz, heat, first_seen, last_seen, msg_count)
+            VALUES (?, ?, ?, ?, ?, ?, 1)
+            ON CONFLICT(chat_id) DO UPDATE SET
+                name      = COALESCE(NULLIF(excluded.name,''), fans.name),
+                biz       = COALESCE(NULLIF(excluded.biz,''),  fans.biz),
+                heat      = COALESCE(excluded.heat, fans.heat),
+                last_seen = excluded.last_seen,
+                msg_count = fans.msg_count + 1
+        """, (chat_id, name or "", biz or "", heat or 1, now, now))
+        conn.commit()
+    except Exception as e:
+        log.warning(f"db_upsert_fan error: {e}")
+
+def db_get_fan(chat_id: int) -> dict:
+    """Return fan record as dict, or {} if not found."""
+    try:
+        conn = _get_db()
+        row = conn.execute(
+            "SELECT name,biz,heat,first_seen,last_seen,msg_count,notes FROM fans WHERE chat_id=?",
+            (chat_id,)).fetchone()
+        if row:
+            return dict(zip(["name","biz","heat","first_seen","last_seen","msg_count","notes"], row))
+    except Exception as e:
+        log.warning(f"db_get_fan error: {e}")
+    return {}
 MAX_DEDUP    = 500  # keep last N update IDs on disk
 
 def load_biz_id() -> str:
@@ -1121,6 +1322,10 @@ def main():
     seen_chats: set = load_seen()       # persisted - true first contact
     global_biz_id: str = load_biz_id() # persisted business_connection_id
     log.info(f"Loaded {len(replied_ids)} dedup IDs from disk")
+
+    # Init SQLite persistent memory
+    db_init()
+    db_migrate_fans_json()
     if global_biz_id:
         log.info(f"Loaded business_connection_id from disk: {global_biz_id[:12]}...")
 
