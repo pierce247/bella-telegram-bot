@@ -519,7 +519,7 @@ def vision_reply(image_url: str, biz: str = "") -> str:
 
 # ── Process update ────────────────────────────────────────────────────────────
 
-def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_until: dict = None, first_contact: bool = False, vip_chats: set = None) -> tuple:
+def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_until: dict = None, first_contact: bool = False, vip_chats: set = None, seen_media_groups: set = None) -> tuple:
     """Returns (chat_id, biz) if a message was handled, else (None, None)."""
 
     # Handle pre_checkout_query — must answer immediately
@@ -733,6 +733,21 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     if photo and not text:
         chat_id: int = msg["chat"]["id"]
         biz: str = msg.get("business_connection_id", "")
+
+        # Album dedup — when a fan sends multiple photos at once, Telegram delivers
+        # each as a separate message sharing the same media_group_id. Only respond
+        # to the first photo in the album; silently mark the rest as read and skip.
+        media_group_id = msg.get("media_group_id")
+        if media_group_id:
+            if seen_media_groups is not None and media_group_id in seen_media_groups:
+                mark_read(chat_id, msg.get("message_id", 0), biz)
+                log.info(f"Skipping duplicate album photo (media_group={media_group_id})")
+                return chat_id, biz  # return chat_id so state updates, but no reply
+            if seen_media_groups is not None:
+                seen_media_groups.add(media_group_id)
+                if len(seen_media_groups) > 200:  # prevent unbounded growth
+                    seen_media_groups.clear()
+
         mark_read(chat_id, msg.get("message_id", 0), biz)
         send_typing(chat_id, biz)
         # Get the largest photo file_id
@@ -1126,6 +1141,7 @@ def main():
     sleep_until: dict  = {}  # chat_id → timestamp when sleep mode ends
     vip_chats: set        = set()   # chats paused for Pierce to handle manually
     last_button_sent: dict = {}  # chat_id → timestamp of last message with buttons
+    seen_media_groups: set = set()   # media_group_ids already responded to (album dedup)
     seen_orders: set   = load_seen_orders()
     last_gd_poll: float = 0.0  # timestamp of last GoDaddy poll
     msg_count: dict    = defaultdict(int)  # per-chat message counter
@@ -1168,7 +1184,8 @@ def main():
                     try:
                         _res[0], _res[1] = process_update(
                             _update, chat_history, chat_heat, sleep_until,
-                            first_contact=_is_f, vip_chats=vip_chats)
+                            first_contact=_is_f, vip_chats=vip_chats,
+                            seen_media_groups=seen_media_groups)
                     except Exception as _e:
                         log.error(f"process_update thread error: {_e}")
                 _t = threading.Thread(target=_process_in_thread, daemon=True)
