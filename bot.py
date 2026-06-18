@@ -343,7 +343,8 @@ def clean_reply(text: str) -> str:
         "i don't feel comfortable",
         "not comfortable with",
         "that's not something i",
-        "i'm not going to",
+        "i'm not going to do that",
+        "i'm not going to engage",
         "i won't be able to",
         "content policy",
         "violates my",
@@ -1151,7 +1152,7 @@ def _get_db():
     return _db_local.conn
 
 def db_init():
-    """Create tables if they don't exist and migrate fans.json data."""
+    """Create tables if they don't exist, then run column migrations for schema updates."""
     conn = _get_db()
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS fans (
@@ -1167,17 +1168,24 @@ def db_init():
         CREATE TABLE IF NOT EXISTS messages (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
             chat_id       INTEGER NOT NULL,
-            role          TEXT    NOT NULL,   -- 'user' or 'assistant' or 'owner'
+            role          TEXT    NOT NULL,
             content       TEXT    NOT NULL,
-            ts            REAL    NOT NULL,
-            heat          INTEGER DEFAULT 1,  -- heat level at time of message
-            is_fallback   INTEGER DEFAULT 0,  -- 1 if Euryale 429'd and fallback was used
-            response_ms   INTEGER DEFAULT 0,  -- response time in milliseconds (0 for user msgs)
-            FOREIGN KEY (chat_id) REFERENCES fans(chat_id)
+            ts            REAL    NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_messages_chat_ts ON messages(chat_id, ts);
-        CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts);  -- for time-range queries
+        CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts);
     """)
+    # Schema migrations — safe to re-run (ALTER TABLE ignores errors if column exists)
+    migrations = [
+        "ALTER TABLE messages ADD COLUMN heat INTEGER DEFAULT 1",
+        "ALTER TABLE messages ADD COLUMN is_fallback INTEGER DEFAULT 0",
+        "ALTER TABLE messages ADD COLUMN response_ms INTEGER DEFAULT 0",
+    ]
+    for sql in migrations:
+        try:
+            conn.execute(sql)
+        except Exception:
+            pass  # column already exists — expected on subsequent startups
     conn.commit()
     log.info("DB initialized")
 
