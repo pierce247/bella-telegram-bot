@@ -136,41 +136,41 @@ FANVUE_FREE_TRIAL = "https://fanvue.com/bellavistaxo?free_trial=1a9f720a-e180-45
 
 # Content/nude keyword trigger — two-row layout
 CONTENT_MARKUP = {"inline_keyboard": [
-    [{"text": "Tip Me 💖", "url": "https://pay.bellavista.lol/x"}, {"text": "Fanvue 🌸", "url": FANVUE_FREE_TRIAL}],
-    [{"text": "$25", "url": "https://pay.bellavista.lol/25"}, {"text": "$50", "url": "https://pay.bellavista.lol/50"}, {"text": "$75", "url": "https://pay.bellavista.lol/75"}]
+    [{"text": "💖 Tip Me", "url": "https://pay.bellavista.lol/x"}, {"text": "🌸 Fanvue", "url": FANVUE_FREE_TRIAL}],
+    [{"text": "💵 $25", "url": "https://pay.bellavista.lol/25"}, {"text": "💵 $50", "url": "https://pay.bellavista.lol/50"}, {"text": "💵 $75", "url": "https://pay.bellavista.lol/75"}]
 ]}
 # Social/links keyword trigger
-SOCIAL_MARKUP  = {"inline_keyboard": [[{"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}, {"text": "Spoil Me", "url": "https://pay.bellavista.lol/x"}]]}
+SOCIAL_MARKUP  = {"inline_keyboard": [[{"text": "🔗 Links", "url": "https://linktr.ee/bellavistaxo"}, {"text": "😍 Spoil Me", "url": "https://pay.bellavista.lol/x"}]]}
 # Coffee keyword trigger
 COFFEE_MARKUP  = {"inline_keyboard": [[{"text": "☕ Buy Me a Coffee", "url": "https://pay.bellavista.lol/coffee"}]]}
 # Dinner/date keyword trigger
-DINNER_MARKUP  = {"inline_keyboard": [[{"text": "Let's Eat 🍽️", "url": "https://pay.bellavista.lol/x"}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
+DINNER_MARKUP  = {"inline_keyboard": [[{"text": "🍽️ Let's Eat", "url": "https://pay.bellavista.lol/x"}, {"text": "🔗 Links", "url": "https://linktr.ee/bellavistaxo"}]]}
 # Gift keyword trigger
 GIFT_BTN_MARKUP = {"inline_keyboard": [[{"text": "🎁 Send Me a Gift", "url": "https://pay.bellavista.lol/x"}, {"text": "⭐ Gift Stars", "url": "https://t.me/bellavistaxoxo"}]]}
 # Gym keyword trigger
-GYM_MARKUP     = {"inline_keyboard": [[{"text": "I'm Sweaty 💦", "url": "https://pay.bellavista.lol/x"}, {"text": "Shower Time 🚿", "url": "https://pay.bellavista.lol/x"}]]}
+GYM_MARKUP     = {"inline_keyboard": [[{"text": "💦 I'm Sweaty", "url": "https://pay.bellavista.lol/x"}, {"text": "🚿 Shower Time", "url": "https://pay.bellavista.lol/x"}]]}
 # Travel keyword trigger
-TRAVEL_MARKUP  = {"inline_keyboard": [[{"text": "Fly Me Out ✈️", "url": "https://pay.bellavista.lol/x"}, {"text": "Let's Travel 🌍", "url": "https://pay.bellavista.lol/x"}]]}
+TRAVEL_MARKUP  = {"inline_keyboard": [[{"text": "✈️ Fly Me Out", "url": "https://pay.bellavista.lol/x"}, {"text": "🌍 Let's Travel", "url": "https://pay.bellavista.lol/x"}]]}
 # "Prove yourself" trigger
-PROVE_MARKUP   = {"inline_keyboard": [[{"text": "Prove It 😏", "url": "https://pay.bellavista.lol/x"}, {"text": "Let's 69 🔥", "url": "https://pay.bellavista.lol/69"}]]}
+PROVE_MARKUP   = {"inline_keyboard": [[{"text": "😏 Prove It", "url": "https://pay.bellavista.lol/x"}, {"text": "🔥 Let's 69", "url": "https://pay.bellavista.lol/69"}]]}
 # My links trigger
-MY_LINKS_MARKUP = {"inline_keyboard": [[{"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}, {"text": "Spoil Me", "url": "https://pay.bellavista.lol/x"}]]}
-# Channel trigger
-CHANNEL_LINKS_MARKUP = {"inline_keyboard": [[{"text": "My Channel 📣", "url": "https://t.me/bellavistaxo"}, {"text": "My Group 💬", "url": "https://t.me/bellavistaxox"}]]}
+MY_LINKS_MARKUP = {"inline_keyboard": [[{"text": "🔗 Links", "url": "https://linktr.ee/bellavistaxo"}, {"text": "😍 Spoil Me", "url": "https://pay.bellavista.lol/x"}]]}
+# Channel trigger (first contact)
+CHANNEL_LINKS_MARKUP = {"inline_keyboard": [[{"text": "📣 Channel", "url": "https://t.me/bellavistaxo"}, {"text": "💬 Group", "url": "https://t.me/bellavistaxox"}]]}
 # Tip tiers for tip-amount questions
 TIP_TIERS_MARKUP = {"inline_keyboard": [[
-    {"text": "$25", "url": "https://pay.bellavista.lol/25"},
-    {"text": "$50", "url": "https://pay.bellavista.lol/50"},
-    {"text": "$100", "url": "https://pay.bellavista.lol/100"}
+    {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"},
+    {"text": "💵 $50", "url": "https://pay.bellavista.lol/50"},
+    {"text": "💵 $100", "url": "https://pay.bellavista.lol/100"}
 ]]}
 
 # Main rotation — 5 sets, randomly picked on most replies
 TIP_ROTATIONS = [
-    {"inline_keyboard": [[{"text": "Spoil Me 💖", "url": "https://pay.bellavista.lol/x"}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]},
-    {"inline_keyboard": [[{"text": "$15", "url": "https://pay.bellavista.lol/15"}, {"text": "$25", "url": "https://pay.bellavista.lol/25"}, {"text": "$35", "url": "https://pay.bellavista.lol/35"}]]},
-    {"inline_keyboard": [[{"text": "$25", "url": "https://pay.bellavista.lol/25"}, {"text": "$50", "url": "https://pay.bellavista.lol/50"}, {"text": "$75", "url": "https://pay.bellavista.lol/75"}]]},
-    {"inline_keyboard": [[{"text": "$125", "url": "https://pay.bellavista.lol/125"}, {"text": "$250", "url": "https://pay.bellavista.lol/250"}, {"text": "$375", "url": "https://pay.bellavista.lol/375"}]]},
-    {"inline_keyboard": [[{"text": "Fanvue 🌸", "url": "https://fanvue.com/bellavistaxo"}, {"text": "Free Trial ✨", "url": FANVUE_FREE_TRIAL}]]},
+    {"inline_keyboard": [[{"text": "😍 Spoil Me", "url": "https://pay.bellavista.lol/x"}, {"text": "🔗 Links", "url": "https://linktr.ee/bellavistaxo"}]]},
+    {"inline_keyboard": [[{"text": "💵 $15", "url": "https://pay.bellavista.lol/15"}, {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"}, {"text": "💵 $35", "url": "https://pay.bellavista.lol/35"}]]},
+    {"inline_keyboard": [[{"text": "💵 $25", "url": "https://pay.bellavista.lol/25"}, {"text": "💵 $50", "url": "https://pay.bellavista.lol/50"}, {"text": "💵 $75", "url": "https://pay.bellavista.lol/75"}]]},
+    {"inline_keyboard": [[{"text": "💵 $125", "url": "https://pay.bellavista.lol/125"}, {"text": "💵 $250", "url": "https://pay.bellavista.lol/250"}, {"text": "💵 $375", "url": "https://pay.bellavista.lol/375"}]]},
+    {"inline_keyboard": [[{"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}, {"text": "✨ Free Trial", "url": FANVUE_FREE_TRIAL}]]},
 ]
 TIP_ROTATIONS_LOW = TIP_ROTATIONS
 TIP_ROTATIONS_MID = TIP_ROTATIONS
