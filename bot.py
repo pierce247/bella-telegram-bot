@@ -132,29 +132,45 @@ TIME_HINTS = {
 
 # ── Buttons ───────────────────────────────────────────────────────────────────
 
+FANVUE_FREE_TRIAL = "https://fanvue.com/bellavistaxo?free_trial=1a9f720a-e180-45e0-b546-8980f5df71a6"
+
+# Content/nude keyword trigger — two-row layout
 CONTENT_MARKUP = {"inline_keyboard": [
-    [{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}],
-    [{"text": "💵 $15", "url": "https://pay.bellavista.lol/15"}, {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"}, {"text": "💵 $35", "url": "https://pay.bellavista.lol/35"}]
+    [{"text": "Tip Me 💖", "url": "https://pay.bellavista.lol/x"}, {"text": "Fanvue 🌸", "url": FANVUE_FREE_TRIAL}],
+    [{"text": "$25", "url": "https://pay.bellavista.lol/25"}, {"text": "$50", "url": "https://pay.bellavista.lol/50"}, {"text": "$75", "url": "https://pay.bellavista.lol/75"}]
 ]}
-SOCIAL_MARKUP  = {"inline_keyboard": [[{"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}, {"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}]]}
-TIP_MARKUP     = {"inline_keyboard": [
-    [{"text": "💖 Tip Bella", "url": "https://pay.bellavista.lol/x"}, {"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}],
-    [{"text": "💵 $15", "url": "https://pay.bellavista.lol/15"}, {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"}, {"text": "💵 $35", "url": "https://pay.bellavista.lol/35"}]
-]}
-None  # CHANNEL_MARKUP disabled = {"inline_keyboard": [[{"text": "📣 Join My Channel", "url": BELLA_CHANNEL_URL}]]}
-PROVE_MARKUP   = {"inline_keyboard": [[{"text": "Prove yourself 😏", "url": "https://pay.bellavista.lol/x"}]]}
-CATCH_MARKUP   = {"inline_keyboard": [[{"text": "Catch up with me", "url": "https://t.me/bellavistaxo"}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
+# Social/links keyword trigger
+SOCIAL_MARKUP  = {"inline_keyboard": [[{"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}, {"text": "Spoil Me", "url": "https://pay.bellavista.lol/x"}]]}
+# Coffee keyword trigger
 COFFEE_MARKUP  = {"inline_keyboard": [[{"text": "☕ Buy Me a Coffee", "url": "https://pay.bellavista.lol/coffee"}]]}
-DINNER_MARKUP  = {"inline_keyboard": [[{"text": "🍽️ Take Me to Dinner", "url": "https://pay.bellavista.lol/x"}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
+# Dinner/date keyword trigger
+DINNER_MARKUP  = {"inline_keyboard": [[{"text": "Let's Eat 🍽️", "url": "https://pay.bellavista.lol/x"}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
+# Gift keyword trigger
 GIFT_BTN_MARKUP = {"inline_keyboard": [[{"text": "🎁 Send Me a Gift", "url": "https://pay.bellavista.lol/x"}, {"text": "⭐ Gift Stars", "url": "https://t.me/bellavistaxoxo"}]]}
-GYM_MARKUP     = {"inline_keyboard": [[{"text": "💪 Sponsor My Gym", "url": "https://pay.bellavista.lol/x"}]]}
-TRAVEL_MARKUP  = {"inline_keyboard": [[{"text": "✈️ Take Me Away", "url": "https://pay.bellavista.lol/x"}]]}
-# The 4 button rotations — used everywhere
+# Gym keyword trigger
+GYM_MARKUP     = {"inline_keyboard": [[{"text": "I'm Sweaty 💦", "url": "https://pay.bellavista.lol/x"}, {"text": "Shower Time 🚿", "url": "https://pay.bellavista.lol/x"}]]}
+# Travel keyword trigger
+TRAVEL_MARKUP  = {"inline_keyboard": [[{"text": "Fly Me Out ✈️", "url": "https://pay.bellavista.lol/x"}, {"text": "Let's Travel 🌍", "url": "https://pay.bellavista.lol/x"}]]}
+# "Prove yourself" trigger
+PROVE_MARKUP   = {"inline_keyboard": [[{"text": "Prove It 😏", "url": "https://pay.bellavista.lol/x"}, {"text": "Let's 69 🔥", "url": "https://pay.bellavista.lol/69"}]]}
+# My links trigger
+MY_LINKS_MARKUP = {"inline_keyboard": [[{"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}, {"text": "Spoil Me", "url": "https://pay.bellavista.lol/x"}]]}
+# Channel trigger
+CHANNEL_LINKS_MARKUP = {"inline_keyboard": [[{"text": "My Channel 📣", "url": "https://t.me/bellavistaxo"}, {"text": "My Group 💬", "url": "https://t.me/bellavistaxox"}]]}
+# Tip tiers for tip-amount questions
+TIP_TIERS_MARKUP = {"inline_keyboard": [[
+    {"text": "$25", "url": "https://pay.bellavista.lol/25"},
+    {"text": "$50", "url": "https://pay.bellavista.lol/50"},
+    {"text": "$100", "url": "https://pay.bellavista.lol/100"}
+]]}
+
+# Main rotation — 5 sets, randomly picked on most replies
 TIP_ROTATIONS = [
-    {"inline_keyboard": [[{"text": "Spoil Me", "url": "https://pay.bellavista.lol/x"}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]},
+    {"inline_keyboard": [[{"text": "Spoil Me 💖", "url": "https://pay.bellavista.lol/x"}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]},
     {"inline_keyboard": [[{"text": "$15", "url": "https://pay.bellavista.lol/15"}, {"text": "$25", "url": "https://pay.bellavista.lol/25"}, {"text": "$35", "url": "https://pay.bellavista.lol/35"}]]},
     {"inline_keyboard": [[{"text": "$25", "url": "https://pay.bellavista.lol/25"}, {"text": "$50", "url": "https://pay.bellavista.lol/50"}, {"text": "$75", "url": "https://pay.bellavista.lol/75"}]]},
-    {"inline_keyboard": [[{"text": "Fanvue", "url": "https://fanvue.com/bellavistaxo"}, {"text": "Tip Bella", "url": "https://pay.bellavista.lol/x"}]]},
+    {"inline_keyboard": [[{"text": "$125", "url": "https://pay.bellavista.lol/125"}, {"text": "$250", "url": "https://pay.bellavista.lol/250"}, {"text": "$375", "url": "https://pay.bellavista.lol/375"}]]},
+    {"inline_keyboard": [[{"text": "Fanvue 🌸", "url": "https://fanvue.com/bellavistaxo"}, {"text": "Free Trial ✨", "url": FANVUE_FREE_TRIAL}]]},
 ]
 TIP_ROTATIONS_LOW = TIP_ROTATIONS
 TIP_ROTATIONS_MID = TIP_ROTATIONS
@@ -162,12 +178,6 @@ TIP_ROTATIONS_HIGH = TIP_ROTATIONS
 
 def random_tip_markup(heat: int = 3) -> dict:
     return random.choice(TIP_ROTATIONS)
-
-TIP_TIERS_MARKUP = {"inline_keyboard": [[
-    {"text": "💵 $15", "url": "https://pay.bellavista.lol/15"},
-    {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"},
-    {"text": "💵 $35", "url": "https://pay.bellavista.lol/35"}
-]]}
 
 def send_teaser_photo(chat_id: int, biz: str = "") -> bool:
     """Send a random teaser photo from the Bella photo library."""
@@ -798,8 +808,6 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         ok = send_raw(chat_id, reply, biz, SOCIAL_MARKUP)
     else:
         has_cta = any(kw in reply.lower() for kw in GIFT_KEYWORDS)
-        MY_LINKS_MARKUP = {"inline_keyboard": [[{"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}, {"text": "Spoil Me", "url": "https://pay.bellavista.lol/x"}]]}
-        CHANNEL_LINKS_MARKUP = {"inline_keyboard": [[{"text": "My Channel", "url": BELLA_CHANNEL_URL}, {"text": "My Links", "url": "https://linktr.ee/bellavistaxo"}]]}
         if first_contact:
             # True first-time fan — show channel + links attached to Bella's reply
             ok = send_raw(chat_id, reply, biz, CHANNEL_LINKS_MARKUP)
