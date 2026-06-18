@@ -1158,7 +1158,25 @@ def main():
                 _msg_pre = update.get("business_message") or update.get("message") or {}
                 _cid_pre = _msg_pre.get("chat", {}).get("id")
                 _is_first = bool(_cid_pre and _cid_pre not in seen_chats)
-                cid, biz = process_update(update, chat_history, chat_heat, sleep_until, first_contact=_is_first, vip_chats=vip_chats)
+
+                # Run message processing in a thread with a hard wall-clock timeout.
+                # urllib timeouts are unreliable behind Railway's HTTPS proxy —
+                # the proxy keeps the socket alive, so a hung AI call can block
+                # the main loop for 100s+. Threading guarantees a max of 45s per message.
+                _result = [None, None]
+                def _process_in_thread(_update=update, _is_f=_is_first, _res=_result):
+                    try:
+                        _res[0], _res[1] = process_update(
+                            _update, chat_history, chat_heat, sleep_until,
+                            first_contact=_is_f, vip_chats=vip_chats)
+                    except Exception as _e:
+                        log.error(f"process_update thread error: {_e}")
+                _t = threading.Thread(target=_process_in_thread, daemon=True)
+                _t.start()
+                _t.join(timeout=45)
+                if _t.is_alive():
+                    log.error(f"⏱️ Message processing timed out (45s) — skipping, main loop continues")
+                cid, biz = _result[0], _result[1]
                 if cid:
                     # Preserve followups_sent so the sequence doesn't restart on every message
                     existing_state = chat_state.get(cid, {})
