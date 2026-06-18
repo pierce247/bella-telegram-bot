@@ -176,7 +176,8 @@ TIP_ROTATIONS = [
     {"inline_keyboard": [[{"text": "😍 Spoil Me", "url": "https://pay.bellavista.lol/x"}, {"text": "🔗 Links", "url": "https://linktr.ee/bellavistaxo"}]]},
     {"inline_keyboard": [[{"text": "💵 $15", "url": "https://pay.bellavista.lol/15"}, {"text": "💵 $25", "url": "https://pay.bellavista.lol/25"}, {"text": "💵 $35", "url": "https://pay.bellavista.lol/35"}]]},
     {"inline_keyboard": [[{"text": "💵 $25", "url": "https://pay.bellavista.lol/25"}, {"text": "💵 $50", "url": "https://pay.bellavista.lol/50"}, {"text": "💵 $75", "url": "https://pay.bellavista.lol/75"}]]},
-    {"inline_keyboard": [[{"text": "💵 $125", "url": "https://pay.bellavista.lol/125"}, {"text": "💵 $250", "url": "https://pay.bellavista.lol/250"}, {"text": "💵 $375", "url": "https://pay.bellavista.lol/375"}]]},
+    {"inline_keyboard": [[{"text": "💵 $111", "url": "https://pay.bellavista.lol/111"}, {"text": "💵 $222", "url": "https://pay.bellavista.lol/222"}, {"text": "💵 $333", "url": "https://pay.bellavista.lol/333"}]]},
+    {"inline_keyboard": [[{"text": "🫦 Let's 69", "url": "https://pay.bellavista.lol/69"}, {"text": "💓 Tip Bella", "url": "https://pay.bellavista.lol/x"}]]},
     {"inline_keyboard": [[{"text": "🌸 Fanvue", "url": "https://fanvue.com/bellavistaxo"}, {"text": "✨ Free Trial", "url": FANVUE_FREE_TRIAL}]]},
 ]
 TIP_ROTATIONS_LOW = TIP_ROTATIONS
