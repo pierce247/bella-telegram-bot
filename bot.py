@@ -265,6 +265,9 @@ def clean_reply(text: str) -> str:
     text = _rec.sub(r'  +', ' ', text).strip()
         # Strip trailing garbage characters
     text = _rec.sub(r'[-)(;&|@#%^*~]+;?\s*$', '', text).strip()
+    # Strip speaker/role prefixes that models sometimes add at the start
+    text = _rec.sub(r'^(?:Bella|bella|BELLA)\s*:\s*', '', text).strip()
+    text = _rec.sub(r'^(?:Assistant|assistant|AI|User|user)\s*:\s*', '', text).strip()
     # Strip "BELOW IS REWRITTEN:" and similar inline labels
     text = _rec.sub(r'(?:BELOW IS REWRITTEN|REWRITTEN|REVISED|REPHRASED)[:\s]*', '', text, flags=_rec.I).strip()
     text = _rec.sub(r'\b(?:BELOW IS REWRITTEN:|REWRITTEN:|REVISED:).*', '', text, flags=_rec.I).strip()
