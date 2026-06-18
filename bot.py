@@ -293,9 +293,13 @@ def clean_reply(text: str) -> str:
             break
         good_lines.append(stripped)
     result = " ".join(good_lines).strip()
-    # Strip wrapping quotes
+    # Strip wrapping quotes — handles both matched pairs and mismatched/partial
     if len(result) >= 2 and result[0] == result[-1] and result[0] in ('"', "'"):
         result = result[1:-1].strip()
+    elif len(result) >= 2 and result[0] in ('"', "'") and result[-1] not in ('"', "'"):
+        result = result[1:].strip()  # leading quote with no closing
+    elif len(result) >= 2 and result[-1] in ('"', "'") and result[0] not in ('"', "'"):
+        result = result[:-1].strip()  # trailing quote with no opening
     # Final cleanup: remove any remaining heat/level refs and bot phrases
     result = _rec.sub(r'\s*\(heat[^)]*\)', '', result, flags=_rec.I).strip()
     result = _rec.sub(r'\bheat\s+(?:level\s+)?\d\b[^.]*', '', result, flags=_rec.I).strip()
@@ -381,7 +385,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
         messages.append(h)  # {role: user/assistant, content: raw text}
     messages.append({
         "role": "user",
-        "content": f'Fan says: "{user_text}"{name_hint}\n\nReply as Bella. ALWAYS respond directly to what they just said — stay contextually relevant. Don\'t pivot to a random question if they said something specific. Fresh, real, enticing.{extra}\n\nBE BRIEF. 1 sentence at heat 1-3. 2 short sentences MAX at heat 4-5.'
+        "content": f'Fan says: {user_text}\n\nReply as Bella. ALWAYS respond directly to what they just said — stay contextually relevant. Don\'t pivot to a random question if they said something specific. Fresh, real, enticing. No quotation marks around your response.{extra}\n\nBE BRIEF. 1 sentence at heat 1-3. 2 short sentences MAX at heat 4-5.'
     })
 
     # Single high-quality model — retry on 429, no fallback to worse models
@@ -444,7 +448,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
             "temperature": 0.9,
             "messages": [
                 {"role": "system", "content": BELLA_SYSTEM},
-                {"role": "user", "content": f'Fan just said: "{user_text}". Reply as Bella. Short, flirty, natural.'}
+                {"role": "user", "content": f'Fan just said: {user_text}\n\nReply as Bella. Short, flirty, natural. No quotation marks around your response.'}
             ]
         }).encode()
         req = urllib.request.Request(
