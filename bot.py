@@ -544,13 +544,11 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     text = msg.get("text", "").strip()
     sticker = msg.get("sticker")
 
-    # Skip messages sent BY Pierce (outgoing) — don't analyze his own photos/messages
+    # Owner commands — must be checked BEFORE the early-return skip
     from_id = msg.get("from", {}).get("id", 0)
-    if OWNER_CHAT_ID and from_id == OWNER_CHAT_ID:
-        return None, None
 
     # /vip command — mark a fan as VIP (bot pauses, Pierce handles manually)
-    if text.startswith("/vip ") and msg.get("from", {}).get("id") == OWNER_CHAT_ID:
+    if text.startswith("/vip ") and from_id == OWNER_CHAT_ID:
         target_id = text[5:].strip()
         try:
             vip_chats.add(int(target_id))
@@ -560,7 +558,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         return None, None
 
     # /unvip command — resume bot for a VIP chat
-    if text.startswith("/unvip ") and msg.get("from", {}).get("id") == OWNER_CHAT_ID:
+    if text.startswith("/unvip ") and from_id == OWNER_CHAT_ID:
         target_id = text[7:].strip()
         try:
             vip_chats.discard(int(target_id))
@@ -569,30 +567,77 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
             tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /unvip CHAT_ID"})
         return None, None
 
-    # Skip VIP chats — Pierce is handling manually (extract chat_id early for this check)
-    _early_chat_id = msg.get("chat", {}).get("id") if msg else None
-    if vip_chats and _early_chat_id and _early_chat_id in vip_chats:
-        log.info(f"Skipping VIP chat {_early_chat_id}")
+    # /status command — show bot health summary
+    if text.strip() == "/status" and from_id == OWNER_CHAT_ID:
+        fans = load_fans()
+        cutoff_7d = time.time() - 7 * 86400
+        cutoff_24h = time.time() - 86400
+        active_7d = sum(1 for d in fans.values() if d.get("last_seen", 0) > cutoff_7d)
+        active_24h = sum(1 for d in fans.values() if d.get("last_seen", 0) > cutoff_24h)
+        vip_count = len(vip_chats)
+        tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": (
+            f"🩷 Bella Bot Status\n"
+            f"✅ Online & responding\n\n"
+            f"👥 Total fans: {len(fans)}\n"
+            f"🔥 Active (24h): {active_24h}\n"
+            f"📅 Active (7d): {active_7d}\n"
+            f"⭐ VIP paused: {vip_count}\n\n"
+            f"Commands:\n"
+            f"/blast <msg> — send to all 7d fans\n"
+            f"/blast_preview — see who'd get blasted\n"
+            f"/vip <chat_id> — pause bot for fan\n"
+            f"/unvip <chat_id> — resume fan"
+        )})
         return None, None
 
-    # /blast command from owner — fan out a message to all recent fans
-    if text.startswith("/blast ") and msg.get("from", {}).get("id") == OWNER_CHAT_ID:
+    # /blast_preview — show how many fans would receive a blast without sending
+    if text.strip() == "/blast_preview" and from_id == OWNER_CHAT_ID:
+        fans = load_fans()
+        cutoff = time.time() - 7 * 86400
+        recent = {cid: data for cid, data in fans.items() if data.get("last_seen", 0) > cutoff}
+        lines = [f"📣 Blast preview — {len(recent)} fans would receive it:\n"]
+        for fan_cid, fan_data in list(recent.items())[:20]:
+            name = fan_data.get("name", "?")
+            last = fan_data.get("last_seen", 0)
+            ago = int((time.time() - last) / 3600)
+            lines.append(f"• {name} ({fan_cid}) — {ago}h ago")
+        if len(recent) > 20:
+            lines.append(f"... and {len(recent) - 20} more")
+        tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "\n".join(lines)})
+        return None, None
+
+    # /blast command — fan out a message to all fans active in last 7 days
+    if text.startswith("/blast ") and from_id == OWNER_CHAT_ID:
         blast_text = text[7:].strip()
         if not blast_text:
             tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /blast Your message here"})
             return None, None
         fans = load_fans()
-        cutoff = time.time() - 7 * 86400  # last 7 days
+        cutoff = time.time() - 7 * 86400
         recent = {cid: data for cid, data in fans.items() if data.get("last_seen", 0) > cutoff}
+        tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"📣 Sending blast to {len(recent)} fans..."})
         sent = 0
+        failed = 0
         for fan_cid, fan_data in recent.items():
             fan_biz = fan_data.get("biz", "")
             p = {"chat_id": int(fan_cid), "text": blast_text}
             if fan_biz: p["business_connection_id"] = fan_biz
             if tg("sendMessage", p).get("ok"):
                 sent += 1
-                time.sleep(0.3)  # rate limit
-        tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"✅ Blast sent to {sent}/{len(recent)} fans"})
+            else:
+                failed += 1
+            time.sleep(0.3)  # rate limit
+        tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"✅ Blast done — {sent} sent, {failed} failed"})
+        return None, None
+
+    # Skip messages sent BY Pierce (outgoing business messages) — but only after owner commands handled
+    if OWNER_CHAT_ID and from_id == OWNER_CHAT_ID:
+        return None, None
+
+    # Skip VIP chats — Pierce is handling manually (extract chat_id early for this check)
+    _early_chat_id = msg.get("chat", {}).get("id") if msg else None
+    if vip_chats and _early_chat_id and _early_chat_id in vip_chats:
+        log.info(f"Skipping VIP chat {_early_chat_id}")
         return None, None
 
     # Handle sticker with a cute reaction
