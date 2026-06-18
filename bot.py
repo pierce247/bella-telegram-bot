@@ -602,7 +602,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 
     # /bizid — show current business_connection_id status
     if text.strip() == "/bizid" and from_id == OWNER_CHAT_ID:
-        biz_now = global_biz_id or load_biz_id()
+        biz_now = load_biz_id()
         if biz_now:
             tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"✅ Business connection ID:\n{biz_now}\n\nAdd to Railway as BUSINESS_CONNECTION_ID env var to make it permanent."})
         else:
@@ -614,7 +614,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         fans = load_fans()
         cutoff = time.time() - 7 * 86400
         recent = {cid: data for cid, data in fans.items() if data.get("last_seen", 0) > cutoff}
-        biz_now = global_biz_id or load_biz_id() or next((d.get("biz") for d in fans.values() if d.get("biz")), "")
+        biz_now = load_biz_id() or next((d.get("biz") for d in fans.values() if d.get("biz")), "")
         biz_status = "✅ Business connection ready" if biz_now else "⚠️ No biz ID yet — wait for a fan message first"
         lines = [f"📣 Blast preview — {len(recent)} fans\n{biz_status}\n"]
         for fan_cid, fan_data in list(recent.items())[:20]:
@@ -637,7 +637,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         cutoff = time.time() - 7 * 86400
         recent = {cid: data for cid, data in fans.items() if data.get("last_seen", 0) > cutoff}
         # Use persisted biz_id — same for all fans on Bella's business account
-        biz_now = global_biz_id or load_biz_id() or next((d.get("biz") for d in fans.values() if d.get("biz")), "")
+        biz_now = load_biz_id() or next((d.get("biz") for d in fans.values() if d.get("biz")), "")
         if not biz_now:
             tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "⚠️ No business_connection_id yet — wait for a fan to message first, then retry. Or add BUSINESS_CONNECTION_ID to Railway env vars."})
             return None, None
