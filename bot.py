@@ -577,6 +577,31 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
             tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /unvip CHAT_ID"})
         return None, None
 
+    # /wake command — clear a chat from sleep mode immediately
+    if text.startswith("/wake") and from_id == OWNER_CHAT_ID:
+        target = text[5:].strip()
+        if target:
+            try:
+                cid_wake = int(target)
+                if sleep_until and cid_wake in sleep_until:
+                    del sleep_until[cid_wake]
+                    tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"✅ Chat {cid_wake} woken up — bot will respond again."})
+                else:
+                    tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"Chat {cid_wake} wasn't in sleep mode."})
+            except ValueError:
+                tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /wake CHAT_ID"})
+        else:
+            # /wake with no args — show all sleeping chats
+            if sleep_until:
+                lines = ["😴 Sleeping chats:"]
+                for cid_s, until_s in sleep_until.items():
+                    mins = max(0, int((until_s - time.time()) / 60))
+                    lines.append(f"• {cid_s} — {mins}m left")
+                tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "\n".join(lines)})
+            else:
+                tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "No chats currently in sleep mode."})
+        return None, None
+
     # /status command — show bot health summary
     if text.strip() == "/status" and from_id == OWNER_CHAT_ID:
         fans = load_fans()
@@ -596,7 +621,9 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
             f"/blast <msg> — send to all 7d fans\n"
             f"/blast_preview — see who'd get blasted\n"
             f"/vip <chat_id> — pause bot for fan\n"
-            f"/unvip <chat_id> — resume fan"
+            f"/unvip <chat_id> — resume fan\n"
+            f"/wake <chat_id> — clear sleep mode\n"
+            f"/wake — list all sleeping chats"
         )})
         return None, None
 
@@ -834,8 +861,8 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     elif is_goodnight:
         ok = send_raw(chat_id, reply, biz)
         if sleep_until is not None:
-            sleep_until[chat_id] = time.time() + 8 * 3600
-            log.info(f"Chat {chat_id} entering sleep mode for 8 hours")
+            sleep_until[chat_id] = time.time() + 2 * 3600  # 2 hours (was 8)
+            log.info(f"Chat {chat_id} entering sleep mode for 2 hours")
     elif is_travel:
         ok = send_raw(chat_id, reply, biz, TRAVEL_MARKUP)
     elif is_social:
