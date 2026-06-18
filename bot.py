@@ -719,6 +719,66 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                 tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /fan CHAT_ID"})
         return None, None
 
+    # /note CHAT_ID text — add or replace a note on a fan's DB profile
+    if text.startswith("/note") and from_id == OWNER_CHAT_ID:
+        parts = text[5:].strip().split(None, 1)
+        if len(parts) >= 2:
+            try:
+                cid_note = int(parts[0])
+                note_text = parts[1].strip()
+                conn = _get_db()
+                conn.execute("INSERT INTO fans (chat_id, notes) VALUES (?,?) ON CONFLICT(chat_id) DO UPDATE SET notes=excluded.notes",
+                             (cid_note, note_text))
+                conn.commit()
+                tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"📝 Note saved for {cid_note}:\n{note_text}"})
+            except ValueError:
+                tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /note CHAT_ID your note here"})
+        else:
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /note CHAT_ID your note here"})
+        return None, None
+
+    # /stats — DB research insights
+    if text.strip() == "/stats" and from_id == OWNER_CHAT_ID:
+        try:
+            conn = _get_db()
+            # Total fans + activity
+            total_fans = conn.execute("SELECT COUNT(*) FROM fans").fetchone()[0]
+            active_24h = conn.execute("SELECT COUNT(*) FROM fans WHERE last_seen > ?", (time.time()-86400,)).fetchone()[0]
+            active_7d  = conn.execute("SELECT COUNT(*) FROM fans WHERE last_seen > ?", (time.time()-604800,)).fetchone()[0]
+            total_msgs = conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+            # Heat distribution
+            heat_rows = conn.execute("SELECT heat, COUNT(*) FROM fans GROUP BY heat ORDER BY heat").fetchall()
+            heat_str = "  ".join(f"h{h}:{c}" for h, c in heat_rows)
+            # Avg response time (assistant messages only, >0)
+            avg_ms_row = conn.execute("SELECT AVG(response_ms) FROM messages WHERE role='assistant' AND response_ms > 0").fetchone()
+            avg_ms = int(avg_ms_row[0]) if avg_ms_row[0] else 0
+            # Top 5 most active fans
+            top_fans = conn.execute(
+                "SELECT chat_id, name, msg_count, heat FROM fans ORDER BY msg_count DESC LIMIT 5").fetchall()
+            top_str = ""
+            for cid_t, name_t, cnt_t, heat_t in top_fans:
+                top_str += f"\n  {name_t or '?'} ({cid_t}) — {cnt_t} msgs, heat {heat_t}"
+            # Fallback rate (if column exists)
+            try:
+                total_ai = conn.execute("SELECT COUNT(*) FROM messages WHERE role='assistant'").fetchone()[0]
+                total_ok = conn.execute("SELECT COUNT(*) FROM messages WHERE role='assistant' AND (is_fallback IS NULL OR is_fallback=0)").fetchone()[0]
+                fallback_pct = round(100 * (total_ai - total_ok) / max(total_ai, 1))
+            except Exception:
+                fallback_pct = 0
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": (
+                f"📊 Bella Bot Stats\n\n"
+                f"👥 Total fans: {total_fans}\n"
+                f"🔥 Active 24h: {active_24h} · 7d: {active_7d}\n"
+                f"💬 Total messages: {total_msgs:,}\n"
+                f"⚡ Avg response: {avg_ms}ms\n"
+                f"⚠️ Fallback rate: {fallback_pct}%\n"
+                f"🌡 Heat spread: {heat_str}\n"
+                f"\n🏆 Top fans:{top_str}"
+            )})
+        except Exception as e:
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"Stats error: {e}"})
+        return None, None
+
     # /status command — show bot health summary
     if text.strip() == "/status" and from_id == OWNER_CHAT_ID:
         fans = load_fans()
@@ -741,7 +801,9 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
             f"/unvip <chat_id> — resume fan\n"
             f"/wake <chat_id> — clear sleep mode\n"
             f"/wake — list all sleeping chats\n"
-            f"/fan <chat_id> — show fan profile + chat history"
+            f"/fan <chat_id> — show fan profile + chat history\n"
+            f"/note <chat_id> <text> — add note to fan profile\n"
+            f"/stats — DB research insights"
         )})
         return None, None
 
