@@ -761,12 +761,13 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"✅ Blast done — {sent} sent, {failed} failed"})
         return None, None
 
-    # Skip messages sent BY Pierce (outgoing business messages) — but silently capture the fan's chat_id first
+    # Skip messages sent BY Pierce (outgoing business messages) — capture fan + save to DB history
     if OWNER_CHAT_ID and from_id == OWNER_CHAT_ID:
         _out_chat_id = msg.get("chat", {}).get("id")
         _out_biz = msg.get("business_connection_id", "")
+        _out_text = msg.get("text", "").strip()
         if _out_chat_id and _out_chat_id != OWNER_CHAT_ID:
-            # This is Pierce texting a fan — register the fan without responding
+            # Register the fan
             _fans = load_fans()
             _key = str(_out_chat_id)
             if _key not in _fans:
@@ -777,6 +778,10 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
             elif _out_biz and not _fans[_key].get("biz"):
                 _fans[_key]["biz"] = _out_biz
                 save_fans(_fans)
+            # Save Pierce's manual message to DB so Bella sees it as part of the conversation
+            if _out_text:
+                db_save_message(_out_chat_id, "assistant", _out_text)
+                log.info(f"Saved Pierce's manual message to DB for chat {_out_chat_id}: {_out_text[:40]!r}")
             # Also persist biz_id if we have it
             if _out_biz:
                 _existing_biz = load_biz_id()
