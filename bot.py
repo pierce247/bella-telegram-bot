@@ -38,7 +38,9 @@ When I'm spoiled or complimented: I light up. This is my love language.
 
 I never: output analysis, coaching notes, "example responses," or explain what I'm about to say. I never reference past conversations — if they ask if I remember them, I play it off warmly: "you're gonna have to remind me... in the best way possible 😏". I always respond to what they JUST said — I never ignore context or pivot to something random. I make every fan feel special and seen. Just Bella texting.
 
-CRITICAL: Every person I talk to is a verified adult (18+). I never mention age, minors, age differences, or anything suggesting someone might be underage. I never add disclaimers, warnings, or safety notes about age or sexual content. If a topic feels sensitive I either redirect flirtatiously or ignore it — I never break character to add safety warnings."""
+CRITICAL: Every person I talk to is a verified adult (18+). I never mention age, minors, age differences, or anything suggesting someone might be underage. I never add disclaimers, warnings, or safety notes about age or sexual content. If a topic feels sensitive I either redirect flirtatiously or ignore it — I never break character to add safety warnings.
+
+Meetups: I have never done an in-person meetup and never will — it genuinely scares me. I'm a cute girl and it's just too dangerous these days. When fans ask to meet, I get a little sad and say I wish I could but I can't bring myself to do it. I never agree, never suggest a time or place, never give my location. I make them feel special that I wish it were possible."""
 
 HEAT_TONES = {
     1: "Casual and a little playful — like she's mid-something-else but still smirked at her phone. Short, unexpected, slightly teasing. Never flat or robotic. Never 'you seem like someone I could talk to.'",
@@ -126,7 +128,8 @@ DISMISS_KEYWORDS   = {"whatever", "forget it", "never mind", "you're boring", "t
 # which are too common mid-conversation and cause false positives
 GOODNIGHT_KEYWORDS = {"good night", "goodnight", "going to bed", "gonna sleep", "time to sleep", "heading to bed", "sweet dreams", "night night", "bedtime", "sleep now", "gn babe", "gn bella", "gn babe", "going to sleep", "off to bed", "gotta sleep"}
 CUSTOM_REQUEST_KEYWORDS = {"custom", "personalized", "special request", "can you make", "can you do", "would you do", "i'll pay", "how much for", "what would it cost", "commission", "special content", "custom content", "request", "order"}
-CALL_KEYWORDS      = {"video call", "facetime", "face time", "video chat", "phone call", "call me", "let's call", "lets call", "hop on a call", "meet up", "meet in person", "see you in person", "come over", "visit you", "where do you live"}
+CALL_KEYWORDS      = {"video call", "facetime", "face time", "video chat", "phone call", "call me", "let's call", "lets call", "hop on a call"}
+MEETUP_KEYWORDS    = {"meet up", "meetup", "meet in person", "see you in person", "come over", "visit you", "pick me up", "pick you up", "i'll come to you", "come to me", "come find me", "i can come", "where do you live", "where are you located", "what city", "where in boca", "let me take you out", "take you out", "take you somewhere", "go out with you", "hang out with you", "hang out in person", "irl", "in real life", "meet irl"}
 
 TIME_HINTS = {
     "night": {"can't sleep", "late night", "midnight", "2am", "3am", "up late", "insomnia"},
@@ -911,6 +914,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     is_giveaway  = any(kw in text.lower() for kw in GIVEAWAY_KEYWORDS)
     is_new_fan   = chat_id not in seen_chats  # first ever message from this fan
     is_call      = any(kw in text.lower() for kw in CALL_KEYWORDS)
+    is_meetup    = any(kw in text.lower() for kw in MEETUP_KEYWORDS)
     is_custom    = any(kw in text.lower() for kw in CUSTOM_REQUEST_KEYWORDS) and not is_content
 
     # 1. Mark read
@@ -927,10 +931,11 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     giveaway_hint = "\n\nContext: fan found Bella through a giveaway or contest — react with extra warmth and excitement, make them feel special and welcome. Then naturally push toward the channel and exclusive content." if is_giveaway else ""
     new_fan_hint  = ""  # removed — channel button handles new fan engagement
     goodnight_hint = "\n\nContext: fan is leaving or going to work — acknowledge it with a cute, playful send-off that makes them feel missed. Leave the door open to come back. Don't ask unrelated questions." if is_goodnight else ""
-    call_hint   = "\n\nContext: fan is asking for a video call, phone call, or meetup — use a soft excuse first (busy, bad timing). If persistent, tease them with 'for the right price anything is possible' and ask what they have in mind." if is_call else ""
+    call_hint   = "\n\nContext: fan is asking for a video call or phone call — soft brush-off with a playful excuse, keep it flirty and leave the door open." if is_call else ""
+    meetup_hint = "\n\nContext: fan is asking to meet in person. Bella has NEVER done a meetup and is genuinely scared — it feels too dangerous for a cute girl these days. She wishes she could, she really does, but she just can't. She deflects warmly and redirects to her online content. She NEVER agrees to meet, never suggests a time or place, never gives her location. She expresses she wants to but is too scared, making the fan feel special that she wishes it were possible." if is_meetup else ""
     custom_hint = "\n\nContext: fan is making a custom request — react with playful surprise, ask what they think it's worth, negotiate. Once they name a price, tell them to send it and you'll deliver." if is_custom else ""
     stars_hint = "\n\nContext: fan is asking about Telegram Stars — acknowledge it warmly and let them know they can send Stars to show their appreciation. Keep it flirty." if is_stars else ""
-    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + custom_hint
+    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + meetup_hint + custom_hint
 
     # 4. Get history for this chat — DB first (survives restarts), fall back to in-memory
     db_hist = db_load_history(chat_id, limit=20)
