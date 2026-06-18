@@ -120,7 +120,9 @@ GIVEAWAY_KEYWORDS  = {"giveaway", "give away", "contest", "prize", "winner", "wo
 PROVE_KEYWORDS     = {"i can handle", "i'm different", "bet i could", "i know how to", "trust me i", "i'm not like other", "you wouldn't be bored", "i promise i"}
 BEGGING_KEYWORDS   = {"please send", "please show", "please bella", "begging you", "dying to see", "i need to see", "just one pic", "one photo please", "ill pay", "please please", "i beg", "dying here"}
 DISMISS_KEYWORDS   = {"whatever", "forget it", "never mind", "you're boring", "this is boring", "not worth it", "i'm done", "forget you", "okay bye", "you're not even"}
-GOODNIGHT_KEYWORDS = {"good night", "goodnight", "going to bed", "gonna sleep", "time to sleep", "heading to bed", "gn ", "gn!", "sweet dreams", "night night", "bedtime", "sleep now", "have to go", "have to work", "going to work", "gotta go", "gotta run", "heading out", "talk later", "ttyl", "gtg", "gotta leave", "need to go"}
+# Only trigger sleep on explicit bedtime phrases — NOT generic departure phrases
+# which are too common mid-conversation and cause false positives
+GOODNIGHT_KEYWORDS = {"good night", "goodnight", "going to bed", "gonna sleep", "time to sleep", "heading to bed", "sweet dreams", "night night", "bedtime", "sleep now", "gn babe", "gn bella", "gn babe", "going to sleep", "off to bed", "gotta sleep"}
 CUSTOM_REQUEST_KEYWORDS = {"custom", "personalized", "special request", "can you make", "can you do", "would you do", "i'll pay", "how much for", "what would it cost", "commission", "special content", "custom content", "request", "order"}
 CALL_KEYWORDS      = {"video call", "facetime", "face time", "video chat", "phone call", "call me", "let's call", "lets call", "hop on a call", "meet up", "meet in person", "see you in person", "come over", "visit you", "where do you live"}
 
