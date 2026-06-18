@@ -119,7 +119,10 @@ STARS_KEYWORDS   = {"stars", "⭐", "★", "telegram star", "send stars", "teleg
 COFFEE_KEYWORDS  = {"coffee", "café", "cafe", "latte", "espresso", "cappuccino", "brew", "cup of coffee"}
 DINNER_KEYWORDS  = {"dinner", "restaurant", "food", "eat", "hungry", "cook for you", "date", "take you out", "treat you to"}
 GIFT_BTN_KEYWORDS = {"gift", "present", "surprise you", "send you something", "get you something"}
-TIP_AMOUNT_KEYWORDS = {"how much", "what are the amounts", "pricing", "how do i tip", "how to tip", "tip options", "how can i pay", "payment options"}
+TIP_AMOUNT_KEYWORDS = {"how much", "what are the amounts", "pricing", "how do i tip", "how to tip", "tip options", "how can i pay", "payment options",
+                       "how do i pay", "how to pay", "where do i pay", "where can i pay", "ways to pay",
+                       "how to send money", "how do i send", "what are my options", "payment methods",
+                       "is there another way", "other way to pay", "besides fanvue", "besides there"}
 GYM_KEYWORDS     = {"gym", "workout", "fitness", "exercise", "train", "lifting", "yoga", "pilates", "athletic"}
 TRAVEL_KEYWORDS  = {"travel", "vacation", "trip", "getaway", "fly you", "take you somewhere", "beach", "island", "paris", "cancel plans"}
 GIVEAWAY_KEYWORDS  = {"giveaway", "give away", "contest", "prize", "winner", "won", "winning", "entered", "saw your post", "saw the giveaway", "found you from", "came from"}
@@ -1020,7 +1023,8 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     meetup_hint = "\n\nContext: fan is asking to meet in person. Bella has NEVER done a meetup and is genuinely scared — it feels too dangerous for a cute girl these days. She wishes she could, she really does, but she just can't. She deflects warmly and redirects to her online content. She NEVER agrees to meet, never suggests a time or place, never gives her location. She expresses she wants to but is too scared, making the fan feel special that she wishes it were possible." if is_meetup else ""
     custom_hint = "\n\nContext: fan is making a custom request — react with playful surprise, ask what they think it's worth, negotiate. Once they name a price, tell them to send it and you'll deliver." if is_custom else ""
     stars_hint = "\n\nContext: fan is asking about Telegram Stars — acknowledge it warmly and let them know they can send Stars to show their appreciation. Keep it flirty." if is_stars else ""
-    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + meetup_hint + custom_hint
+    pay_hint   = "\n\nContext: fan is asking how to pay or send money. Tell them there are three ways: (1) on Fanvue at fanvue.com/bellavistaxo, (2) tap the money buttons right here in chat, or (3) visit pay.bellavista.lol. Keep it flirty and natural, not like a FAQ." if is_tip_amounts else ""
+    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + meetup_hint + custom_hint + pay_hint
 
     # 4. Get history for this chat — DB first (survives restarts), fall back to in-memory
     db_hist = db_load_history(chat_id, limit=20)
