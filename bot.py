@@ -64,7 +64,7 @@ def tg(method: str, payload: dict = {}) -> dict:
         headers={"Content-Type": "application/json"}
     )
     try:
-        with urllib.request.urlopen(req, timeout=35) as r:
+        with urllib.request.urlopen(req, timeout=20) as r:
             return json.loads(r.read())
     except urllib.error.HTTPError as e:
         body = e.read().decode()
@@ -347,7 +347,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
                      "X-Title": "Bella DM Bot"}
         )
         try:
-            with urllib.request.urlopen(req, timeout=25) as r:
+            with urllib.request.urlopen(req, timeout=12) as r:
                 data = json.loads(r.read())
                 if "choices" in data:
                     raw = data["choices"][0]["message"]["content"]
@@ -362,8 +362,8 @@ def bella_reply(user_name: str, user_text: str, history: list,
         except urllib.error.HTTPError as e:
             body = e.read().decode()
             if e.code == 429 and attempt == 0:
-                log.warning(f"Euryale 429 — waiting 10s then retry")
-                time.sleep(10)
+                log.warning(f"Euryale 429 — waiting 3s then retry")
+                time.sleep(3)
                 continue  # one retry at actual retry_after time
             elif e.code == 429:
                 log.warning(f"Euryale 429 again — using quick fallback")
@@ -1141,9 +1141,10 @@ def main():
 
     while True:
         try:
-            _heartbeat["ts"] = time.time()  # watchdog heartbeat
+            _heartbeat["ts"] = time.time()  # watchdog heartbeat — tick before long-poll
             updates = get_updates(offset)
             for update in updates:
+                _heartbeat["ts"] = time.time()  # tick per-update so processing burst doesn't look like a stall
                 uid = update["update_id"]
                 if uid in replied_ids:
                     offset = uid + 1
