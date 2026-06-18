@@ -1043,6 +1043,12 @@ def main():
                     chat_state[cid] = {"last_msg": time.time(), "biz": biz or "", "followups_sent": existing_state.get("followups_sent", 0)}
                     msg_count[cid] += 1
 
+                    # Update fan registry so /blast has accurate data
+                    _msg_fan = update.get("business_message") or update.get("message") or {}
+                    _fan_name = _msg_fan.get("from", {}).get("first_name", "")
+                    fan_registry[str(cid)] = {"biz": biz or "", "last_seen": time.time(), "name": _fan_name}
+                    save_fans(fan_registry)
+
                     daily_stats["conversations"] += 1
                     if cid not in seen_chats:
                         seen_chats.add(cid)
