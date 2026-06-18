@@ -654,8 +654,28 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"✅ Blast done — {sent} sent, {failed} failed"})
         return None, None
 
-    # Skip messages sent BY Pierce (outgoing business messages) — but only after owner commands handled
+    # Skip messages sent BY Pierce (outgoing business messages) — but silently capture the fan's chat_id first
     if OWNER_CHAT_ID and from_id == OWNER_CHAT_ID:
+        _out_chat_id = msg.get("chat", {}).get("id")
+        _out_biz = msg.get("business_connection_id", "")
+        if _out_chat_id and _out_chat_id != OWNER_CHAT_ID:
+            # This is Pierce texting a fan — register the fan without responding
+            _fans = load_fans()
+            _key = str(_out_chat_id)
+            if _key not in _fans:
+                _fan_name = msg.get("chat", {}).get("first_name", "")
+                _fans[_key] = {"biz": _out_biz or "", "last_seen": time.time(), "name": _fan_name}
+                save_fans(_fans)
+                log.info(f"Registered fan from outgoing message: {_out_chat_id} ({_fan_name})")
+            elif _out_biz and not _fans[_key].get("biz"):
+                _fans[_key]["biz"] = _out_biz
+                save_fans(_fans)
+            # Also persist biz_id if we have it
+            if _out_biz:
+                _existing_biz = load_biz_id()
+                if not _existing_biz:
+                    save_biz_id(_out_biz)
+                    log.info(f"Saved biz_id from outgoing message: {_out_biz[:12]}...")
         return None, None
 
     # Skip VIP chats — Pierce is handling manually (extract chat_id early for this check)
