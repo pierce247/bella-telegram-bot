@@ -600,13 +600,22 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         )})
         return None, None
 
+    # /bizid — show current business_connection_id status
+    if text.strip() == "/bizid" and from_id == OWNER_CHAT_ID:
+        biz_now = global_biz_id or load_biz_id()
+        if biz_now:
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"✅ Business connection ID:\n{biz_now}\n\nAdd to Railway as BUSINESS_CONNECTION_ID env var to make it permanent."})
+        else:
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "⚠️ No biz ID saved yet. Wait for any fan to message — it'll be auto-saved."})
+        return None, None
+
     # /blast_preview — show how many fans would receive a blast without sending
     if text.strip() == "/blast_preview" and from_id == OWNER_CHAT_ID:
         fans = load_fans()
         cutoff = time.time() - 7 * 86400
         recent = {cid: data for cid, data in fans.items() if data.get("last_seen", 0) > cutoff}
-        global_biz = next((d.get("biz") for d in fans.values() if d.get("biz")), "")
-        biz_status = "✅ Business connection ready" if global_biz else "⚠️ No biz ID yet — wait for a fan message first"
+        biz_now = global_biz_id or load_biz_id() or next((d.get("biz") for d in fans.values() if d.get("biz")), "")
+        biz_status = "✅ Business connection ready" if biz_now else "⚠️ No biz ID yet — wait for a fan message first"
         lines = [f"📣 Blast preview — {len(recent)} fans\n{biz_status}\n"]
         for fan_cid, fan_data in list(recent.items())[:20]:
             name = fan_data.get("name", "?")
@@ -627,16 +636,16 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         fans = load_fans()
         cutoff = time.time() - 7 * 86400
         recent = {cid: data for cid, data in fans.items() if data.get("last_seen", 0) > cutoff}
-        # Business connection ID is the same for all fans — grab it from any fan that has it
-        global_biz = next((d.get("biz") for d in fans.values() if d.get("biz")), "")
-        if not global_biz:
-            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "⚠️ No business_connection_id found yet — wait for a fan to message first, then retry."})
+        # Use persisted biz_id — same for all fans on Bella's business account
+        biz_now = global_biz_id or load_biz_id() or next((d.get("biz") for d in fans.values() if d.get("biz")), "")
+        if not biz_now:
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "⚠️ No business_connection_id yet — wait for a fan to message first, then retry. Or add BUSINESS_CONNECTION_ID to Railway env vars."})
             return None, None
         tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"📣 Sending blast to {len(recent)} fans..."})
         sent = 0
         failed = 0
         for fan_cid, fan_data in recent.items():
-            p = {"chat_id": int(fan_cid), "text": blast_text, "business_connection_id": global_biz}
+            p = {"chat_id": int(fan_cid), "text": blast_text, "business_connection_id": biz_now}
             if tg("sendMessage", p).get("ok"):
                 sent += 1
             else:
@@ -938,7 +947,24 @@ OFFSET_FILE  = "/data/bella_offset.txt"
 FANS_FILE    = "/data/bella_fans.json"
 DEDUP_FILE   = "/data/bella_dedup.txt"
 SEEN_FILE    = "/data/bella_seen.json"
+BIZ_FILE     = "/data/bella_biz_id.txt"
 MAX_DEDUP    = 500  # keep last N update IDs on disk
+
+def load_biz_id() -> str:
+    """Load persisted business_connection_id from disk or env var."""
+    env_biz = os.environ.get("BUSINESS_CONNECTION_ID", "")
+    if env_biz:
+        return env_biz
+    try:
+        with open(BIZ_FILE) as f: return f.read().strip()
+    except Exception:
+        return ""
+
+def save_biz_id(biz: str) -> None:
+    try:
+        with open(BIZ_FILE, "w") as f: f.write(biz)
+    except Exception as e:
+        log.warning(f"Could not save biz_id: {e}")
 
 def load_seen() -> set:
     try:
@@ -1002,7 +1028,10 @@ def main():
     replied_ids: set = load_dedup()  # persisted dedup across restarts
     fan_registry: dict = load_fans()   # {str(chat_id): {biz, last_seen}}
     seen_chats: set = load_seen()       # persisted - true first contact
+    global_biz_id: str = load_biz_id() # persisted business_connection_id
     log.info(f"Loaded {len(replied_ids)} dedup IDs from disk")
+    if global_biz_id:
+        log.info(f"Loaded business_connection_id from disk: {global_biz_id[:12]}...")
 
     # Backfill fan_registry from seen_chats so /blast works immediately
     backfilled = 0
@@ -1063,6 +1092,11 @@ def main():
                     _fan_name = _msg_fan.get("from", {}).get("first_name", "")
                     fan_registry[str(cid)] = {"biz": biz or "", "last_seen": time.time(), "name": _fan_name}
                     save_fans(fan_registry)
+                    # Persist biz_id on first discovery so blast works across restarts
+                    if biz and not global_biz_id:
+                        global_biz_id = biz
+                        save_biz_id(biz)
+                        log.info(f"Saved business_connection_id: {biz[:12]}...")
 
                     daily_stats["conversations"] += 1
                     if cid not in seen_chats:
