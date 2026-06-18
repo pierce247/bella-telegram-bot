@@ -212,6 +212,15 @@ def send_stars_invoice(chat_id: int, biz: str = "") -> None:
     r = tg("sendInvoice", p)
     log.info(f"Stars invoice: {'ok' if r.get('ok') else r}")
 
+def send_lucky_invoice(chat_id: int, biz: str = "") -> None:
+    p = {"chat_id": chat_id, "title": "🍀 Feeling Lucky?",
+         "description": "Unlock a special surprise 😘",
+         "payload": "bella_lucky_777", "currency": "XTR",
+         "prices": [{"label": "Stars", "amount": 777}]}
+    if biz: p["business_connection_id"] = biz
+    r = tg("sendInvoice", p)
+    log.info(f"Lucky invoice: {'ok' if r.get('ok') else r}")
+
 # ── AI reply ──────────────────────────────────────────────────────────────────
 
 AI_LEAK_PREFIXES = (
@@ -908,6 +917,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     is_content  = any(kw in text.lower() for kw in CONTENT_KEYWORDS)
     t_lower = text.lower()
     is_stars    = any(kw in t_lower for kw in STARS_KEYWORDS) or bool(__import__("re").search(r"\bstar\b", t_lower))
+    is_lucky    = bool(__import__("re").search(r"\blucky\b", t_lower)) and not is_stars
     is_coffee   = any(kw in text.lower() for kw in COFFEE_KEYWORDS)
     is_dinner   = any(kw in text.lower() for kw in DINNER_KEYWORDS)
     is_gift_btn = any(kw in text.lower() for kw in GIFT_BTN_KEYWORDS) and not is_stars
@@ -927,7 +937,10 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     # 1. Mark read
     mark_read(chat_id, message_id, biz)
 
-    # 2. Typing
+    # 2. Read-time pause before typing indicator — makes it feel human, not instant
+    # Short random delay: 0.8-2.8s depending on message length
+    _read_pause = random.uniform(0.8, 1.6) + min(len(text) * 0.015, 1.2)
+    time.sleep(_read_pause)
     send_typing(chat_id, biz)
 
     # 3. Build extra context
@@ -1029,7 +1042,10 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         time.sleep(0.5)
         send_stars_invoice(chat_id, biz)
 
-
+    # 11. Lucky 777 invoice on "lucky" keyword
+    if is_lucky:
+        time.sleep(0.5)
+        send_lucky_invoice(chat_id, biz)
 
     return chat_id, biz
 
