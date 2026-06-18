@@ -999,6 +999,16 @@ def main():
     seen_chats: set = load_seen()       # persisted - true first contact
     log.info(f"Loaded {len(replied_ids)} dedup IDs from disk")
 
+    # Backfill fan_registry from seen_chats so /blast works immediately
+    backfilled = 0
+    for _cid in seen_chats:
+        if str(_cid) not in fan_registry:
+            fan_registry[str(_cid)] = {"biz": "", "last_seen": time.time(), "name": ""}
+            backfilled += 1
+    if backfilled:
+        save_fans(fan_registry)
+        log.info(f"Backfilled {backfilled} fans from seen_chats into fan_registry")
+
     # Per-chat state
     chat_history: dict = defaultdict(lambda: deque(maxlen=6))  # last 3 turns = 6 messages
     chat_heat: dict    = defaultdict(lambda: 1)
