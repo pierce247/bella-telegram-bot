@@ -258,9 +258,12 @@ def clean_reply(text: str) -> str:
         text = _rec.sub(pattern, replacement, text, flags=_rec.I)
     # Strip markdown code blocks (```...``` or ``` prefix leaking in)
     text = _rec.sub(r'```[a-z]*\n?', '', text).strip()
-    # Strip stray non-ASCII/non-Latin prefix garbage (e.g. Turkish "miş" prefixes from model bleed)
-    text = _rec.sub(r'^[^\x00-\x7F\s]{1,8}\s*', '', text).strip()
-    # Strip trailing garbage characters
+      # Fix model garbage: non-ASCII bleed (Turkish/Lithuanian/etc.)
+    # e.g. 'that!vieshWhat' -> 'that! What'
+    text = _rec.sub(r'[a-z]{0,6}[^\x00-\x7F\s]+([A-Z][a-zA-Z]*)', r' \1', text)
+    text = _rec.sub(r'[^\x00-\x7F\U0001F300-\U0010FFFF]+', '', text)
+    text = _rec.sub(r'  +', ' ', text).strip()
+        # Strip trailing garbage characters
     text = _rec.sub(r'[-)(;&|@#%^*~]+;?\s*$', '', text).strip()
     # Strip "BELOW IS REWRITTEN:" and similar inline labels
     text = _rec.sub(r'(?:BELOW IS REWRITTEN|REWRITTEN|REVISED|REPHRASED)[:\s]*', '', text, flags=_rec.I).strip()
