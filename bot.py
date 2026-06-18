@@ -605,7 +605,9 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         fans = load_fans()
         cutoff = time.time() - 7 * 86400
         recent = {cid: data for cid, data in fans.items() if data.get("last_seen", 0) > cutoff}
-        lines = [f"📣 Blast preview — {len(recent)} fans would receive it:\n"]
+        global_biz = next((d.get("biz") for d in fans.values() if d.get("biz")), "")
+        biz_status = "✅ Business connection ready" if global_biz else "⚠️ No biz ID yet — wait for a fan message first"
+        lines = [f"📣 Blast preview — {len(recent)} fans\n{biz_status}\n"]
         for fan_cid, fan_data in list(recent.items())[:20]:
             name = fan_data.get("name", "?")
             last = fan_data.get("last_seen", 0)
@@ -625,13 +627,16 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         fans = load_fans()
         cutoff = time.time() - 7 * 86400
         recent = {cid: data for cid, data in fans.items() if data.get("last_seen", 0) > cutoff}
+        # Business connection ID is the same for all fans — grab it from any fan that has it
+        global_biz = next((d.get("biz") for d in fans.values() if d.get("biz")), "")
+        if not global_biz:
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "⚠️ No business_connection_id found yet — wait for a fan to message first, then retry."})
+            return None, None
         tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"📣 Sending blast to {len(recent)} fans..."})
         sent = 0
         failed = 0
         for fan_cid, fan_data in recent.items():
-            fan_biz = fan_data.get("biz", "")
-            p = {"chat_id": int(fan_cid), "text": blast_text}
-            if fan_biz: p["business_connection_id"] = fan_biz
+            p = {"chat_id": int(fan_cid), "text": blast_text, "business_connection_id": global_biz}
             if tg("sendMessage", p).get("ok"):
                 sent += 1
             else:
