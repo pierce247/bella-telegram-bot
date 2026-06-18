@@ -251,6 +251,10 @@ def clean_reply(text: str) -> str:
     }
     for pattern, replacement in _emoji_map.items():
         text = _rec.sub(pattern, replacement, text, flags=_rec.I)
+    # Strip markdown code blocks (```...``` or ``` prefix leaking in)
+    text = _rec.sub(r'```[a-z]*\n?', '', text).strip()
+    # Strip stray non-ASCII/non-Latin prefix garbage (e.g. Turkish "miş" prefixes from model bleed)
+    text = _rec.sub(r'^[^\x00-\x7F\s]{1,8}\s*', '', text).strip()
     # Strip trailing garbage characters
     text = _rec.sub(r'[-)(;&|@#%^*~]+;?\s*$', '', text).strip()
     # Strip "BELOW IS REWRITTEN:" and similar inline labels
