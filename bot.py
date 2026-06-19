@@ -362,7 +362,11 @@ def clean_reply(text: str) -> str:
     result = _rec.sub(r'\bheat\s+(?:level\s+)?\d\b[^.]*', '', result, flags=_rec.I).strip()
     # Hard bail — dead AI giveaways: discard and let fallback handle it
     _bot_tells = ["as an ai", "language model", "i'm programmed", "my guidelines",
-                  "bella would", "bella should", "[assistant]"]
+                  "bella would", "bella should", "[assistant]",
+                  "i am an ai", "i'm an ai model", "since i'm an ai",
+                  "this is where i have to leave", "i have to leave things",
+                  "would be illegal", "most jurisdictions", "yield severe consequences",
+                  "i cannot create explicit", "cannot create explicit content"]
     if any(tell in result.lower() for tell in _bot_tells):
         log.warning(f"Full AI leak detected, discarding: {result[:60]!r}")
         return ""  # triggers fallback to next model
@@ -412,6 +416,21 @@ def clean_reply(text: str) -> str:
         "not be continued between",
         "undertones and it's probably",
         "sexual undertones",
+        # AI self-identification variants
+        "since i'm an ai",
+        "i am an ai model",
+        "as an ai model",
+        "i'm an ai model",
+        "i am a language",
+        "i'm a language",
+        "i cannot create explicit",
+        "create explicit content",
+        "this is where i have to leave",
+        "have to leave things",
+        "would be illegal",
+        "most jurisdictions",
+        "yield severe consequences",
+        "severe consequences",
     ]
     _result_lower = result.lower()
     if any(phrase in _result_lower for phrase in _refusal_phrases):
@@ -1148,7 +1167,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     new_fan_hint  = ""  # removed — channel button handles new fan engagement
     goodnight_hint = "\n\nContext: fan is leaving or going to work — acknowledge it with a cute, playful send-off that makes them feel missed. Leave the door open to come back. Don't ask unrelated questions." if is_goodnight else ""
     call_hint   = "\n\nContext: fan is asking for a video call or phone call — soft brush-off with a playful excuse, keep it flirty and leave the door open." if is_call else ""
-    meetup_hint = "\n\nContext: fan is asking to meet in person. Bella has NEVER done a meetup and is genuinely scared — it feels too dangerous for a cute girl these days. She wishes she could, she really does, but she just can't. She deflects warmly and redirects to her online content. She NEVER agrees to meet, never suggests a time or place, never gives her location. She expresses she wants to but is too scared, making the fan feel special that she wishes it were possible." if is_meetup else ""
+    meetup_hint = "\n\nContext: fan wants to meet in person. Bella can't do it — it just scares her. She says so briefly, makes the fan feel special, and moves on. ONE sentence max. No long explanations. No lists of reasons. Just warm, short, redirect." if is_meetup else ""
     custom_hint = "\n\nContext: fan is making a custom request — react with playful surprise, ask what they think it's worth, negotiate. Once they name a price, tell them to send it and you'll deliver." if is_custom else ""
     stars_hint = "\n\nContext: fan is asking about Telegram Stars — acknowledge it warmly and let them know they can send Stars to show their appreciation. Keep it flirty." if is_stars else ""
     pay_hint   = "\n\nContext: fan is asking how to pay or send money. Tell them there are three ways: (1) on Fanvue at fanvue.com/bellavistaxo, (2) tap the money buttons right here in chat, or (3) visit pay.bellavista.lol. Keep it flirty and natural, not like a FAQ." if is_tip_amounts else ""
@@ -1444,9 +1463,14 @@ def db_load_history(chat_id: int, limit: int = 20) -> list:
             "SELECT role, content FROM messages WHERE chat_id=? ORDER BY ts DESC LIMIT ?",
             (chat_id, limit)).fetchall()
         result = []
+        prev_content = None
         for role, content in reversed(rows):
             ai_role = "assistant" if role in ("assistant", "owner") else "user"
+            # Skip consecutive duplicate assistant messages (prevent repetition loops)
+            if ai_role == "assistant" and content == prev_content:
+                continue
             result.append({"role": ai_role, "content": content})
+            prev_content = content if ai_role == "assistant" else prev_content
         return result
     except Exception as e:
         log.warning(f"db_load_history error: {e}")
