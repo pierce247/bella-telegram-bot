@@ -156,7 +156,7 @@ SOCIAL_MARKUP  = {"inline_keyboard": [[{"text": "🔗 Links", "url": "https://li
 # Coffee keyword trigger
 COFFEE_MARKUP  = {"inline_keyboard": [[{"text": "☕ Buy Me a Coffee", "url": "https://pay.bellavista.lol/coffee"}]]}
 # Dinner/date keyword trigger
-DINNER_MARKUP  = {"inline_keyboard": [[{"text": "🍽️ Let's Eat", "url": "https://pay.bellavista.lol/x"}, {"text": "🔗 Links", "url": "https://linktr.ee/bellavistaxo"}]]}
+DINNER_MARKUP  = {"inline_keyboard": [[{"text": "😋 Feed Me", "url": "https://pay.bellavista.lol/x"}, {"text": "🔗 Links", "url": "https://linktr.ee/bellavistaxo"}]]}
 # Gift keyword trigger
 GIFT_BTN_MARKUP = {"inline_keyboard": [[{"text": "🎁 Send Me a Gift", "url": "https://pay.bellavista.lol/x"}, {"text": "⭐ Gift Stars", "url": "https://t.me/bellavistaxoxo"}]]}
 # Gym keyword trigger
