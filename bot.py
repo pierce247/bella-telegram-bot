@@ -755,6 +755,24 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                 tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /fan CHAT_ID"})
         return None, None
 
+    # /links — generate shareable t.me payment links for all gift types
+    if text.strip() == "/links" and from_id == OWNER_CHAT_ID:
+        tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "⏳ Generating payment links for all gifts..."})
+        lines = ["🔗 Shareable Payment Links\n"]
+        biz_now = load_biz_id()
+        for key, (amt, title, desc, payload) in GIFT_CATALOG.items():
+            p = {"title": title, "description": desc, "payload": payload,
+                 "currency": "XTR", "prices": [{"label": "Stars", "amount": amt}]}
+            r = tg("createInvoiceLink", p)
+            link = r.get("result", "")
+            if link:
+                lines.append(f"{title} ({amt}⭐)\n{link}")
+            else:
+                lines.append(f"{title} ({amt}⭐)\n❌ Failed")
+            time.sleep(0.3)
+        tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "\n\n".join(lines)})
+        return None, None
+
     # /gift CHAT_ID type — send a gift invoice to a specific fan
     if text.startswith("/gift") and from_id == OWNER_CHAT_ID:
         parts = text[5:].strip().split(None, 1)
@@ -967,6 +985,19 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         _out_biz = msg.get("business_connection_id", "")
         _out_text = msg.get("text", "").strip()
         if _out_chat_id and _out_chat_id != OWNER_CHAT_ID:
+            # ── Gift shortcut: Pierce types /coffee /wine etc. IN a fan's Business chat ──
+            # Intercept before saving as a regular message
+            _gift_key = _out_text.lstrip("/").lower() if _out_text.startswith("/") else None
+            if _gift_key and _gift_key in GIFT_CATALOG:
+                ok = send_gift_invoice(_out_chat_id, _gift_key, _out_biz)
+                amt, title, _, _ = GIFT_CATALOG[_gift_key]
+                log.info(f"Gift shortcut /{_gift_key} ({amt}⭐) → chat {_out_chat_id}: {'✅' if ok else '❌'}")
+                # Notify Pierce in bot DM
+                if OWNER_CHAT_ID:
+                    tg("sendMessage", {"chat_id": OWNER_CHAT_ID,
+                        "text": f"{'✅' if ok else '❌'} Gift {title} ({amt}⭐) sent to chat {_out_chat_id}"})
+                return None, None  # don't save /coffee as a chat message
+
             # Register the fan
             _fans = load_fans()
             _key = str(_out_chat_id)
