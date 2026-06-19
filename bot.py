@@ -231,6 +231,35 @@ def send_lucky_invoice(chat_id: int, biz: str = "") -> None:
     r = tg("sendInvoice", p)
     log.info(f"Lucky invoice: {'ok' if r.get('ok') else r}")
 
+# ── Gift catalog ──────────────────────────────────────────────────────────────
+
+GIFT_CATALOG = {
+    "coffee":   (150,  "☕ Buy Me a Coffee",    "I need it rn 😩",                         "bella_gift_coffee"),
+    "flowers":  (300,  "🌸 Send Me Flowers",    "make me blush 🥰",                        "bella_gift_flowers"),
+    "wine":     (500,  "🍷 Wine Night",          "you pour, I'll dress up 😏",              "bella_gift_wine"),
+    "dinner":   (750,  "🍽️ Take Me to Dinner",  "you buy, I show up looking amazing 💕",   "bella_gift_dinner"),
+    "spa":      (1000, "💆 Spa Day",             "I deserve to be pampered 🥰",             "bella_gift_spa"),
+    "designer": (2000, "👜 Designer Treat",      "spoil me the right way 😍",              "bella_gift_designer"),
+    "spoil":    (3333, "💎 Spoil Me",            "no limits, just vibes ✨",                "bella_gift_spoil"),
+    "lucky":    (777,  "🍀 Feeling Lucky?",      "Unlock a special surprise 😘",           "bella_gift_lucky"),
+    "wish":     (1111, "🌸 Make a Wish",         "my undivided attention 🩷 make it count", "bella_gift_wish"),
+}
+
+def send_gift_invoice(chat_id: int, gift_key: str, biz: str = "") -> bool:
+    """Send a gift invoice from the catalog to a fan."""
+    entry = GIFT_CATALOG.get(gift_key.lower())
+    if not entry:
+        return False
+    amount, title, description, payload = entry
+    p = {"chat_id": chat_id, "title": title, "description": description,
+         "payload": payload, "currency": "XTR",
+         "prices": [{"label": "Stars", "amount": amount}]}
+    if biz: p["business_connection_id"] = biz
+    r = tg("sendInvoice", p)
+    ok = r.get("ok", False)
+    log.info(f"Gift '{gift_key}' ({amount}⭐) to {chat_id}: {'✅' if ok else '❌'}")
+    return ok
+
 # ── AI reply ──────────────────────────────────────────────────────────────────
 
 AI_LEAK_PREFIXES = (
@@ -724,6 +753,39 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                     tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"No DB record for chat {cid_fan} yet."})
             except ValueError:
                 tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /fan CHAT_ID"})
+        return None, None
+
+    # /gift CHAT_ID type — send a gift invoice to a specific fan
+    if text.startswith("/gift") and from_id == OWNER_CHAT_ID:
+        parts = text[5:].strip().split(None, 1)
+        if not parts or parts[0] in ("", "help", "list"):
+            # Show gift menu
+            menu = "🎁 Gift Menu:\n\n"
+            for key, (amt, title, desc, _) in GIFT_CATALOG.items():
+                menu += f"/{key.ljust(8)} {amt:>4}⭐  {title}\n"
+            menu += "\nUsage: /gift CHAT_ID gift_name\nExample: /gift 6743919068 coffee"
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": menu})
+        elif len(parts) == 2:
+            try:
+                cid_gift = int(parts[0])
+                gift_key = parts[1].strip().lower()
+                if gift_key not in GIFT_CATALOG:
+                    keys = ", ".join(GIFT_CATALOG.keys())
+                    tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"Unknown gift '{gift_key}'. Options: {keys}"})
+                else:
+                    # Get biz_id for this fan if available
+                    fan_rec = db_get_fan(cid_gift)
+                    gift_biz = fan_rec.get("biz", "") or load_biz_id() or ""
+                    ok = send_gift_invoice(cid_gift, gift_key, gift_biz)
+                    amt, title, _, _ = GIFT_CATALOG[gift_key]
+                    if ok:
+                        tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"✅ Sent {title} ({amt}⭐) to chat {cid_gift}"})
+                    else:
+                        tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"❌ Failed to send gift to {cid_gift}. Check biz ID."})
+            except ValueError:
+                tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /gift CHAT_ID gift_name\nSend /gift to see the menu."})
+        else:
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /gift CHAT_ID gift_name\nSend /gift to see the menu."})
         return None, None
 
     # /note CHAT_ID text — add or replace a note on a fan's DB profile
