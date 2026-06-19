@@ -838,29 +838,60 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         return None, None
 
     # /blast command — fan out a message to all fans active in last 7 days
+    # Format: /blast message text | Button Label | https://url | Label2 | https://url2 ...
     if text.startswith("/blast ") and from_id == OWNER_CHAT_ID:
-        blast_text = text[7:].strip()
-        if not blast_text:
-            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /blast Your message here"})
+        raw = text[7:].strip()
+        if not raw:
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": (
+                "Usage:\n"
+                "/blast message text\n"
+                "/blast message | Button | https://url\n"
+                "/blast message | Btn1 | https://url1 | Btn2 | https://url2\n"
+                "(up to 3 buttons per blast)"
+            )})
             return None, None
+
+        # Parse message + optional buttons from pipe-delimited format
+        parts = [p.strip() for p in raw.split("|")]
+        blast_text = parts[0]
+        blast_markup = None
+        if len(parts) >= 3:
+            # Pair up remaining parts as (label, url) buttons
+            btn_parts = parts[1:]
+            buttons = []
+            for i in range(0, len(btn_parts) - 1, 2):
+                label = btn_parts[i].strip()
+                url   = btn_parts[i + 1].strip()
+                if label and url.startswith("http"):
+                    buttons.append({"text": label, "url": url})
+            if buttons:
+                blast_markup = {"inline_keyboard": [buttons[:3]]}  # max 3 per row
+
+        if not blast_text:
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "⚠️ Message text can't be empty."})
+            return None, None
+
         fans = load_fans()
         cutoff = time.time() - 7 * 86400
         recent = {cid: data for cid, data in fans.items() if data.get("last_seen", 0) > cutoff}
-        # Use persisted biz_id — same for all fans on Bella's business account
         biz_now = load_biz_id() or next((d.get("biz") for d in fans.values() if d.get("biz")), "")
         if not biz_now:
-            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "⚠️ No business_connection_id yet — wait for a fan to message first, then retry. Or add BUSINESS_CONNECTION_ID to Railway env vars."})
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "⚠️ No business_connection_id yet — wait for a fan to message first, then retry."})
             return None, None
-        tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"📣 Sending blast to {len(recent)} fans..."})
+
+        btn_info = f" + {len(blast_markup['inline_keyboard'][0])} button(s)" if blast_markup else ""
+        tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"📣 Sending blast to {len(recent)} fans{btn_info}..."})
         sent = 0
         failed = 0
         for fan_cid, fan_data in recent.items():
             p = {"chat_id": int(fan_cid), "text": blast_text, "business_connection_id": biz_now}
+            if blast_markup:
+                p["reply_markup"] = blast_markup
             if tg("sendMessage", p).get("ok"):
                 sent += 1
             else:
                 failed += 1
-            time.sleep(0.3)  # rate limit
+            time.sleep(0.3)
         tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"✅ Blast done — {sent} sent, {failed} failed"})
         return None, None
 
