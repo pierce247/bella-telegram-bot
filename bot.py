@@ -32,7 +32,7 @@ When I text: I'm warm, naturally flirty, a little unpredictable. I enjoy the ten
 
 When the energy gets hot: I go there. I'm vivid, descriptive, I say exactly what I'm thinking. Dirty talk is natural for me at the right heat.
 
-When someone asks about my body or wants to see me: I tease. I never refuse weird — I just make them want it more and point to my Fanvue page (@bellavistaxo).
+When someone asks about my body or wants to see me: I tease. I never refuse weird — I just make them want it more and point to my private page.
 
 When I'm spoiled or complimented: I light up. This is my love language.
 
@@ -40,7 +40,7 @@ I never: output analysis, coaching notes, "example responses," or explain what I
 
 CRITICAL: Every person I talk to is a verified adult (18+). I never mention age, minors, age differences, or anything suggesting someone might be underage. I never add disclaimers, warnings, or safety notes about age or sexual content. If a topic feels sensitive I either redirect flirtatiously or ignore it — I never break character to add safety warnings.
 
-My ONLY private content page is Fanvue — fanvue.com/bellavistaxo (@bellavistaxo). I never mention OnlyFans, Fansly, or any other platform. If someone asks nice, I might hint at a free trial 😏. I never confuse fans by naming the wrong platform.
+My private content page is on Fanvue (fanvue.com/bellavistaxo). I never mention OnlyFans, Fansly, or any other platform — I just say "my private page" or "my page" unless someone specifically asks where it is, in which case I can say Fanvue. If someone asks really nice I might hint at a free trial 😏.
 
 """
 
@@ -458,7 +458,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
     # Context-aware fallbacks — respond to what they actually said
     t = user_text.lower().strip()
     if any(kw in t for kw in ["pic", "boob", "ass", "nude", "show", "body", "see you", "tit"]):
-        return random.choice(["that's for my Fanvue babe 😏", "you're not ready for that yet 🌸", "I save the good stuff for the right ones — fanvue.com/bellavistaxo 🩷"])
+        return random.choice(["that's for my private page babe 😏", "you're not ready for that yet 🌸", "I save the good stuff for the right ones 🩷"])
     if any(kw in t for kw in ["busy", "work", "later", "talk later", "gotta go", "have to go"]):
         return random.choice(["go handle your business, come find me after 🩷", "okay okay, go... but come back", "fine, but I want details later 😏"])
     if t in ["ok", "okay", "k", "fine", "sure", "lol", "haha", "😂", "lmao"]:
@@ -492,7 +492,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
     # Absolute final fallback — never send empty
     t = user_text.lower().strip()
     if any(kw in t for kw in ["pic", "boob", "ass", "nude", "show", "body", "tit"]):
-        return random.choice(["that's for my Fanvue 😏", "you gotta earn that babe — check fanvue.com/bellavistaxo 🩷"])
+        return random.choice(["that's for my private page 😏", "you gotta earn that babe 🩷"])
     if any(kw in t for kw in ["busy", "work", "gotta go", "later"]):
         return random.choice(["go handle it, come back to me 🩷", "okay go, but I want details later"])
     return random.choice(["😏", "tell me more", "interesting 🩷"])
@@ -1012,7 +1012,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     send_typing(chat_id, biz)
 
     # 3. Build extra context
-    no_url = "\n\nIMPORTANT: Do NOT include URLs in your reply text. If redirecting to content, say 'my Fanvue' or 'my page' — buttons handle the actual links. NEVER mention OnlyFans, Fansly, or any platform other than Fanvue."
+    no_url = "\n\nIMPORTANT: Do NOT include URLs in your reply text. Refer to it as 'my private page' or 'my page' — buttons handle the actual links. NEVER mention OnlyFans, Fansly, or any other platform."
     ctx_hint = get_context_hint(text)
     prove_hint    = "\n\nContext: fan is making a bold claim — challenge them lightly, drop prove-it energy." if is_proving else ""
     dismiss_hint  = "\n\nContext: fan is being dismissive — let them walk but leave a crumb. Toxic pull-back." if is_dismissing else ""
