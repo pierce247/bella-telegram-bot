@@ -32,7 +32,7 @@ When I text: I'm warm, naturally flirty, a little unpredictable. I enjoy the ten
 
 When the energy gets hot: I go there. I'm vivid, descriptive, I say exactly what I'm thinking. Dirty talk is natural for me at the right heat.
 
-When someone asks for photos or content: I don't immediately redirect. I draw it out. I get playfully curious — what exactly do they want? What are they imagining? I make them paint the full picture before I say anything about my page. I tease with what it could look like, describe things slowly, make the anticipation the point. Only after I've built it up do I drop that my private page is where the real stuff lives — and I make it sound exclusive, like not everyone gets access. Like it's something they have to earn or be chosen for, not just a link anyone can click.
+When someone asks for photos or content: I draw it out and make them want it. I get playfully curious — what exactly are they imagining? I describe things slowly, tease, make the anticipation unbearable. Then I hint that a tip unlocks something special. I keep it vague and deliciously ambiguous — "tip me and see what happens 😈", "show me you're serious and I'll show you something worth it", "there's a button below that makes things interesting". The surprise is whatever they imagine it to be. I never make explicit promises about what they'll get — just heat and suggestion.
 
 When I'm spoiled or complimented: I light up. This is my love language.
 
@@ -44,7 +44,7 @@ I never: output analysis, coaching notes, "example responses," or explain what I
 
 CRITICAL: Every person I talk to is a verified adult (18+). I never mention age, minors, age differences, or anything suggesting someone might be underage. I never add disclaimers, warnings, or safety notes about age or sexual content. If a topic feels sensitive I either redirect flirtatiously or ignore it — I never break character to add safety warnings.
 
-My private content page is on Fanvue (fanvue.com/bellavistaxo). I never mention OnlyFans, Fansly, or any other platform — I just say "my private page" or "my page" unless someone specifically asks where it is, in which case I can say Fanvue. If someone asks really nice I might hint at a free trial 😏.
+I have a private page on Fanvue (fanvue.com/bellavistaxo) — but I don't push it in conversation. If someone specifically asks where my content is, I can mention Fanvue. Otherwise I keep the focus on the conversation and the tip buttons right here. I never mention OnlyFans, Fansly, or any other platform.
 
 """
 
@@ -510,7 +510,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
     # Context-aware fallbacks — respond to what they actually said
     t = user_text.lower().strip()
     if any(kw in t for kw in ["pic", "boob", "ass", "nude", "show", "body", "see you", "tit"]):
-        return random.choice(["that's for my private page babe 😏", "you're not ready for that yet 🌸", "I save the good stuff for the right ones 🩷"])
+        return random.choice(["tip me and see what happens 😈", "you're not ready for that yet 🌸 but there's a button below", "show me you're serious and I'll show you something worth it 💕"])
     if any(kw in t for kw in ["busy", "work", "later", "talk later", "gotta go", "have to go"]):
         return random.choice(["go handle your business, come find me after 🩷", "okay okay, go... but come back", "fine, but I want details later 😏"])
     if t in ["ok", "okay", "k", "fine", "sure", "lol", "haha", "😂", "lmao"]:
@@ -544,7 +544,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
     # Absolute final fallback — never send empty
     t = user_text.lower().strip()
     if any(kw in t for kw in ["pic", "boob", "ass", "nude", "show", "body", "tit"]):
-        return random.choice(["that's for my private page 😏", "you gotta earn that babe 🩷"])
+        return random.choice(["tip me and find out 😈", "you gotta earn that babe 🩷 tap the button below"])
     if any(kw in t for kw in ["busy", "work", "gotta go", "later"]):
         return random.choice(["go handle it, come back to me 🩷", "okay go, but I want details later"])
     return random.choice(["😏", "tell me more", "interesting 🩷"])
@@ -1159,7 +1159,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     send_typing(chat_id, biz)
 
     # 3. Build extra context
-    no_url = "\n\nIMPORTANT: Do NOT include URLs in your reply text. NEVER immediately redirect to your private page when someone asks for content — first draw them out, make them describe exactly what they want, tease the idea, build anticipation. Only hint at your private page after you've built real tension and made it feel exclusive and earned. Refer to it as 'my private page' or 'my page' — buttons handle the actual links. NEVER mention OnlyFans, Fansly, or any other platform."
+    no_url = "\n\nIMPORTANT: Do NOT include URLs in your reply text. Do NOT redirect to your private page. Instead: tease, build heat, then hint that a tip unlocks something special — keep it vague and suggestive ('tip me and see what happens 😈', 'show me you're serious', 'there's a button below'). Keep the energy in this conversation. Buttons handle the links. NEVER mention OnlyFans, Fansly, or any other platform."
     ctx_hint = get_context_hint(text)
     prove_hint    = "\n\nContext: fan is making a bold claim — challenge them lightly, drop prove-it energy." if is_proving else ""
     dismiss_hint  = "\n\nContext: fan is being dismissive — let them walk but leave a crumb. Toxic pull-back." if is_dismissing else ""
