@@ -542,288 +542,273 @@ def get_payment_stats():
             "daily":daily,"top_payers":top_payers,"recent":list(reversed(log))[:50]}
 
 def get_conv_stats():
-    """Fetch conversation stats from bella-bot stats API if available."""
-    if not STATS_URL: return None
-    try:
-        req = urllib.request.Request(f"{STATS_URL}/api/stats?token={ADMIN_TOKEN}")
-        with urllib.request.urlopen(req, timeout=5) as r: return json.loads(r.read())
-    except: return None
+    """Fetch conversation stats from bella-bot stats API + inject Fanvue data."""
+    result = {}
+    if STATS_URL:
+        try:
+            req = urllib.request.Request(f"{STATS_URL}/api/stats?token={ADMIN_TOKEN}")
+            with urllib.request.urlopen(req, timeout=5) as r:
+                result = json.loads(r.read())
+        except: pass
+    # Inject latest Fanvue stats
+    result["_fanvue"] = load_json(os.path.join(DATA_DIR,"fanvue_stats.json"), {})
+    return result
 
 
 # ── Dashboard HTML ────────────────────────────────────────────────────────────
 def build_dashboard(payment_stats, conv_stats):
-    ps = payment_stats
-    cs = conv_stats or {}
+    ps  = payment_stats
+    cs  = conv_stats or {}
     now_str = time.strftime("%Y-%m-%d %H:%M UTC")
 
-    # Compute accurate metrics — exclude declined
-    all_payments = ps.get("recent", [])
-    captured = [p for p in all_payments if p.get("status","") in ("CAPTURED","AUTHORIZED","COMPLETED","") 
-                and not p.get("event_type","").endswith("DECLINED")]
-    declined = [p for p in all_payments if p.get("event_type","").endswith("DECLINED") 
-                or p.get("status","") == "DECLINED"]
-    revenue_cents = sum(p.get("amount_cents",0) for p in captured)
-    delivered = sum(1 for p in captured if p.get("delivered"))
-    unmatched = len(captured) - delivered
-    pending_fans = ps.get("pending_fans", 0)
+    # ── Revenue data ────────────────────────────────────────────────────────
+    all_p = ps.get("recent", [])
+    cap   = [p for p in all_p if p.get("status","") in ("CAPTURED","AUTHORIZED","COMPLETED","")
+             and not p.get("event_type","").endswith("DECLINED")]
+    gd_rev_cents = sum(p.get("amount_cents",0) for p in cap)
 
-    # Conversation stats
-    total_fans = cs.get("total_fans", "—")
-    total_msgs = cs.get("total_messages", "—")
-    msgs_today = cs.get("messages_today", "—")
-    active_today = cs.get("active_fans_today", "—")
-    stars_total = cs.get("stars_total", 0)
-    stars_today = cs.get("stars_today", 0)
-    conv_online = cs != {}
+    fv = cs.get("_fanvue",{})  # injected below by get_conv_stats
+    fv_rev_cents = fv.get("earnings",{}).get("all_time_gross_cents",0)
+    fv_net_cents = fv.get("earnings",{}).get("all_time_net_cents",0)
+    stars_total  = cs.get("stars_total",0)
+    stars_usd    = round(stars_total*0.013,2)
 
-    # Build daily revenue chart
-    daily = ps.get("daily", [])
-    max_rev = max((d.get("revenue_cents",0) for d in daily), default=1) or 1
-    daily_bars = "".join(
-        '<div class="bar-wrap">'
-        '<div class="bar" style="height:{}px;background:#f472b6" title="${:.2f}"></div>'
-        '<div class="bar-lbl">{}<br><small>${:.0f}</small></div></div>'.format(
-            max(4, int(d.get("revenue_cents",0)/max_rev*80)),
-            d.get("revenue_cents",0)/100,
-            d.get("date",""),
-            d.get("revenue_cents",0)/100
-        ) for d in daily
+    combined_cents = gd_rev_cents + fv_rev_cents + int(stars_usd*100)
+    combined_str   = f"${combined_cents/100:.2f}"
+    gd_str  = f"${gd_rev_cents/100:.2f}"
+    fv_str  = fv.get("earnings",{}).get("all_time_gross","—")
+    fv_net  = fv.get("earnings",{}).get("all_time_net","—")
+    fv_avail= fv.get("earnings",{}).get("available_balance","—")
+    fv_subs = fv.get("account",{}).get("subscribers",0)
+    fv_foll = fv.get("account",{}).get("followers",0)
+    fv_upd  = fv.get("updated_at","")[:16].replace("T"," ") if fv.get("updated_at") else "not loaded"
+
+    # ── GoDaddy payment stats ───────────────────────────────────────────────
+    gd_payments = len(cap)
+    gd_delivered= sum(1 for p in cap if p.get("delivered"))
+    gd_unmatched= gd_payments - gd_delivered
+    pending_fans= ps.get("pending_fans",0)
+
+    # ── Conversation stats ──────────────────────────────────────────────────
+    total_fans   = cs.get("total_fans","—")
+    total_msgs   = cs.get("total_messages","—")
+    msgs_today   = cs.get("messages_today","—")
+    active_today = cs.get("active_fans_today","—")
+    conv_ok      = cs != {}
+
+    # ── Fanvue top spenders ─────────────────────────────────────────────────
+    fv_top = fv.get("top_spenders",[])
+    fv_top_rows = "".join(
+        f'<tr><td>{s["name"]}</td><td><strong>{s["gross"]}</strong></td></tr>'
+        for s in fv_top
+    ) or '<tr><td colspan=2 class="empty">—</td></tr>'
+
+    fv_breakdown = fv.get("breakdown",{})
+    fv_bd_rows = "".join(
+        f'<tr><td style="text-transform:capitalize">{k}</td><td>{v["gross"]}</td></tr>'
+        for k,v in fv_breakdown.items() if v.get("gross_cents",0)>0
+    ) or '<tr><td colspan=2 class="empty">—</td></tr>'
+
+    # ── Daily revenue charts ────────────────────────────────────────────────
+    daily_gd = ps.get("daily",[])
+    max_gd   = max((d.get("revenue_cents",0) for d in daily_gd), default=1) or 1
+    gd_bars  = "".join(
+        '<div class="bar-wrap"><div class="bar" style="height:{h}px;background:#f472b6"></div>'
+        '<div class="bar-lbl">{d}<br><small>${a:.0f}</small></div></div>'.format(
+            h=max(4,int(d.get("revenue_cents",0)/max_gd*80)),
+            d=d.get("date",""),
+            a=d.get("revenue_cents",0)/100
+        ) for d in daily_gd
+    )
+    daily_conv = cs.get("daily_messages",[])
+    max_msg  = max((d.get("count",0) for d in daily_conv), default=1) or 1
+    conv_bars= "".join(
+        '<div class="bar-wrap"><div class="bar conv-bar" style="height:{h}px"></div>'
+        '<div class="bar-lbl">{d}<br><small>{c}</small></div></div>'.format(
+            h=max(4,int(d.get("count",0)/max_msg*80)),
+            d=d.get("date",""),c=d.get("count",0)
+        ) for d in daily_conv
+    )
+    fv_daily = fv.get("daily_june",[])
+    max_fvd  = max((d.get("gross_cents",0) for d in fv_daily), default=1) or 1
+    fv_bars  = "".join(
+        '<div class="bar-wrap"><div class="bar" style="height:{h}px;background:#818cf8"></div>'
+        '<div class="bar-lbl">{d}<br><small>${a:.0f}</small></div></div>'.format(
+            h=max(4,int(d.get("gross_cents",0)/max_fvd*80)),
+            d=d.get("date",""),
+            a=d.get("gross_cents",0)/100
+        ) for d in fv_daily
     )
 
-    # Daily messages chart
-    daily_conv = cs.get("daily_messages",[])
-    max_msg = max((d.get("count",0) for d in daily_conv), default=1) or 1
-    conv_bars = "".join(
-        '<div class="bar-wrap">'
-        '<div class="bar conv-bar" style="height:{}px" title="{} msgs"></div>'
-        '<div class="bar-lbl">{}<br><small>{}</small></div></div>'.format(
-            max(4, int(d.get("count",0)/max_msg*80)), d.get("count",0), d.get("date",""), d.get("count",0)
-        ) for d in daily_conv
-    ) if daily_conv else ""
-
-    # Daily stars chart
-    daily_stars = cs.get("daily_stars", [])
-    max_stars = max((d.get("stars",0) for d in daily_stars), default=1) or 1
-    star_bars = "".join(
-        '<div class="bar-wrap">'
-        '<div class="bar" style="height:{}px;background:#f59e0b" title="{}⭐"></div>'
-        '<div class="bar-lbl">{}<br><small>{}⭐</small></div></div>'.format(
-            max(4, int(d.get("stars",0)/max_stars*80)), d.get("stars",0), d.get("date",""), d.get("stars",0)
-        ) for d in daily_stars
-    ) if daily_stars else ""
-
-    # Top payers
+    # ── Payer tables ────────────────────────────────────────────────────────
     from collections import defaultdict
     payer_map = defaultdict(lambda: {"name":"","amount":0,"count":0,"email":"","chat_id":None})
-    for p in captured:
-        k = p.get("email","?")
-        payer_map[k]["name"]  = p.get("name","?")
-        payer_map[k]["email"] = k
-        payer_map[k]["amount"] += p.get("amount_cents",0)
-        payer_map[k]["count"]  += 1
-        if p.get("chat_id"): payer_map[k]["chat_id"] = p.get("chat_id")
-    top_payers = sorted(payer_map.values(), key=lambda x: x["amount"], reverse=True)[:10]
+    for p in cap:
+        k=p.get("email","?"); payer_map[k]["name"]=p.get("name","?"); payer_map[k]["email"]=k
+        payer_map[k]["amount"]+=p.get("amount_cents",0); payer_map[k]["count"]+=1
+        if p.get("chat_id"): payer_map[k]["chat_id"]=p.get("chat_id")
+    top_payers = sorted(payer_map.values(), key=lambda x:x["amount"], reverse=True)[:8]
     payer_rows = "".join(
         '<tr><td>{}</td><td>{}</td><td><strong>${:.2f}</strong></td><td>{}</td><td>{}</td></tr>'.format(
-            p["name"], p["email"], p["amount"]/100, p["count"],
+            p["name"],p["email"],p["amount"]/100,p["count"],
             '<span class="badge green">chat '+str(p["chat_id"])+'</span>' if p["chat_id"] else '<span class="badge">unmatched</span>'
         ) for p in top_payers
     ) or '<tr><td colspan=5 class="empty">No payments yet</td></tr>'
 
-    # All payments table (data for JS filter)
-    pay_data = json.dumps(list(reversed(all_payments)), default=str)
+    pay_data = json.dumps(list(reversed(all_p)), default=str)
 
-    # Top fans table
     fan_rows = ""
-    for f in cs.get("top_fans",[])[:20] if cs else []:
-        heat_dots = "🔥" * min(f.get("heat",1),5)
+    for f in cs.get("top_fans",[])[:15] if conv_ok else []:
         fan_rows += '<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>'.format(
-            f.get("name","?"), f.get("chat_id",""), f.get("msg_count",""),
-            heat_dots, f.get("last_seen","?")
-        )
+            f.get("name","?"),f.get("chat_id",""),f.get("msg_count",""),
+            "🔥"*min(f.get("heat",1),5),f.get("last_seen","?"))
     if not fan_rows:
         fan_rows = '<tr><td colspan=5 class="empty">{}</td></tr>'.format(
-            "Add STATS_URL env var to show fan data" if not conv_online else "No fans yet"
-        )
+            "No fan data" if conv_ok else "Add STATS_URL env var to show fan data")
 
     return """<!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>🩷 Bella Ops Dashboard</title>
+<title>🩷 Bella Ops</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#f0f0f0;padding:16px;overflow-x:hidden}
-@media(max-width:600px){body{padding:10px}.charts{flex-direction:column!important}.stat{min-width:calc(50% - 8px)!important}.bar-lbl{font-size:8px}.stats{gap:8px}table{font-size:12px}th,td{padding:7px 8px!important}h1{font-size:20px}h2{font-size:13px}.search-input{width:100%!important}.filters{flex-wrap:wrap;gap:6px}.filter-btn{font-size:11px;padding:4px 10px}}
-h1{color:#f472b6;font-size:24px;margin-bottom:2px}
-.sub{color:#555;font-size:13px;margin-bottom:24px}
-h2{color:#f472b6;font-size:14px;font-weight:600;margin:28px 0 10px;text-transform:uppercase;letter-spacing:.06em}
-.stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+h1{color:#f472b6;font-size:22px}
+.sub{color:#444;font-size:12px;margin-bottom:20px}
+h2{color:#f472b6;font-size:13px;font-weight:600;margin:24px 0 10px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid #1a1a1a;padding-bottom:6px}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .stat{background:#141414;border:1px solid #222;border-radius:10px;padding:14px 18px;flex:1;min-width:100px}
-.stat .val{font-size:24px;font-weight:700;color:#f472b6}
+.stat .val{font-size:22px;font-weight:700;color:#f472b6}
 .stat .lbl{font-size:11px;color:#555;margin-top:3px}
-.stat .sub2{font-size:11px;color:#888;margin-top:2px}
-.charts{display:flex;gap:14px;margin-bottom:8px;flex-wrap:wrap}
-.chart{background:#111;border:1px solid #1a1a1a;border-radius:10px;padding:14px;flex:1;min-width:220px}
+.stat .sub2{font-size:10px;color:#888;margin-top:2px}
+.combined .val{font-size:32px;color:#ffffff}
+.fv-stat .val{color:#818cf8}
+.star-stat .val{color:#f59e0b}
+.charts{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.chart{background:#111;border:1px solid #1a1a1a;border-radius:10px;padding:14px;flex:1;min-width:200px}
 .chart-title{font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
-.bars{display:flex;align-items:flex-end;gap:5px;height:90px}
+.bars{display:flex;align-items:flex-end;gap:4px;height:90px}
 .bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
 .bar{background:#f472b6;border-radius:3px 3px 0 0;width:100%}
-.conv-bar{background:#818cf8}
-.bar-lbl{font-size:9px;color:#444;text-align:center;line-height:1.3}
-table{width:100%;border-collapse:collapse;background:#111;border-radius:10px;overflow:hidden;margin-bottom:8px}
+.conv-bar{background:#22c55e}
+table{width:100%;border-collapse:collapse;background:#111;border-radius:10px;overflow:hidden;margin-bottom:12px}
 th{background:#181818;padding:9px 12px;text-align:left;font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.05em}
 td{padding:9px 12px;border-top:1px solid #1a1a1a;font-size:13px}
 tr:hover td{background:#161616}
-.empty{color:#333;text-align:center;padding:24px!important}
+.empty{color:#333;text-align:center;padding:20px!important}
 .badge{background:#f472b620;color:#f472b6;padding:2px 7px;border-radius:4px;font-size:11px}
 .badge.green{background:#22c55e20;color:#22c55e}
-.badge.red{background:#ef444420;color:#ef4444}
-.badge.yellow{background:#f59e0b20;color:#f59e0b}
-.filters{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
-.filter-btn{background:#1a1a1a;border:1px solid #333;color:#888;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px}
+.side-by-side{display:flex;gap:12px;flex-wrap:wrap}
+.side-by-side > *{flex:1;min-width:200px}
+.filters{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.filter-btn{background:#1a1a1a;border:1px solid #333;color:#888;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px}
 .filter-btn.active{background:#f472b620;border-color:#f472b6;color:#f472b6}
-.search-input{background:#1a1a1a;border:1px solid #333;color:#f0f0f0;padding:5px 12px;border-radius:6px;font-size:12px;width:200px}
-.search-input:focus{outline:none;border-color:#f472b6}
-.dot-green{color:#22c55e}
-.dot-yellow{color:#f59e0b}
-.dot-red{color:#ef4444}
-.footer{color:#333;font-size:11px;margin-top:28px;text-align:center}
+.search-input{background:#1a1a1a;border:1px solid #333;color:#f0f0f0;padding:5px 12px;border-radius:6px;font-size:12px;width:100%}
+.footer{color:#333;font-size:11px;margin-top:24px;text-align:center}
 a{color:#f472b6;text-decoration:none}
+.fv-badge{background:#818cf820;color:#818cf8;padding:2px 7px;border-radius:4px;font-size:10px}
+@media(max-width:600px){.stats{gap:8px}.stat{min-width:calc(50% - 8px)!important}.charts{flex-direction:column}.bar-lbl{font-size:8px}table{font-size:12px}th,td{padding:7px 8px!important}}
 </style>
 <script>setTimeout(()=>location.reload(),60000)</script>
 </head><body>
 <h1>🩷 Bella Ops Dashboard</h1>
-<p class="sub">bellavistaxo · live ops · auto-refreshes 60s · """ + now_str + """</p>
+<p class="sub">bellavistaxo · """ + now_str + """ · auto-refreshes 60s</p>
 
-<h2>💰 Revenue</h2>
+<h2>💰 Combined Revenue</h2>
 <div class="stats">
-  <div class="stat"><div class="val">$""" + f"{revenue_cents/100:.2f}" + """</div><div class="lbl">Total Revenue</div><div class="sub2">from """ + str(len(captured)) + """ payments</div></div>
-  <div class="stat"><div class="val">""" + str(len(captured)) + """</div><div class="lbl">Captured Payments</div><div class="sub2">""" + str(len(declined)) + """ declined</div></div>
-  <div class="stat"><div class="val">""" + str(delivered) + """</div><div class="lbl">Auto-Delivered</div><div class="sub2">content sent</div></div>
-  <div class="stat"><div class="val">""" + str(unmatched) + """</div><div class="lbl">Unmatched</div><div class="sub2">no chat ID yet</div></div>
-  <div class="stat"><div class="val">""" + str(pending_fans) + """</div><div class="lbl">Pending Fans</div><div class="sub2">awaiting payment</div></div>
+  <div class="stat combined"><div class="val">""" + combined_str + """</div><div class="lbl">Total All-Time</div><div class="sub2">GoDaddy + Fanvue + Stars</div></div>
+  <div class="stat fv-stat"><div class="val">""" + fv_str + """</div><div class="lbl">Fanvue Gross</div><div class="sub2">""" + fv_net + """ net</div></div>
+  <div class="stat"><div class="val">""" + gd_str + """</div><div class="lbl">GoDaddy Payments</div><div class="sub2">""" + str(gd_payments) + """ transactions</div></div>
+  <div class="stat star-stat"><div class="val">""" + str(stars_total) + """⭐</div><div class="lbl">Telegram Stars</div><div class="sub2">≈$""" + str(stars_usd) + """ via bot invoices</div></div>
 </div>
 
-<h2>💬 Conversations""" + ("" if conv_online else ' <span class="badge yellow">stats offline</span>') + """</h2>
+<h2>🌸 Fanvue <span class="fv-badge">updated """ + fv_upd + """ UTC</span></h2>
 <div class="stats">
-  <div class="stat"><div class="val">""" + str(total_fans) + """</div><div class="lbl">Total Fans</div></div>
-  <div class="stat"><div class="val">""" + str(total_msgs) + """</div><div class="lbl">Total Messages</div></div>
-  <div class="stat"><div class="val">""" + str(msgs_today) + """</div><div class="lbl">Messages Today</div></div>
-  <div class="stat"><div class="val">""" + str(active_today) + """</div><div class="lbl">Active Today</div></div>
-  <div class="stat"><div class="val">""" + str(stars_total) + """⭐</div><div class="lbl">Stars Received</div><div class="sub2">via bot invoices</div></div>
-  <div class="stat"><div class="val">""" + str(stars_today) + """⭐</div><div class="lbl">Stars Today</div></div>
+  <div class="stat fv-stat"><div class="val">""" + fv_avail + """</div><div class="lbl">Available Balance</div></div>
+  <div class="stat fv-stat"><div class="val">""" + str(fv_subs) + """</div><div class="lbl">Subscribers</div></div>
+  <div class="stat fv-stat"><div class="val">""" + str(fv_foll) + """</div><div class="lbl">Followers</div></div>
 </div>
-
+<div class="side-by-side">
+  <div>
+    <table><thead><tr><th>Top Spenders</th><th>Spent</th></tr></thead><tbody>""" + fv_top_rows + """</tbody></table>
+  </div>
+  <div>
+    <table><thead><tr><th>Revenue Source</th><th>Gross</th></tr></thead><tbody>""" + fv_bd_rows + """</tbody></table>
+  </div>
+</div>
 <div class="charts">
-  <div class="chart"><div class="chart-title">💵 Daily Revenue (7d)</div>
-    <div class="bars">""" + (daily_bars or '<div style="color:#333;margin:auto;font-size:11px">No data</div>') + """</div></div>
-  <div class="chart"><div class="chart-title">💬 Daily Messages (7d)</div>
-    <div class="bars">""" + (conv_bars or '<div style="color:#333;margin:auto;font-size:11px">Connecting...</div>') + """</div></div>
-  <div class="chart"><div class="chart-title">⭐ Daily Stars (7d)</div>
-    <div class="bars">""" + (star_bars or '<div style="color:#333;margin:auto;font-size:11px">No stars yet via bot</div>') + """</div></div>
+  <div class="chart"><div class="chart-title">Fanvue daily (June)</div><div class="bars">""" + (fv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
+  <div class="chart"><div class="chart-title">GoDaddy daily (7d)</div><div class="bars">""" + (gd_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
+  <div class="chart"><div class="chart-title">Messages daily (7d)</div><div class="bars">""" + (conv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
 </div>
 
-<h2>🌟 Top Payers</h2>
-<table><thead><tr><th>Name</th><th>Email</th><th>Total Paid</th><th>Payments</th><th>Matched</th></tr></thead>
+<h2>💳 GoDaddy Payment Links</h2>
+<div class="stats">
+  <div class="stat"><div class="val">""" + gd_str + """</div><div class="lbl">Total Revenue</div></div>
+  <div class="stat"><div class="val">""" + str(gd_payments) + """</div><div class="lbl">Captured</div></div>
+  <div class="stat"><div class="val">""" + str(gd_delivered) + """</div><div class="lbl">Delivered</div></div>
+  <div class="stat"><div class="val">""" + str(gd_unmatched) + """</div><div class="lbl">Unmatched</div></div>
+  <div class="stat"><div class="val">""" + str(pending_fans) + """</div><div class="lbl">Pending Fans</div></div>
+</div>
+<h2>🌟 Top Payers (GoDaddy)</h2>
+<table><thead><tr><th>Name</th><th>Email</th><th>Total</th><th>Payments</th><th>Matched</th></tr></thead>
 <tbody>""" + payer_rows + """</tbody></table>
 
 <h2>📋 All Transactions</h2>
 <div class="filters">
-  <button class="filter-btn active" onclick="filterPay('all',this)">All (""" + str(len(all_payments)) + """)</button>
-  <button class="filter-btn" onclick="filterPay('captured',this)">✅ Captured (""" + str(len(captured)) + """)</button>
-  <button class="filter-btn" onclick="filterPay('declined',this)">❌ Declined (""" + str(len(declined)) + """)</button>
-  <button class="filter-btn" onclick="filterPay('unmatched',this)">📬 Unmatched (""" + str(unmatched) + """)</button>
+  <button class="filter-btn active" onclick="filterPay('all',this)">All (""" + str(len(all_p)) + """)</button>
+  <button class="filter-btn" onclick="filterPay('captured',this)">✅ Captured (""" + str(len(cap)) + """)</button>
+  <button class="filter-btn" onclick="filterPay('declined',this)">❌ Declined (""" + str(len(all_p)-len(cap)) + """)</button>
+  <button class="filter-btn" onclick="filterPay('unmatched',this)">📬 Unmatched (""" + str(gd_unmatched) + """)</button>
   <input class="search-input" id="paySearch" oninput="filterPay(currentFilter,null)" placeholder="Search name / email…">
 </div>
-<table id="payTable"><thead><tr><th>Date</th><th>Name</th><th>Amount</th><th>Email</th><th>Status</th><th>Chat ID</th></tr></thead>
+<table id="payTable"><thead><tr><th>Date</th><th>Name</th><th>Amount</th><th>Email</th><th>Status</th><th>Chat</th></tr></thead>
 <tbody id="payBody"></tbody></table>
 
-<h2>👥 Active Fans</h2>
-<div class="filters">
-  <input class="search-input" id="fanSearch" oninput="filterFans()" placeholder="Search fan name…" style="width:250px">
+<h2>💬 Conversations</h2>
+<div class="stats">
+  <div class="stat"><div class="val">""" + str(total_fans) + """</div><div class="lbl">Total Fans</div></div>
+  <div class="stat"><div class="val">""" + str(total_msgs) + """</div><div class="lbl">Messages</div></div>
+  <div class="stat"><div class="val">""" + str(msgs_today) + """</div><div class="lbl">Today</div></div>
+  <div class="stat"><div class="val">""" + str(active_today) + """</div><div class="lbl">Active Today</div></div>
 </div>
+<h2>👥 Active Fans</h2>
+<div class="filters"><input class="search-input" id="fanSearch" oninput="filterFans()" placeholder="Search fans…" style="max-width:280px"></div>
 <table id="fanTable"><thead><tr><th>Name</th><th>Chat ID</th><th>Messages</th><th>Heat</th><th>Last Active</th></tr></thead>
 <tbody id="fanBody">""" + fan_rows + """</tbody></table>
 
-<div id="fanvue-section" style="display:none">
-<h2>🌸 Fanvue Earnings <span class="badge" id="fv-updated"></span></h2>
-<div class="stats" id="fv-stats"></div>
-<div class="charts">
-  <div class="chart" id="fv-breakdown-wrap"><div class="chart-title">Revenue by Source</div><div id="fv-breakdown"></div></div>
-  <div class="chart"><div class="chart-title">&#11088; Top Spenders</div><div id="fv-spenders"></div></div>
-</div>
-</div>
-
-<p class="footer">Updated: """ + now_str + """ · <a href="?token=bella-admin-2024">Refresh</a> · <a href="/payments?token=bella-admin-2024">Raw JSON</a></p>
+<p class="footer">""" + now_str + """ · <a href="?token=bella-admin-2024">Refresh</a> · <a href="/payments?token=bella-admin-2024">Raw JSON</a></p>
 
 <script>
 const PAYMENTS = """ + pay_data + """;
 let currentFilter = 'all';
-
-function renderPayRows(rows) {
-  const q = (document.getElementById('paySearch').value||'').toLowerCase();
-  const filtered = rows.filter(p => {
-    if (q && !((p.name||'').toLowerCase().includes(q)||(p.email||'').toLowerCase().includes(q))) return false;
-    return true;
-  });
-  const tbody = document.getElementById('payBody');
-  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan=6 class="empty">No matching payments</td></tr>'; return; }
-  tbody.innerHTML = filtered.map(p => {
-    const isDeclined = (p.event_type||'').endsWith('DECLINED') || p.status === 'DECLINED';
-    const isCaptured = p.status === 'CAPTURED' || p.status === 'AUTHORIZED' || p.status === 'COMPLETED';
-    const dot = p.delivered ? '<span class="dot-green">✅</span>' : (isDeclined ? '<span class="dot-red">❌</span>' : (isCaptured ? '<span class="dot-yellow">📬</span>' : '<span>?</span>'));
-    const bf = p.backfilled ? ' <span class="badge" style="font-size:9px">backfill</span>' : '';
-    return '<tr>'
-      +'<td>'+(p.ts||'').slice(0,10)+'</td>'
-      +'<td><strong>'+(p.name||'?')+'</strong>'+bf+'</td>'
-      +'<td>'+dot+' '+(p.amount_usd||'?')+'</td>'
-      +'<td style="color:#666;font-size:12px">'+(p.email||'')+'</td>'
-      +'<td>'+(p.status||'?')+'</td>'
-      +'<td style="font-size:12px;color:#888">'+(p.chat_id||'—')+'</td>'
-      +'</tr>';
-  }).join('');
+function renderPayRows(rows){
+  const q=(document.getElementById('paySearch').value||"").toLowerCase();
+  const f=rows.filter(p=>!q||((p.name||"").toLowerCase().includes(q)||(p.email||"").toLowerCase().includes(q)));
+  const tb=document.getElementById('payBody');
+  if(!f.length){tb.innerHTML='<tr><td colspan=6 class="empty">No results</td></tr>';return;}
+  tb.innerHTML=f.map(p=>{
+    const dec=(p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED";
+    const ok=["CAPTURED","AUTHORIZED","COMPLETED"].includes(p.status||"");
+    const dot=p.delivered?"✅":(dec?"❌":(ok?"📬":"?"));
+    const bf=p.backfilled?'<span class="badge" style="font-size:9px">backfill</span>':"";
+    return '<tr><td>'+(p.ts||"").slice(0,10)+'</td><td><strong>'+(p.name||"?")+'</strong>'+bf+'</td><td>'+dot+' '+(p.amount_usd||"?")+'</td><td style="color:#555;font-size:12px">'+(p.email||"")+'</td><td>'+(p.status||"?")+'</td><td style="font-size:11px;color:#888">'+(p.chat_id||"—")+'</td></tr>';
+  }).join("");
 }
-
-function filterPay(type, btn) {
-  currentFilter = type;
+function filterPay(t,btn){
+  currentFilter=t;
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  let rows = PAYMENTS;
-  if (type === 'captured') rows = rows.filter(p => !((p.event_type||'').endsWith('DECLINED')||p.status==='DECLINED'));
-  else if (type === 'declined') rows = rows.filter(p => (p.event_type||'').endsWith('DECLINED')||p.status==='DECLINED');
-  else if (type === 'unmatched') rows = rows.filter(p => !p.delivered && !((p.event_type||'').endsWith('DECLINED')||p.status==='DECLINED'));
-  renderPayRows(rows);
+  if(btn)btn.classList.add('active');
+  let r=PAYMENTS;
+  if(t==="captured")r=r.filter(p=>!((p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED"));
+  else if(t==="declined")r=r.filter(p=>(p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED");
+  else if(t==="unmatched")r=r.filter(p=>!p.delivered&&!((p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED"));
+  renderPayRows(r);
 }
-
-function filterFans() {
-  const q = (document.getElementById('fanSearch').value||'').toLowerCase();
-  document.querySelectorAll('#fanBody tr').forEach(tr => {
-    const text = tr.textContent.toLowerCase();
-    tr.style.display = (!q || text.includes(q)) ? '' : 'none';
-  });
+function filterFans(){
+  const q=(document.getElementById('fanSearch').value||"").toLowerCase();
+  document.querySelectorAll('#fanBody tr').forEach(tr=>{tr.style.display=(!q||tr.textContent.toLowerCase().includes(q))?"":"none"});
 }
-
-filterPay('all', document.querySelector('.filter-btn.active'));
-
-// Load Fanvue data
-fetch('/api/fanvue?token=bella-admin-2024')
-  .then(r=>r.json())
-  .then(fv=>{
-    if (!fv || !fv.earnings) return;
-    document.getElementById('fanvue-section').style.display='block';
-    const e=fv.earnings, a=fv.account||{}, bd=fv.breakdown||{}, sp=fv.top_spenders||[];
-    document.getElementById('fv-updated').textContent=fv.updated_at?fv.updated_at.slice(0,16).replace('T',' ')+' UTC':'';
-    document.getElementById('fv-stats').innerHTML=
-      '<div class="stat"><div class="val">'+e.all_time_gross+'</div><div class="lbl">All Time Gross</div></div>'+
-      '<div class="stat"><div class="val">'+e.all_time_net+'</div><div class="lbl">All Time Net</div></div>'+
-      '<div class="stat"><div class="val">'+e.available_balance+'</div><div class="lbl">Available Balance</div></div>'+
-      '<div class="stat"><div class="val">'+(a.subscribers||0)+'</div><div class="lbl">Subscribers</div></div>'+
-      '<div class="stat"><div class="val">'+(a.followers||0)+'</div><div class="lbl">Followers</div></div>';
-    const bdKeys=[['renewals','Renewals'],['posts','Posts'],['subscriptions','Subs'],['tips','Tips'],['messages','Messages']];
-    document.getElementById('fv-breakdown').innerHTML='<table style="margin:0"><thead><tr><th>Source</th><th>Gross</th></tr></thead><tbody>'+
-      bdKeys.map(([k,l])=>bd[k]?'<tr><td>'+l+'</td><td>'+bd[k].gross+'</td></tr>':'').join('')+'</tbody></table>';
-    document.getElementById('fv-spenders').innerHTML='<table style="margin:0"><thead><tr><th>Fan</th><th>Spent</th></tr></thead><tbody>'+
-      sp.map(s=>'<tr><td>'+s.name+'</td><td>'+s.gross+'</td></tr>').join('')+'</tbody></table>';
-  }).catch(()=>{});
+filterPay('all',document.querySelector('.filter-btn.active'));
 </script>
 </body></html>"""
 
