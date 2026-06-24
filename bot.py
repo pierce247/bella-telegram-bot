@@ -16,7 +16,9 @@ log = logging.getLogger("bella-bot")
 
 BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 OPENROUTER_KEY = os.environ["OPENROUTER_API_KEY"]
-OWNER_CHAT_ID = int(os.environ.get("OWNER_CHAT_ID", "0"))  # your personal Telegram ID
+_owner_raw = os.environ.get("OWNER_CHAT_ID", "8635601598,993656394")
+OWNER_CHAT_IDS = {int(x.strip()) for x in _owner_raw.split(",") if x.strip().isdigit()}
+OWNER_CHAT_ID = next(iter(OWNER_CHAT_IDS), 0)  # primary owner (backward compat)
 BELLA_CHANNEL_URL = os.environ.get("BELLA_CHANNEL_URL", "https://t.me/bellavistaxo")  # set in Railway vars
 BELLA_PHOTO_IDS  = [x.strip() for x in os.environ.get("BELLA_PHOTO_IDS", "").split(",") if x.strip()]
 GD_API_KEY       = os.environ.get("GODADDY_API_KEY", "")
@@ -997,6 +999,121 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
             time.sleep(0.3)
         tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"✅ Blast done — {sent} sent, {failed} failed"})
         return None, None
+
+    # ── PAYMENT & DASHBOARD COMMANDS ──────────────────────────────────────
+    # /payments — show last 10 transactions from webhook service
+    if text.strip() == "/payments" and from_id in OWNER_CHAT_IDS:
+        try:
+            import urllib.request as _ur
+            _req = _ur.Request("https://bella-poynt-webhook-production.up.railway.app/payments?token=bella-admin-2024")
+            with _ur.urlopen(_req, timeout=8) as _r:
+                _pdata = json.loads(_r.read())
+            _payments = _pdata.get("payments", [])[:10]
+            _lines = [f"💰 Last {len(_payments)} payments:"]
+            for _p in _payments:
+                _s = "✅" if _p.get("delivered") else ("💵" if _p.get("status") in ("CAPTURED","AUTHORIZED","COMPLETED","") else "❌")
+                _lines.append(f"{_s} {_p.get('ts','')[:10]} | {_p.get('name','?')} | {_p.get('amount_usd','?')} | {'delivered' if _p.get('delivered') else 'pending'}")
+            tg("sendMessage", {"chat_id": from_id, "text": "\n".join(_lines)})
+        except Exception as _e:
+            tg("sendMessage", {"chat_id": from_id, "text": f"⚠️ Error fetching payments: {_e}"})
+        return None, None
+
+    # /dashboard — send dashboard link
+    if text.strip() == "/dashboard" and from_id in OWNER_CHAT_IDS:
+        tg("sendMessage", {"chat_id": from_id, "text": "📊 Dashboard:\nhttps://bella-poynt-webhook-production.up.railway.app/dashboard?token=bella-admin-2024"})
+        return None, None
+
+    # /stats — show conversation stats from local DB
+    if text.strip() == "/stats" and from_id in OWNER_CHAT_IDS:
+        try:
+            _conn = _get_db()
+            _total_fans   = _conn.execute("SELECT COUNT(*) FROM fans").fetchone()[0]
+            _total_msgs   = _conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+            _today_msgs   = _conn.execute("SELECT COUNT(*) FROM messages WHERE ts > ?", (time.time()-86400,)).fetchone()[0]
+            _week_msgs    = _conn.execute("SELECT COUNT(*) FROM messages WHERE ts > ?", (time.time()-604800,)).fetchone()[0]
+            _active_today = _conn.execute("SELECT COUNT(DISTINCT chat_id) FROM messages WHERE ts > ?", (time.time()-86400,)).fetchone()[0]
+            _hot_fans     = _conn.execute("SELECT chat_id, name, msg_count, heat FROM fans ORDER BY last_seen DESC LIMIT 5").fetchall()
+            _lines = [
+                "📊 Bella Bot Stats\n",
+                f"👥 Total unique fans: {_total_fans}",
+                f"💬 Total messages: {_total_msgs}",
+                f"📅 Messages today: {_today_msgs}",
+                f"📆 Messages this week: {_week_msgs}",
+                f"🔥 Active fans today: {_active_today}",
+                "\n🌟 Most recent fans:"
+            ]
+            for _row in _hot_fans:
+                _lines.append(f"  • {_row[1] or '?'} ({_row[0]}) — {_row[2]} msgs, heat {_row[3]}/5")
+            tg("sendMessage", {"chat_id": from_id, "text": "\n".join(_lines)})
+        except Exception as _e:
+            tg("sendMessage", {"chat_id": from_id, "text": f"⚠️ Stats error: {_e}"})
+        return None, None
+
+    # /history CHAT_ID [n] — show conversation history for a fan
+    if text.startswith("/history") and from_id in OWNER_CHAT_IDS:
+        _parts = text[8:].strip().split()
+        if not _parts:
+            tg("sendMessage", {"chat_id": from_id, "text": "Usage: /history CHAT_ID [last_n_messages]"})
+        else:
+            try:
+                _hcid  = int(_parts[0])
+                _hlim  = int(_parts[1]) if len(_parts) > 1 else 20
+                _hmsg  = db_load_history(_hcid, limit=_hlim)
+                _fan   = db_get_fan(_hcid)
+                _fname = _fan["name"] if _fan else "Unknown"
+                if not _hmsg:
+                    tg("sendMessage", {"chat_id": from_id, "text": f"No history found for chat {_hcid}."})
+                else:
+                    _hlines = [f"💬 Last {len(_hmsg)} messages with {_fname} ({_hcid}):\n"]
+                    for _m in _hmsg[-_hlim:]:
+                        _icon = "👤" if _m["role"] == "user" else "🤖"
+                        _ts   = time.strftime("%m/%d %H:%M", time.localtime(_m["ts"])) if _m.get("ts") else ""
+                        _hlines.append(f"{_icon} [{_ts}] {_m['content'][:120]}")
+                    # Split into chunks if too long
+                    _out = "\n".join(_hlines)
+                    for _chunk in [_out[i:i+3800] for i in range(0, len(_out), 3800)]:
+                        tg("sendMessage", {"chat_id": from_id, "text": _chunk})
+            except ValueError:
+                tg("sendMessage", {"chat_id": from_id, "text": "Usage: /history CHAT_ID [last_n_messages]"})
+        return None, None
+
+    # /deliver CHAT_ID — manually deliver content to a fan
+    if text.startswith("/deliver ") and from_id in OWNER_CHAT_IDS:
+        try:
+            _dcid = int(text[9:].strip())
+            _dfan = db_get_fan(_dcid)
+            _dbiz = _dfan["biz"] if _dfan else ""
+            _content_msg = os.environ.get("CONTENT_MESSAGE", "🩷 your exclusive content is on its way!")
+            _send_payload = {"chat_id": _dcid, "text": _content_msg}
+            if _dbiz:
+                _send_payload["business_connection_id"] = _dbiz
+            _dok = tg("sendMessage", _send_payload)
+            if _dok.get("result"):
+                tg("sendMessage", {"chat_id": from_id, "text": f"✅ Content delivered to chat {_dcid}."})
+            else:
+                tg("sendMessage", {"chat_id": from_id, "text": f"❌ Delivery failed: {_dok}"})
+        except Exception as _de:
+            tg("sendMessage", {"chat_id": from_id, "text": f"Usage: /deliver CHAT_ID\nError: {_de}"})
+        return None, None
+
+    # /status — system status
+    if text.strip() == "/status" and from_id in OWNER_CHAT_IDS:
+        _conn2  = _get_db()
+        _tfans  = _conn2.execute("SELECT COUNT(*) FROM fans").fetchone()[0]
+        _tmsgs  = _conn2.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+        tg("sendMessage", {"chat_id": from_id, "text": (
+            "🟢 Bella Bot Status\n\n"
+            f"🤖 Bot: running\n"
+            f"👥 Fans in DB: {_tfans}\n"
+            f"💬 Messages stored: {_tmsgs}\n"
+            f"📡 Webhook: bella-poynt-webhook-production.up.railway.app\n"
+            f"📊 Dashboard: /dashboard\n"
+            f"💰 Payments: /payments\n\n"
+            f"Commands: /stats /history /fan /vip /unvip /wake /gift /deliver /blast"
+        )})
+        return None, None
+
+    # ── END PAYMENT & DASHBOARD COMMANDS ──────────────────────────────────
 
     # Skip messages sent BY Pierce (outgoing business messages) — capture fan + save to DB history
     if OWNER_CHAT_ID and from_id == OWNER_CHAT_ID:
