@@ -30,6 +30,7 @@ STATS_URL        = os.environ.get("STATS_URL", "")  # bella-bot stats API URL (o
 DATA_DIR     = os.environ.get("DATA_DIR", "/data")
 PAYMENTS_LOG = os.path.join(DATA_DIR, "payments_log.json")
 PENDING_FILE = os.path.join(DATA_DIR, "pending_fans.json")
+TG_USERS_FILE= os.path.join(DATA_DIR, "tg_usernames.json")  # {name_key: "@username"}
 os.makedirs(DATA_DIR, exist_ok=True)
 _lock = threading.Lock()
 
@@ -159,11 +160,11 @@ def start_fanvue_scheduler():
     def _loop():
         fanvue_refresh_stats()  # run immediately on startup
         while True:
-            _t.Event().wait(3600)  # refresh hourly
+            _t.Event().wait(300)  # refresh every 5 min
             fanvue_refresh_stats()
     if FANVUE_REFRESH_TOKEN:
         _t.Thread(target=_loop, daemon=True).start()
-        print("[fanvue] Auto-refresh scheduler started (hourly)")
+        print("[fanvue] Auto-refresh scheduler started (every 5 min)")
 
 # ── Fanvue DM Bot ────────────────────────────────────────────────────────────
 OPENROUTER_KEY    = os.environ.get("OPENROUTER_API_KEY","")
@@ -915,6 +916,11 @@ def build_dashboard(payment_stats, conv_stats):
         payer_map[k]["amount"] += p.get("amount_cents", 0)
         payer_map[k]["count"] += 1
         if p.get("chat_id"): payer_map[k]["chat_id"] = p.get("chat_id")
+    # Inject saved Telegram usernames
+    tg_usernames = load_json(TG_USERS_FILE, {})
+    for entry in payer_map.values():
+        k = entry["name"].strip().lower()
+        entry["tg_username"] = tg_usernames.get(k, "")
     top_payers = sorted(payer_map.values(), key=lambda x: x["amount"], reverse=True)[:8]
     payer_rows = "".join(
         '<div class="pay-card captured" style="cursor:default">'
@@ -934,16 +940,25 @@ def build_dashboard(payment_stats, conv_stats):
     ) or '<div style="color:#333;text-align:center;padding:16px">No payments yet</div>'
 
     pay_data = json.dumps(list(reversed(all_p)), default=str)
+    payer_data = json.dumps(top_payers, default=str)
+    tg_users_data = json.dumps(tg_usernames)
 
     fan_rows = ""
-    for f in cs.get("top_fans",[])[:15] if conv_ok else []:
+    import json as _fj
+    for f in cs.get("top_fans",[])[:20] if conv_ok else []:
         last = f.get("last_seen","?")
-        # Shorten last_seen to just time if today
         if isinstance(last,str) and "T" in last:
             last = last[11:16] + " UTC"
-        fan_rows += '<tr><td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{}</td><td>{}</td><td>{}</td><td style="font-size:11px;color:#888">{}</td></tr>'.format(
-            f.get("name","?"), f.get("msg_count",""),
-            "🔥"*min(f.get("heat",1),5), last)
+        chat_id = f.get("chat_id","")
+        name    = f.get("name","?")
+        msgs    = f.get("msg_count","")
+        heat    = min(f.get("heat",1), 5)
+        onclick = "openFanModal({},{},{},{},{})".format(
+            _fj.dumps(str(chat_id)), _fj.dumps(str(name)),
+            _fj.dumps(str(msgs)), heat, _fj.dumps(str(last))
+        )
+        fan_rows += '<tr onclick="{}" style="cursor:pointer"><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500">{}</td><td>{}</td><td>{}</td><td style="font-size:11px;color:#888">{}</td></tr>'.format(
+            onclick.replace('"', '&quot;'), name, msgs, "🔥"*heat, last)
     if not fan_rows:
         fan_rows = '<tr><td colspan=4 class="empty">{}</td></tr>'.format(
             "No fan data" if conv_ok else "Add STATS_URL env var to show fan data")
@@ -1042,7 +1057,7 @@ table{font-size:12px}th,td{padding:7px 10px!important}
   <div class="stat star-stat"><div class="val">""" + str(stars_total) + """⭐</div><div class="lbl">Telegram Stars</div><div class="sub2">≈$""" + str(stars_usd) + """ via bot invoices</div></div>
 </div>
 
-<h2>🌸 Fanvue <span class="fv-badge">updated """ + fv_upd + """ UTC</span></h2>
+<h2>🌸 Fanvue <span class="fv-badge">updated """ + fv_upd + """ UTC</span> <button onclick="refreshFanvue(this)" style="background:#818cf820;border:1px solid #818cf8;color:#818cf8;padding:3px 10px;border-radius:6px;font-size:11px;cursor:pointer;margin-left:6px">↻ Refresh</button></h2>
 <div class="stats">
   <div class="stat fv-stat"><div class="val">""" + fv_avail + """</div><div class="lbl">Available Balance</div></div>
   <div class="stat fv-stat"><div class="val">""" + str(fv_subs) + """</div><div class="lbl">Subscribers</div></div>
@@ -1086,6 +1101,9 @@ table{font-size:12px}th,td{padding:7px 10px!important}
 </div>
 <input class="search-input" id="paySearch" oninput="filterPay(currentFilter,null)" placeholder="Search name / email…" style="margin-bottom:10px">
 <div class="pay-list" id="payList"></div>
+<div style="text-align:center;margin:12px 0" id="loadMoreWrap" style="display:none">
+  <button class="filter-btn" id="loadMoreBtn" onclick="loadMore()" style="padding:8px 24px">Load more ↓</button>
+</div>
 
 <h2>💬 Conversations</h2>
 <div class="stats">
@@ -1101,9 +1119,24 @@ table{font-size:12px}th,td{padding:7px 10px!important}
 
 <p class="footer">""" + now_str + """ · <a href="?token=bella-admin-2024">Refresh</a> · <a href="/payments?token=bella-admin-2024">Raw JSON</a></p>
 
+<!-- Fan detail modal -->
+<div id="fanModal" style="display:none;position:fixed;inset:0;background:#000000cc;z-index:999;padding:20px;overflow-y:auto" onclick="if(event.target===this)closeFanModal()">
+  <div style="background:#111;border:1px solid #222;border-radius:16px;max-width:500px;margin:0 auto;padding:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="margin:0;border:none;padding:0" id="fanModalName">Fan Details</h2>
+      <button onclick="closeFanModal()" style="background:none;border:none;color:#888;font-size:20px;cursor:pointer">✕</button>
+    </div>
+    <div id="fanModalBody"></div>
+  </div>
+</div>
+
 <script>
 const PAYMENTS = """ + pay_data + """;
+const TOP_PAYERS = """ + payer_data + """;
+const TG_USERS = """ + tg_users_data + """;
 let currentFilter = 'all';
+let visibleRows = [];
+let showCount = 10;
 
 function fmtDate(ts){
   if(!ts)return"—";
@@ -1115,56 +1148,112 @@ function fmtDate(ts){
 
 function toggleDetail(id){
   const el=document.getElementById("det-"+id);
-  if(el)el.classList.toggle("open");
+  if(el){el.classList.toggle("open");event.stopPropagation();}
 }
 
-function renderPayCards(rows){
-  const q=(document.getElementById('paySearch').value||"").toLowerCase();
-  const f=rows.filter(p=>!q||((p.name||"").toLowerCase().includes(q)||(p.email||"").toLowerCase().includes(q)));
-  const list=document.getElementById('payList');
-  if(!f.length){list.innerHTML='<div style="color:#333;text-align:center;padding:24px">No results</div>';return;}
-  list.innerHTML=f.map((p,i)=>{
-    const dec=(p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED";
-    const isFv=(p.source||"").startsWith("fanvue");
-    const cls=dec?"declined":isFv?"fanvue":"captured";
-    const icon=dec?"❌":isFv?"🌸":"✅";
-    const amtCls=dec?"declined":isFv?"fanvue":"";
-    const src=p.source||p.event_type||"";
-    const srcLabel=isFv?"Fanvue":(src.includes("gmail")?"GoDaddy Email":"GoDaddy");
-    const rid=(p.resource_id||"").replace(/^gmail-order-/,"Order #").replace(/-.*$/,"");
-    const note=p.notes?"<div class='pay-detail-row'><span class='pay-detail-lbl'>Note</span><span class='pay-detail-val'>"+p.notes+"</span></div>":"";
-    const chat=p.chat_id?"<div class='pay-detail-row'><span class='pay-detail-lbl'>Chat ID</span><span class='pay-detail-val'>"+p.chat_id+"</span></div>":"";
-    return '<div class="pay-card '+cls+'" onclick="toggleDetail('+i+')">'
-      +'<div class="pay-summary">'
-        +'<div class="pay-icon">'+icon+'</div>'
-        +'<div class="pay-main">'
-          +'<div class="pay-name">'+(p.name||"Unknown")+'</div>'
-          +'<div class="pay-meta">'+fmtDate(p.ts)+" · "+srcLabel+'</div>'
-        +'</div>'
-        +'<div class="pay-amount '+amtCls+'">'+(p.amount_usd||"?")+'</div>'
+function buildCard(p,i){
+  const dec=(p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED";
+  const isFv=(p.source||"").startsWith("fanvue");
+  const cls=dec?"declined":isFv?"fanvue":"captured";
+  const icon=dec?"❌":isFv?"🌸":"✅";
+  const amtCls=dec?"declined":isFv?"fanvue":"";
+  const src=p.source||p.event_type||"";
+  const srcLabel=isFv?"Fanvue":(src.includes("gmail")?"GoDaddy Email":"GoDaddy");
+  const rid=(p.resource_id||"").replace(/^gmail-order-/,"Order #").replace(/-[0-9a-f-]{20,}/i,"");
+  const nameKey=(p.name||"").trim().toLowerCase();
+  const tgUser=TG_USERS[nameKey]||"";
+  const note=p.notes?'<div class="pay-detail-row"><span class="pay-detail-lbl">Note</span><span class="pay-detail-val">'+p.notes+'</span></div>':"";
+  const tgLink=p.chat_id?'<div class="pay-detail-row"><span class="pay-detail-lbl">Telegram</span><span class="pay-detail-val">'+(tgUser||'Chat '+p.chat_id)+(tgUser?' <a href="https://t.me/'+tgUser.replace('@','')+'" target="_blank" style="color:#f472b6;margin-left:6px">Open ↗</a>':'')+'</span></div>'
+    :(tgUser?'<div class="pay-detail-row"><span class="pay-detail-lbl">Telegram</span><span class="pay-detail-val"><a href="https://t.me/'+tgUser.replace('@','')+'" target="_blank" style="color:#f472b6">'+tgUser+' ↗</a></span></div>':"");
+  const setUser='<div class="pay-detail-row"><span class="pay-detail-lbl">Set @username</span><span class="pay-detail-val" style="display:flex;gap:6px"><input id="tgu-'+i+'" placeholder="username" value="'+(tgUser||"").replace('@','')+'" style="background:#1a1a1a;border:1px solid #333;color:#f0f0f0;padding:3px 8px;border-radius:5px;font-size:12px;flex:1"><button onclick="saveTgUser('+(JSON.stringify(p.name))+','+(JSON.stringify(tgUser||""))+','+i+')" style="background:#f472b620;border:1px solid #f472b6;color:#f472b6;padding:3px 8px;border-radius:5px;font-size:11px;cursor:pointer">Save</button></span></div>';
+  return '<div class="pay-card '+cls+'">'
+    +'<div class="pay-summary" onclick="toggleDetail('+i+')" style="cursor:pointer">'
+      +'<div class="pay-icon">'+icon+'</div>'
+      +'<div class="pay-main">'
+        +'<div class="pay-name">'+(p.name||"Unknown")+'</div>'
+        +'<div class="pay-meta">'+fmtDate(p.ts)+' · '+srcLabel+'</div>'
       +'</div>'
-      +'<div class="pay-detail" id="det-'+i+'">'
-        +(p.email?'<div class="pay-detail-row"><span class="pay-detail-lbl">Email</span><span class="pay-detail-val">'+p.email+'</span></div>':"")
-        +'<div class="pay-detail-row"><span class="pay-detail-lbl">Status</span><span class="pay-detail-val">'+(dec?"❌ Declined":"✅ Captured")+'</span></div>'
-        +'<div class="pay-detail-row"><span class="pay-detail-lbl">Date</span><span class="pay-detail-val">'+(p.ts||"").slice(0,16).replace("T"," ")+" UTC"+'</span></div>'
-        +(rid?'<div class="pay-detail-row"><span class="pay-detail-lbl">Reference</span><span class="pay-detail-val">'+rid+'</span></div>':"")
-        +'<div class="pay-detail-row"><span class="pay-detail-lbl">Source</span><span class="pay-detail-val">'+srcLabel+'</span></div>'
-        +note+chat
-      +'</div>'
-    +'</div>';
-  }).join("");
+      +'<div class="pay-amount '+amtCls+'">'+(p.amount_usd||"?")+'</div>'
+    +'</div>'
+    +'<div class="pay-detail" id="det-'+i+'">'
+      +'<div class="pay-detail-row"><span class="pay-detail-lbl">Email</span><span class="pay-detail-val">'+(p.email||'—')+'</span></div>'
+      +'<div class="pay-detail-row"><span class="pay-detail-lbl">Status</span><span class="pay-detail-val">'+(dec?"❌ Declined":"✅ Captured")+'</span></div>'
+      +'<div class="pay-detail-row"><span class="pay-detail-lbl">Date</span><span class="pay-detail-val">'+(p.ts||"").slice(0,16).replace("T"," ")+" UTC"+'</span></div>'
+      +(rid?'<div class="pay-detail-row"><span class="pay-detail-lbl">Ref</span><span class="pay-detail-val">'+rid+'</span></div>':"")
+      +tgLink+setUser+note
+    +'</div>'
+  +'</div>';
 }
+
+function saveTgUser(name,oldUser,cardIdx){
+  const input=document.getElementById('tgu-'+cardIdx);
+  const username=(input.value||"").trim().replace(/^@/,"");
+  fetch('/set-tg-username',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({token:'bella-admin-2024',name:name,username:username})})
+  .then(r=>r.json()).then(d=>{
+    if(d.ok){TG_USERS[name.trim().toLowerCase()]=username?"@"+username:"";renderPayCards(visibleRows.slice(0,showCount),true);}
+    alert(d.ok?'Saved!':'Error: '+d.error);
+  });
+}
+
+function renderPayCards(rows, keepOpen){
+  const list=document.getElementById('payList');
+  if(!rows.length){list.innerHTML='<div style="color:#333;text-align:center;padding:24px">No results</div>';
+    document.getElementById('loadMoreWrap').style.display='none';return;}
+  const shown=rows.slice(0,showCount);
+  list.innerHTML=shown.map((p,i)=>buildCard(p,i)).join("");
+  const wrap=document.getElementById('loadMoreWrap');
+  if(rows.length>showCount){wrap.style.display='block';
+    document.getElementById('loadMoreBtn').textContent='Load more ('+rows.length+' total) ↓';}
+  else{wrap.style.display='none';}
+}
+
+function loadMore(){showCount+=20;renderPayCards(visibleRows);}
 
 function filterPay(t,btn){
-  currentFilter=t;
+  currentFilter=t;showCount=10;
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
   if(btn)btn.classList.add('active');
-  let r=PAYMENTS;
-  if(t==="captured")r=r.filter(p=>!((p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED"));
-  else if(t==="declined")r=r.filter(p=>(p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED");
-  else if(t==="unmatched")r=r.filter(p=>!p.delivered&&!((p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED"));
-  renderPayCards(r);
+  visibleRows=PAYMENTS;
+  const q=(document.getElementById('paySearch').value||"").toLowerCase();
+  if(q)visibleRows=visibleRows.filter(p=>(p.name||"").toLowerCase().includes(q)||(p.email||"").toLowerCase().includes(q));
+  if(t==="captured")visibleRows=visibleRows.filter(p=>!((p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED"));
+  else if(t==="declined")visibleRows=visibleRows.filter(p=>(p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED");
+  else if(t==="unmatched")visibleRows=visibleRows.filter(p=>!p.delivered&&!((p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED"));
+  renderPayCards(visibleRows);
 }
+
+/* Fan detail modal */
+function openFanModal(chatId,name,msgs,heat,last){
+  document.getElementById('fanModalName').textContent=name;
+  const tgUser=TG_USERS[(name||"").toLowerCase()]||"";
+  const payments=PAYMENTS.filter(p=>p.chat_id==chatId&&p.status==="CAPTURED");
+  const totalPaid=payments.reduce((s,p)=>s+p.amount_cents,0);
+  document.getElementById('fanModalBody').innerHTML=
+    '<div class="pay-detail-row"><span class="pay-detail-lbl">Chat ID</span><span class="pay-detail-val">'+chatId+'</span></div>'
+    +(tgUser?'<div class="pay-detail-row"><span class="pay-detail-lbl">Telegram</span><span class="pay-detail-val"><a href="https://t.me/'+tgUser.replace('@','')+'" target="_blank" style="color:#f472b6">'+tgUser+' ↗</a></span></div>':"")
+    +'<div class="pay-detail-row"><span class="pay-detail-lbl">Messages</span><span class="pay-detail-val">'+msgs+'</span></div>'
+    +'<div class="pay-detail-row"><span class="pay-detail-lbl">Heat Level</span><span class="pay-detail-val">'+"🔥".repeat(Math.min(heat,5))+'</span></div>'
+    +'<div class="pay-detail-row"><span class="pay-detail-lbl">Last Active</span><span class="pay-detail-val">'+last+'</span></div>'
+    +(totalPaid?'<div class="pay-detail-row"><span class="pay-detail-lbl">Total Paid</span><span class="pay-detail-val" style="color:#f472b6;font-weight:700">$'+(totalPaid/100).toFixed(2)+'</span></div>':"")
+    +(payments.length?'<div style="margin-top:14px"><div style="font-size:11px;color:#555;text-transform:uppercase;margin-bottom:8px">Payments</div>'
+      +payments.map(p=>'<div class="pay-detail-row"><span class="pay-detail-lbl">'+fmtDate(p.ts)+'</span><span class="pay-detail-val">'+p.amount_usd+'</span></div>').join("")+'</div>':"");
+  document.getElementById('fanModal').style.display='block';
+  document.body.style.overflow='hidden';
+}
+function closeFanModal(){
+  document.getElementById('fanModal').style.display='none';
+  document.body.style.overflow='';
+}
+
+/* Fanvue refresh */
+function refreshFanvue(btn){
+  btn.textContent='Refreshing…';btn.disabled=true;
+  fetch('/update-fanvue',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({token:'bella-admin-2024'})})
+  .then(()=>{setTimeout(()=>location.reload(),1500);});
+}
+
 function filterFans(){
   const q=(document.getElementById('fanSearch').value||"").toLowerCase();
   document.querySelectorAll('#fanBody tr').forEach(tr=>{tr.style.display=(!q||tr.textContent.toLowerCase().includes(q))?"":"none"});
@@ -1475,6 +1564,25 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 self.send_json(200, {"ok":True, "enriched": enriched, "total": len(payments)})
             except Exception as e:
                 self.send_json(500, {"error": str(e)})
+
+        elif p.path == "/set-tg-username":
+            # Save manual Telegram username for a payer: {token, name_key, username}
+            try:
+                data  = json.loads(body)
+                token = data.get("token","") or self.headers.get("X-Admin-Token","")
+                if token != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
+                name_key = (data.get("name","") or "").strip().lower()
+                username = (data.get("username","") or "").strip().lstrip("@")
+                if not name_key: self.send_json(400,{"error":"name required"}); return
+                tgu = load_json(TG_USERS_FILE, {})
+                if username:
+                    tgu[name_key] = "@" + username
+                else:
+                    tgu.pop(name_key, None)
+                save_json(TG_USERS_FILE, tgu)
+                print(f"[tg_user] {name_key} → @{username}")
+                self.send_json(200, {"ok": True, "name": name_key, "username": username})
+            except Exception as e: self.send_json(500, {"error": str(e)})
 
         elif p.path == "/register-fan":
             try:
