@@ -1623,8 +1623,8 @@ def poll_godaddy_orders(seen_orders: set) -> set:
                 item_names = ", ".join(i.get("label", i.get("name", "Item")) for i in items[:3]) if items else "Payment"
                 created = order.get("createdAt", "")[:10]
                 msg = f"💰 GoDaddy Payment!\n\n📦 {item_names}\n💵 ${total} {currency}\n📅 {created}\n🆔 Order: {order_id}"
-                if OWNER_CHAT_ID:
-                    tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": msg})
+                for _oid in OWNER_CHAT_IDS:
+                    tg("sendMessage", {"chat_id": _oid, "text": msg})
                 log.info(f"GoDaddy payment: {order_id} ${total}")
                 new_count += 1
             if new_count:
@@ -1724,6 +1724,27 @@ class PoyntWebhookHandler(BaseHTTPRequestHandler):
                 fans = [{"chat_id":r[0],"name":r[1],"msg_count":r[2],"heat":r[3],
                          "last_seen":time.strftime("%m/%d %H:%M",time.localtime(r[4])) if r[4] else "?"} for r in rows]
                 self._json(200, {"count": len(fans), "fans": fans})
+            except Exception as e:
+                self._json(500, {"error": str(e)})
+
+        elif parsed.path == "/api/orders":
+            # GoDaddy Orders API passthrough — returns raw order list
+            if token != admin_t: self._json(401, {"error":"unauthorized"}); return
+            if not GD_API_KEY or not GD_API_SECRET:
+                self._json(200, {"error":"GODADDY_API_KEY not configured","orders":[]})
+                return
+            try:
+                limit = qs.get("limit",["100"])[0]
+                req = urllib.request.Request(
+                    f"https://api.godaddy.com/v1/orders?limit={limit}&sort=createdAt:desc",
+                    headers={"Authorization": f"sso-key {GD_API_KEY}:{GD_API_SECRET}",
+                             "Content-Type": "application/json"})
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    data = json.loads(r.read())
+                    orders = data.get("orders", data) if isinstance(data, dict) else data
+                    self._json(200, {"count": len(orders) if isinstance(orders,list) else 0,
+                                     "orders": orders if isinstance(orders,list) else [],
+                                     "raw": data})
             except Exception as e:
                 self._json(500, {"error": str(e)})
         else:

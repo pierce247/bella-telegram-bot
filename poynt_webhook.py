@@ -513,12 +513,23 @@ class Handler(BaseHTTPRequestHandler):
                 if token != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
                 new    = data.get("payments",[])
                 log    = load_json(PAYMENTS_LOG,[])
-                # Dedup by resource_id
+                # Dedup by resource_id AND by name+amount+date (prevents double-counting manual backfills)
                 existing_ids = {e.get("resource_id") for e in log}
+                def _sig(e):
+                    # fingerprint: name + amount + date (day only)
+                    return (str(e.get("name","")).lower().strip(),
+                            e.get("amount_cents",0),
+                            str(e.get("ts",""))[:10])
+                existing_sigs = {_sig(e) for e in log}
                 added  = 0
                 for e in new:
-                    if e.get("resource_id") not in existing_ids:
-                        log.append(e); added += 1
+                    if e.get("resource_id") in existing_ids:
+                        continue
+                    if _sig(e) in existing_sigs:
+                        continue  # same name+amount+date already exists (prevents manual/API double-count)
+                    log.append(e); added += 1
+                    existing_ids.add(e.get("resource_id"))
+                    existing_sigs.add(_sig(e))
                 save_json(PAYMENTS_LOG, log)
                 print(f"[import] Added {added} new entries ({len(new)} submitted)")
                 self.send_json(200,{"ok":True,"added":added,"total":len(log)})
