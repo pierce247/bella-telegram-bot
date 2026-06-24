@@ -165,6 +165,92 @@ def start_fanvue_scheduler():
         _t.Thread(target=_loop, daemon=True).start()
         print("[fanvue] Auto-refresh scheduler started (hourly)")
 
+# ── Fanvue DM Bot ────────────────────────────────────────────────────────────
+OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY","")
+
+BELLA_FANVUE_SYSTEM = (
+    "You are Bella, a flirty, playful, warm content creator on Fanvue. "
+    "Your personality: soft girl aesthetic, confident, charming. "
+    "Keep replies 1-3 sentences. Use 1-2 emojis max. "
+    "If fans ask about content, tease them and mention paid posts. "
+    "End messages with a question or flirty hook. "
+    "Never be explicit or crude. Never admit you are AI."
+)
+FANVUE_REFUSAL = ("i can't","i cannot","i'm not able","sorry","as an ai","inappropriate","not appropriate")
+FANVUE_FALLBACKS = [
+    "okay you literally just made me smile 🩷",
+    "omg stop I'm blushing 😏",
+    "you always know what to say 🔥",
+    "I see you babe, keep it coming ✨",
+    "okay I like this energy 🩷 what else?",
+]
+
+def fanvue_get_history(fan_uuid, at, limit=6):
+    req = urllib.request.Request(
+        f"https://api.fanvue.com/chats/{fan_uuid}/messages?limit={limit}&sortDirection=desc",
+        headers={"Authorization": f"Bearer {at}"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            msgs = json.loads(r.read()).get("data",[])
+            history = []
+            for m in reversed(msgs):
+                role = "assistant" if m.get("senderUuid") != fan_uuid else "user"
+                if m.get("text"): history.append({"role":role,"content":m["text"]})
+            return history
+    except Exception as e:
+        print(f"[fanvue_history] {e}"); return []
+
+def fanvue_generate_reply(fan_uuid, message, at):
+    import random as _r
+    if not OPENROUTER_KEY: return _r.choice(FANVUE_FALLBACKS)
+    history = fanvue_get_history(fan_uuid, at)
+    msgs = [{"role":"system","content":BELLA_FANVUE_SYSTEM}] + history + [{"role":"user","content":message}]
+    payload = json.dumps({"model":"openai/gpt-4o-mini","max_tokens":120,"temperature":0.85,"messages":msgs}).encode()
+    req = urllib.request.Request(
+        "https://openrouter.ai/api/v1/chat/completions", data=payload,
+        headers={"Authorization":f"Bearer {OPENROUTER_KEY}","Content-Type":"application/json",
+                 "HTTP-Referer":"https://bellavistaxo.com","X-Title":"Bella Fanvue Bot"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            reply = json.loads(r.read()).get("choices",[{}])[0].get("message",{}).get("content","").strip()
+            if len(reply)>=2 and reply[0]==reply[-1] and reply[0] in ('"',"'"): reply=reply[1:-1].strip()
+            if any(m in reply.lower() for m in FANVUE_REFUSAL): return _r.choice(FANVUE_FALLBACKS)
+            return reply or _r.choice(FANVUE_FALLBACKS)
+    except Exception as e:
+        print(f"[fanvue_ai] {e}"); return _r.choice(FANVUE_FALLBACKS)
+
+def fanvue_send_dm(fan_uuid, text, at):
+    time.sleep(1.5)
+    payload = json.dumps({"text":text}).encode()
+    req = urllib.request.Request(
+        f"https://api.fanvue.com/chats/{fan_uuid}/messages", data=payload,
+        headers={"Authorization":f"Bearer {at}","Content-Type":"application/json"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r: return json.loads(r.read())
+    except Exception as e: print(f"[fanvue_send_dm] {e}"); return None
+
+def handle_fanvue_message(fan_uuid, fan_name, message):
+    at = fanvue_get_access_token()
+    if not at: return
+    reply = fanvue_generate_reply(fan_uuid, message, at)
+    result = fanvue_send_dm(fan_uuid, reply, at)
+    print(f"[fanvue_dm] {'sent' if result else 'FAILED'} to {fan_name}: {reply[:60]}")
+
+def handle_fanvue_new_subscriber(fan_uuid, fan_name):
+    import random as _r
+    at = fanvue_get_access_token()
+    if not at: return
+    welcomes = [
+        "omg welcome!! 🩷 so happy you're here — I save my best stuff for subscribers, you're gonna love it ✨",
+        "yesss you made it! 🩷 you're officially one of my favs now — I drop exclusives all the time so stay close 😏✨",
+        "hey!! 🥰 welcome to the inside — check your feed, I just dropped something 🔥",
+    ]
+    fanvue_send_dm(fan_uuid, _r.choice(welcomes), at)
+    print(f"[fanvue_dm] Welcome sent to {fan_name}")
+
 # ── Smart matching ────────────────────────────────────────────────────────────
 def find_unmatched(hours=2, amount_cents=None):
     log    = load_json(PAYMENTS_LOG, [])
@@ -749,26 +835,40 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_html(500, f"<h2>Error</h2><p>{e}</p>")
 
         elif p.path == "/fanvue-webhook":
-            # Fanvue real-time event webhook
-            # No signature verification yet — events trigger a stats refresh
+            # Fanvue real-time webhook: DMs, subscriptions, purchases
             try:
-                event = json.loads(body)
-                event_type = event.get("event","") or event.get("type","")
-                print(f"[fanvue_webhook] event={event_type}")
-                # Refresh stats immediately on any Fanvue event
-                import threading as _fvt
-                _fvt.Thread(target=fanvue_refresh_stats, daemon=True).start()
-                # Also notify owners for earnings events
-                earnings_events = {"purchase_received","tip_received","item_purchased","new_subscriber"}
-                if event_type.lower().replace("-","_") in earnings_events:
-                    fan = event.get("user",{}).get("displayName","Fan") or event.get("fan",{}).get("displayName","Fan")
-                    amount = event.get("amount",0) or event.get("price",0)
-                    msg = "Fanvue " + event_type + chr(10) + "Fan: " + fan + (chr(10) + "$"+str(round(amount/100,2)) if amount else "")
-                    for oid in OWNER_CHAT_IDS: send_telegram(oid, msg)
-                self.send_json(200, {"ok":True})
+                event      = json.loads(body)
+                etype      = (event.get("event","") or event.get("type","") or "").lower().replace("-","_")
+                fan_obj    = event.get("user",{}) or event.get("fan",{}) or {}
+                fan_uuid   = fan_obj.get("uuid","") or event.get("userUuid","")
+                fan_name   = fan_obj.get("displayName","Fan") or fan_obj.get("handle","Fan")
+                msg_text   = event.get("message","") or event.get("text","") or event.get("content","")
+                amount     = event.get("amount",0) or event.get("price",0) or 0
+                print(f"[fanvue_webhook] event={etype} fan={fan_name}")
+                self.send_json(200, {"ok":True})  # respond immediately <2s
+
+                if etype == "message_received" and fan_uuid and msg_text:
+                    import threading as _fvt1
+                    _fvt1.Thread(target=handle_fanvue_message,
+                                 args=(fan_uuid, fan_name, msg_text), daemon=True).start()
+                elif etype == "new_subscriber" and fan_uuid:
+                    import threading as _fvt2
+                    _fvt2.Thread(target=handle_fanvue_new_subscriber,
+                                 args=(fan_uuid, fan_name), daemon=True).start()
+                    for oid in OWNER_CHAT_IDS:
+                        send_telegram(oid, "Fanvue new subscriber: " + fan_name)
+                elif etype in ("purchase_received","tip_received","item_purchased"):
+                    import threading as _fvt3
+                    _fvt3.Thread(target=fanvue_refresh_stats, daemon=True).start()
+                    amt_str = ("$"+str(round(amount/100,2))) if amount else ""
+                    for oid in OWNER_CHAT_IDS:
+                        send_telegram(oid, "Fanvue " + etype + ": " + fan_name + " " + amt_str)
+                else:
+                    import threading as _fvt4
+                    _fvt4.Thread(target=fanvue_refresh_stats, daemon=True).start()
             except Exception as e:
                 print(f"[fanvue_webhook] error: {e}")
-                self.send_json(200, {"ok":True})  # always 200 so Fanvue doesn't retry
+                self.send_json(200, {"ok":True})
 
         elif p.path == "/check-payment":
             try:
