@@ -27,7 +27,7 @@ BUSINESS_ID      = "8b2a6d7f-7a1f-4a96-9ea5-abc73755d69a"
 PORT             = int(os.environ.get("PORT", 8080))
 STATS_URL        = os.environ.get("STATS_URL", "")  # bella-bot stats API URL (optional)
 
-DATA_DIR     = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+DATA_DIR     = os.environ.get("DATA_DIR", "/data")
 PAYMENTS_LOG = os.path.join(DATA_DIR, "payments_log.json")
 PENDING_FILE = os.path.join(DATA_DIR, "pending_fans.json")
 os.makedirs(DATA_DIR, exist_ok=True)
