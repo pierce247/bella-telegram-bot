@@ -974,8 +974,11 @@ h1{font-size:18px}h2{font-size:12px}
 .stats{gap:6px}.stat{min-width:calc(50% - 6px)!important;padding:10px 12px}.stat .val{font-size:18px}
 .charts{flex-direction:column!important}.bar-lbl{font-size:8px}
 .hide-mob{display:none!important}
-table{font-size:11px;display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap;max-width:100%}
-th,td{padding:6px 8px!important}
+table{font-size:11px;width:100%;table-layout:fixed}
+th,td{padding:6px 8px!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+th:nth-child(1),td:nth-child(1){width:72px}
+th:nth-child(2),td:nth-child(2){width:auto;max-width:0}
+th:nth-child(3),td:nth-child(3){width:58px;text-align:right}
 .search-input{width:100%!important}.filters{flex-wrap:wrap;gap:5px}.filter-btn{font-size:11px;padding:4px 8px}
 .side-by-side{flex-direction:column}
 }
@@ -1509,25 +1512,77 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 print(f"[fanvue_webhook] event={etype} fan={fan_name}")
                 self.send_json(200, {"ok":True})  # respond immediately <2s
 
+                import threading as _fvt
+                # Normalize amount to cents
+                amt_cents = 0
+                if amount:
+                    amt_cents = int(amount) if int(amount) > 500 else int(amount * 100)
+                amt_usd = f"${amt_cents/100:.2f}" if amt_cents else ""
+
+                def _log_fanvue_payment(ev_label, rid_suffix):
+                    """Log a Fanvue payment event to the payments log."""
+                    rid = f"fanvue-{ev_label}-{fan_uuid[:8]}-{int(time.time())}"
+                    entry = {
+                        "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                        "event_type": f"FANVUE_{ev_label.upper()}",
+                        "resource_id": rid,
+                        "name": fan_name,
+                        "email": fan_obj.get("email",""),
+                        "amount_cents": amt_cents,
+                        "amount_usd": amt_usd,
+                        "status": "CAPTURED",
+                        "chat_id": None,
+                        "delivered": True,
+                        "source": "fanvue",
+                    }
+                    existing = load_json(PAYMENTS_LOG, [])
+                    existing.insert(0, entry)
+                    save_json(PAYMENTS_LOG, existing)
+
                 if etype == "message_received" and fan_uuid and msg_text:
-                    import threading as _fvt1
-                    _fvt1.Thread(target=handle_fanvue_message,
-                                 args=(fan_uuid, fan_name, msg_text), daemon=True).start()
-                elif etype == "new_subscriber" and fan_uuid:
-                    import threading as _fvt2
-                    _fvt2.Thread(target=handle_fanvue_new_subscriber,
-                                 args=(fan_uuid, fan_name), daemon=True).start()
-                    for oid in OWNER_CHAT_IDS:
-                        send_telegram(oid, "Fanvue new subscriber: " + fan_name)
-                elif etype in ("purchase_received","tip_received","item_purchased"):
-                    import threading as _fvt3
-                    _fvt3.Thread(target=fanvue_refresh_stats, daemon=True).start()
-                    amt_str = ("$"+str(round(amount/100,2))) if amount else ""
-                    for oid in OWNER_CHAT_IDS:
-                        send_telegram(oid, "Fanvue " + etype + ": " + fan_name + " " + amt_str)
+                    _fvt.Thread(target=handle_fanvue_message,
+                                args=(fan_uuid, fan_name, msg_text), daemon=True).start()
+
+                elif etype in ("new_subscriber", "subscription_started", "subscribe"):
+                    _fvt.Thread(target=handle_fanvue_new_subscriber,
+                                args=(fan_uuid, fan_name), daemon=True).start()
+                    msg = f"🆕 New Fanvue subscriber!\n👤 {fan_name}"
+                    if amt_usd: msg += f"\n💵 {amt_usd}"
+                    for oid in OWNER_CHAT_IDS: send_telegram(oid, msg)
+                    if amt_cents: _log_fanvue_payment("subscription", "sub")
+
+                elif etype in ("subscription_renewed", "renewal", "rebill"):
+                    msg = f"🔄 Fanvue renewal!\n👤 {fan_name}"
+                    if amt_usd: msg += f"\n💵 {amt_usd}"
+                    for oid in OWNER_CHAT_IDS: send_telegram(oid, msg)
+                    if amt_cents: _log_fanvue_payment("renewal", "ren")
+                    _fvt.Thread(target=fanvue_refresh_stats, daemon=True).start()
+
+                elif etype in ("subscription_cancelled", "unsubscribe", "cancel"):
+                    msg = f"❌ Fanvue cancellation\n👤 {fan_name}"
+                    for oid in OWNER_CHAT_IDS: send_telegram(oid, msg)
+
+                elif etype in ("tip_received", "tip", "tipped"):
+                    msg = f"💰 Fanvue tip!\n👤 {fan_name}\n💵 {amt_usd or '?'}"
+                    note = event.get("message","") or event.get("note","")
+                    if note: msg += f"\n💬 \"{note}\""
+                    for oid in OWNER_CHAT_IDS: send_telegram(oid, msg)
+                    if amt_cents: _log_fanvue_payment("tip", "tip")
+                    _fvt.Thread(target=fanvue_refresh_stats, daemon=True).start()
+
+                elif etype in ("ppv_unlocked", "post_unlocked", "purchase_received",
+                               "item_purchased", "content_purchased", "media_purchased"):
+                    item = event.get("post",{}) or event.get("item",{}) or {}
+                    item_name = item.get("title","") or item.get("name","") or "PPV"
+                    msg = f"🔓 Fanvue PPV unlock!\n👤 {fan_name}\n📦 {item_name}\n💵 {amt_usd or '?'}"
+                    for oid in OWNER_CHAT_IDS: send_telegram(oid, msg)
+                    if amt_cents: _log_fanvue_payment("ppv", "ppv")
+                    _fvt.Thread(target=fanvue_refresh_stats, daemon=True).start()
+
                 else:
-                    import threading as _fvt4
-                    _fvt4.Thread(target=fanvue_refresh_stats, daemon=True).start()
+                    # Unknown event — log it and refresh stats
+                    print(f"[fanvue_webhook] unhandled event: {etype} raw={list(event.keys())}")
+                    _fvt.Thread(target=fanvue_refresh_stats, daemon=True).start()
             except Exception as e:
                 print(f"[fanvue_webhook] error: {e}")
                 self.send_json(200, {"ok":True})
