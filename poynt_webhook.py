@@ -166,7 +166,13 @@ def start_fanvue_scheduler():
         print("[fanvue] Auto-refresh scheduler started (hourly)")
 
 # ── Fanvue DM Bot ────────────────────────────────────────────────────────────
-OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY","")
+OPENROUTER_KEY    = os.environ.get("OPENROUTER_API_KEY","")
+STARS_API_ID      = int(os.environ.get("TELEGRAM_API_ID","0"))
+STARS_API_HASH    = os.environ.get("TELEGRAM_API_HASH","")
+STARS_PHONE       = os.environ.get("TELEGRAM_PHONE","")
+STARS_SESSION     = os.path.join(DATA_DIR, "stars")
+STARS_LOG_FILE    = os.path.join(DATA_DIR, "stars_log.json")
+_stars_auth_pending: dict = {}
 
 BELLA_SYSTEM = """I'm Bella. 25, from Boca Raton. I'm building my brand as an influencer — that's what I'm all in on right now. I had a rough relationship that messed me up a little, I have trust stuff, I test people, I get attached. But I'm not bitter. I find the good in people.
 
@@ -447,6 +453,106 @@ def handle_fanvue_new_subscriber(fan_uuid, fan_name):
     ]
     fanvue_send_dm(fan_uuid, _r.choice(welcomes), at)
     print(f"[fanvue_dm] Welcome sent to {fan_name}")
+
+# ── Log a stars event ─────────────────────────────────────────────────────────
+def log_stars_event(source, from_name, from_id, stars, context=""):
+    log = load_json(STARS_LOG_FILE, {"events": [], "totals": {}})
+    entry = {
+        "ts":       time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "source":   source,
+        "from_name": from_name,
+        "from_id":  from_id,
+        "stars":    stars,
+        "usd_approx": round(stars * 0.013, 2),
+        "context":  context
+    }
+    log["events"].append(entry)
+    # Update totals by source
+    totals = log.get("totals", {})
+    totals[source] = totals.get(source, 0) + stars
+    log["totals"] = totals
+    log["grand_total"] = sum(totals.values())
+    save_json(STARS_LOG_FILE, log)
+    print(f"[stars] {stars}⭐ from {from_name} via {source}")
+
+
+# ── Telethon MTProto client ───────────────────────────────────────────────────
+async def run_telethon():
+    global _client
+    try:
+        from telethon import TelegramClient, events
+        from telethon.tl.types import UpdateStarsBalance, Message
+    except ImportError:
+        print("[stars] ERROR: telethon not installed. Run: pip install telethon")
+        return
+
+    _client = TelegramClient(STARS_SESSION, API_ID, API_HASH)
+
+    @_client.on(events.Raw(UpdateStarsBalance))
+    async def on_stars_balance(event):
+        """Fires when the account's Stars balance changes."""
+        stars_delta = getattr(event, "balance", None)
+        if stars_delta is not None:
+            me = await _client.get_me()
+            log_stars_event(
+                source="personal",
+                from_name="Unknown",
+                from_id=0,
+                stars=stars_delta,
+                context="balance_update"
+            )
+            notify_owners(f"⭐ Stars balance update: +{stars_delta} stars")
+
+    @_client.on(events.NewMessage)
+    async def on_message(event):
+        """Catch star-related service messages in any chat."""
+        msg = event.message
+        # Check for star gift service messages
+        if hasattr(msg, "action") and msg.action:
+            action_type = type(msg.action).__name__
+            if "Star" in action_type or "star" in action_type.lower():
+                chat = await event.get_chat()
+                chat_name = getattr(chat, "title", "") or getattr(chat, "username", "") or "unknown"
+                sender = await event.get_sender()
+                sender_name = getattr(sender, "first_name", "") or getattr(sender, "username", "") or "?"
+                sender_id   = getattr(sender, "id", 0)
+                stars = getattr(msg.action, "stars", 0) or getattr(msg.action, "amount", 0)
+                # Determine source
+                if hasattr(chat, "username"):
+                    if chat.username in ("bellavistaxo", "bellavistaxox"):
+                        source = chat.username
+                    else:
+                        source = f"chat_{chat.id}"
+                else:
+                    source = "personal"
+                if stars:
+                    log_stars_event(source, sender_name, sender_id, stars, action_type)
+                    notify_owners(
+                        f"⭐ {stars} Stars received!\n"
+                        f"👤 {sender_name}\n"
+                        f"📍 {chat_name}\n"
+                        f"💵 ≈${round(stars*0.013,2)}"
+                    )
+
+    print(f"[stars] Starting Telethon client (session: {STARS_SESSION}.session)")
+    try:
+        await _client.start(phone=PHONE)
+        me = await _client.get_me()
+        print(f"[stars] Connected as @{me.username} ({me.first_name})")
+        notify_owners(f"⭐ Stars tracker connected as {me.first_name} (@{me.username})")
+        await _client.run_until_disconnected()
+    except Exception as e:
+        print(f"[stars] Client error: {e}")
+
+
+def start_telethon():
+    """Run Telethon in a background thread with its own event loop."""
+    if not API_ID or not API_HASH:
+        print("[stars] TELEGRAM_API_ID / TELEGRAM_API_HASH not set — auth not possible")
+        return
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(run_telethon())
 
 # ── Smart matching ────────────────────────────────────────────────────────────
 def find_unmatched(hours=2, amount_cents=None):
@@ -847,6 +953,55 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(401,{"error":"unauthorized"}); return
             log=load_json(PAYMENTS_LOG,[])
             self.send_json(200,{"count":len(log),"payments":list(reversed(log))})
+        elif p.path == "/stars/status":
+            session_exists = os.path.exists(STARS_SESSION + ".session")
+            status_txt = "Active" if session_exists else "Not authenticated"
+            body_content = ("<p>Stars tracker is running! Listening for star events on personal account, channel, and group.</p>"
+                           if session_exists else
+                           '''<p>Enter your phone number to start authentication:</p>
+<input id="phone" placeholder="+16125551234" type="tel">
+<button onclick="startAuth()">Send Code</button>
+<div id="codeDiv" style="display:none">
+<input id="code" placeholder="12345 (from Telegram)" maxlength="5">
+<input id="phone2" type="hidden">
+<button onclick="verifyCode()">Verify</button>
+</div>
+<div id="passDiv" style="display:none">
+<input id="pass" type="password" placeholder="2FA password">
+<button onclick="verifyPass()">Submit</button>
+</div>
+<div id="msg" style="margin-top:12px;color:#f472b6"></div>
+<script>
+async function startAuth(){const ph=document.getElementById("phone").value;if(!ph)return;
+document.getElementById("msg").textContent="Sending code...";
+const r=await fetch("/stars/auth/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:ph,token:"bella-admin-2024"})});
+const d=await r.json();if(d.ok){document.getElementById("codeDiv").style.display="block";document.getElementById("phone2").value=ph;document.getElementById("msg").textContent="Code sent to Telegram!";}
+else{document.getElementById("msg").textContent="Error: "+d.error;}}
+async function verifyCode(){const ph=document.getElementById("phone2").value;const code=document.getElementById("code").value;
+const r=await fetch("/stars/auth/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:ph,code,token:"bella-admin-2024"})});
+const d=await r.json();if(d.ok){document.getElementById("msg").textContent="Connected! Reloading...";setTimeout(()=>location.reload(),1500);}
+else if(d.needs_2fa){document.getElementById("passDiv").style.display="block";}
+else{document.getElementById("msg").textContent="Error: "+d.error;}}
+async function verifyPass(){const pw=document.getElementById("pass").value;
+const r=await fetch("/stars/auth/password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:pw,token:"bella-admin-2024"})});
+const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connected!":"Error: "+d.error;if(d.ok)setTimeout(()=>location.reload(),1500);}
+</script>''')
+            self.send_html(200,
+                '<!DOCTYPE html><html><head><title>Stars Auth</title>'
+                '<style>body{font-family:sans-serif;background:#0a0a0a;color:#f0f0f0;padding:30px;max-width:500px;margin:0 auto}' 
+                'h1{color:#f472b6}input{width:100%;padding:10px;background:#1a1a1a;border:1px solid #333;color:#f0f0f0;border-radius:6px;margin:8px 0;font-size:14px}' 
+                'button{width:100%;padding:12px;background:#f472b6;color:#000;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:700;margin-top:6px}'
+                '</style></head><body><h1>&#11088; Stars Tracker Auth</h1>'
+                '<div style="padding:10px;background:#1a1a1a;border-radius:6px;margin-bottom:16px">Status: <strong>' + status_txt + '</strong></div>' +
+                body_content + '</body></html>'
+            )
+
+        elif p.path == "/api/stars":
+            if self.require_admin(p) != ADMIN_TOKEN:
+                self.send_json(401, {"error":"unauthorized"}); return
+            log = load_json(STARS_LOG_FILE, {"events":[],"totals":{},"grand_total":0})
+            self.send_json(200, log)
+
         elif p.path == "/api/fanvue":
             if self.require_admin(p) != ADMIN_TOKEN:
                 self.send_json(401,{"error":"unauthorized"}); return
@@ -906,6 +1061,73 @@ class Handler(BaseHTTPRequestHandler):
                 print(f"[import] Added {added} new entries ({len(new)} submitted)")
                 self.send_json(200,{"ok":True,"added":added,"total":len(log)})
             except Exception as e: self.send_json(500,{"error":str(e)})
+
+        elif p.path == "/stars/auth/start":
+            try:
+                data  = json.loads(body)
+                if data.get("token","") != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
+                phone = data.get("phone", STARS_PHONE)
+                if not STARS_API_ID or not STARS_API_HASH:
+                    self.send_json(400,{"error":"TELEGRAM_API_ID and TELEGRAM_API_HASH not set"}); return
+                result = {"ok": False, "error": "auth failed"}
+                import asyncio as _asyncio
+                async def _start_auth():
+                    from telethon import TelegramClient as _TC
+                    c = _TC(STARS_SESSION, STARS_API_ID, STARS_API_HASH)
+                    await c.connect()
+                    sent = await c.send_code_request(phone)
+                    _stars_auth_pending["phone_hash"] = sent.phone_code_hash
+                    _stars_auth_pending["phone"] = phone
+                    _stars_auth_pending["client"] = c
+                    result["ok"] = True
+                loop = _asyncio.new_event_loop(); loop.run_until_complete(_start_auth()); loop.close()
+                self.send_json(200, result)
+            except Exception as e: self.send_json(500, {"error": str(e)})
+
+        elif p.path == "/stars/auth/verify":
+            try:
+                data  = json.loads(body)
+                if data.get("token","") != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
+                code  = data.get("code","")
+                phone = data.get("phone", _stars_auth_pending.get("phone",""))
+                if "client" not in _stars_auth_pending:
+                    self.send_json(400,{"error":"start auth first"}); return
+                result = {"ok": False}
+                import asyncio as _asyncio
+                async def _verify():
+                    c = _stars_auth_pending["client"]
+                    try:
+                        await c.sign_in(phone, code, phone_code_hash=_stars_auth_pending["phone_hash"])
+                        await c.disconnect(); result["ok"] = True
+                    except Exception as ve:
+                        if "2FA" in str(ve) or "password" in str(ve).lower(): result["needs_2fa"] = True
+                        else: result["error"] = str(ve)
+                loop = _asyncio.new_event_loop(); loop.run_until_complete(_verify()); loop.close()
+                if result.get("ok"):
+                    import threading as _thr
+                    _thr.Thread(target=start_telethon, daemon=True).start()
+                self.send_json(200, result)
+            except Exception as e: self.send_json(500, {"error": str(e)})
+
+        elif p.path == "/stars/auth/password":
+            try:
+                data = json.loads(body)
+                if data.get("token","") != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
+                pw = data.get("password","")
+                result = {"ok": False}
+                import asyncio as _asyncio
+                async def _2fa():
+                    c = _stars_auth_pending.get("client")
+                    if not c: result["error"] = "no pending auth"; return
+                    try:
+                        await c.sign_in(password=pw); await c.disconnect(); result["ok"] = True
+                    except Exception as pe: result["error"] = str(pe)
+                loop = _asyncio.new_event_loop(); loop.run_until_complete(_2fa()); loop.close()
+                if result.get("ok"):
+                    import threading as _thr
+                    _thr.Thread(target=start_telethon, daemon=True).start()
+                self.send_json(200, result)
+            except Exception as e: self.send_json(500, {"error": str(e)})
 
         elif p.path == "/register-fan":
             try:
@@ -1078,4 +1300,11 @@ if __name__ == "__main__":
     print(f"[startup] Stats URL: {STATS_URL or 'not set'}")
     print(f"[startup] Content delivery: {'custom' if CONTENT_MESSAGE else 'placeholder mode'}")
     start_fanvue_scheduler()
+    # Start Stars tracker if session exists
+    if os.path.exists(STARS_SESSION + ".session") and STARS_API_ID and STARS_API_HASH:
+        import threading as _thr
+        _thr.Thread(target=start_telethon, daemon=True).start()
+        print("[startup] Stars tracker session found — starting Telethon")
+    else:
+        print("[startup] Stars auth: /stars/status")
     HTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
