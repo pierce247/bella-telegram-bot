@@ -167,7 +167,11 @@ def start_fanvue_scheduler():
 
 # ── Fanvue DM Bot ────────────────────────────────────────────────────────────
 OPENROUTER_KEY    = os.environ.get("OPENROUTER_API_KEY","")
-STARS_API_ID      = int(os.environ.get("TELEGRAM_API_ID","0"))
+_raw_api_id = os.environ.get("TELEGRAM_API_ID","0")
+# Strip any label prefix like "App api_id: 38761620" → just the number
+import re as _re_api
+_api_id_match = _re_api.search(r'\d+', _raw_api_id)
+STARS_API_ID = int(_api_id_match.group()) if _api_id_match else 0
 STARS_API_HASH    = os.environ.get("TELEGRAM_API_HASH","")
 STARS_PHONE       = os.environ.get("TELEGRAM_PHONE","")
 STARS_SESSION     = os.path.join(DATA_DIR, "stars")
