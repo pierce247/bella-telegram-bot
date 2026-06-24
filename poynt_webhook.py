@@ -305,7 +305,8 @@ def build_dashboard(payment_stats, conv_stats):
 <title>🩷 Bella Ops Dashboard</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#f0f0f0;padding:20px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#f0f0f0;padding:16px;overflow-x:hidden}
+@media(max-width:600px){body{padding:10px}.charts{flex-direction:column!important}.stat{min-width:calc(50% - 8px)!important}.bar-lbl{font-size:8px}.stats{gap:8px}table{font-size:12px}th,td{padding:7px 8px!important}h1{font-size:20px}h2{font-size:13px}.search-input{width:100%!important}.filters{flex-wrap:wrap;gap:6px}.filter-btn{font-size:11px;padding:4px 10px}}
 h1{color:#f472b6;font-size:24px;margin-bottom:2px}
 .sub{color:#555;font-size:13px;margin-bottom:24px}
 h2{color:#f472b6;font-size:14px;font-weight:600;margin:28px 0 10px;text-transform:uppercase;letter-spacing:.06em}
@@ -397,6 +398,15 @@ a{color:#f472b6;text-decoration:none}
 <table id="fanTable"><thead><tr><th>Name</th><th>Chat ID</th><th>Messages</th><th>Heat</th><th>Last Active</th></tr></thead>
 <tbody id="fanBody">""" + fan_rows + """</tbody></table>
 
+<div id="fanvue-section" style="display:none">
+<h2>🌸 Fanvue Earnings <span class="badge" id="fv-updated"></span></h2>
+<div class="stats" id="fv-stats"></div>
+<div class="charts">
+  <div class="chart" id="fv-breakdown-wrap"><div class="chart-title">Revenue by Source</div><div id="fv-breakdown"></div></div>
+  <div class="chart"><div class="chart-title">&#11088; Top Spenders</div><div id="fv-spenders"></div></div>
+</div>
+</div>
+
 <p class="footer">Updated: """ + now_str + """ · <a href="?token=bella-admin-2024">Refresh</a> · <a href="/payments?token=bella-admin-2024">Raw JSON</a></p>
 
 <script>
@@ -447,6 +457,27 @@ function filterFans() {
 }
 
 filterPay('all', document.querySelector('.filter-btn.active'));
+
+// Load Fanvue data
+fetch('/api/fanvue?token=bella-admin-2024')
+  .then(r=>r.json())
+  .then(fv=>{
+    if (!fv || !fv.earnings) return;
+    document.getElementById('fanvue-section').style.display='block';
+    const e=fv.earnings, a=fv.account||{}, bd=fv.breakdown||{}, sp=fv.top_spenders||[];
+    document.getElementById('fv-updated').textContent=fv.updated_at?fv.updated_at.slice(0,16).replace('T',' ')+' UTC':'';
+    document.getElementById('fv-stats').innerHTML=
+      '<div class="stat"><div class="val">'+e.all_time_gross+'</div><div class="lbl">All Time Gross</div></div>'+
+      '<div class="stat"><div class="val">'+e.all_time_net+'</div><div class="lbl">All Time Net</div></div>'+
+      '<div class="stat"><div class="val">'+e.available_balance+'</div><div class="lbl">Available Balance</div></div>'+
+      '<div class="stat"><div class="val">'+(a.subscribers||0)+'</div><div class="lbl">Subscribers</div></div>'+
+      '<div class="stat"><div class="val">'+(a.followers||0)+'</div><div class="lbl">Followers</div></div>';
+    const bdKeys=[['renewals','Renewals'],['posts','Posts'],['subscriptions','Subs'],['tips','Tips'],['messages','Messages']];
+    document.getElementById('fv-breakdown').innerHTML='<table style="margin:0"><thead><tr><th>Source</th><th>Gross</th></tr></thead><tbody>'+
+      bdKeys.map(([k,l])=>bd[k]?'<tr><td>'+l+'</td><td>'+bd[k].gross+'</td></tr>':'').join('')+'</tbody></table>';
+    document.getElementById('fv-spenders').innerHTML='<table style="margin:0"><thead><tr><th>Fan</th><th>Spent</th></tr></thead><tbody>'+
+      sp.map(s=>'<tr><td>'+s.name+'</td><td>'+s.gross+'</td></tr>').join('')+'</tbody></table>';
+  }).catch(()=>{});
 </script>
 </body></html>"""
 
@@ -485,6 +516,13 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(401,{"error":"unauthorized"}); return
             log=load_json(PAYMENTS_LOG,[])
             self.send_json(200,{"count":len(log),"payments":list(reversed(log))})
+        elif p.path == "/api/fanvue":
+            if self.require_admin(p) != ADMIN_TOKEN:
+                self.send_json(401,{"error":"unauthorized"}); return
+            fpath = os.path.join(DATA_DIR,"fanvue_stats.json")
+            stats = load_json(fpath, {})
+            self.send_json(200, stats)
+
         elif p.path == "/api/summary":
             if self.require_admin(p) != ADMIN_TOKEN:
                 self.send_json(401,{"error":"unauthorized"}); return
@@ -549,6 +587,30 @@ class Handler(BaseHTTPRequestHandler):
                 save_json(PENDING_FILE,pending)
                 print(f"[register] {name} ({email}) -> {cid}")
                 self.send_json(200,{"ok":True,"registered":email})
+            except Exception as e: self.send_json(500,{"error":str(e)})
+
+        elif p.path == "/overwrite-payments":
+            # Direct overwrite of entire payments log — bypasses dedup
+            try:
+                data  = json.loads(body)
+                token = data.get("token","") or self.headers.get("X-Admin-Token","")
+                if token != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
+                payments = data.get("payments",[])
+                save_json(PAYMENTS_LOG, payments)
+                print(f"[overwrite] Log replaced with {len(payments)} entries")
+                self.send_json(200,{"ok":True,"count":len(payments)})
+            except Exception as e: self.send_json(500,{"error":str(e)})
+
+        elif p.path == "/update-fanvue":
+            # Store fresh Fanvue stats (called from Hyperagent after MCP fetch)
+            try:
+                data  = json.loads(body)
+                token = data.get("token","") or self.headers.get("X-Admin-Token","")
+                if token != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
+                stats = data.get("stats",{})
+                stats["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime())
+                save_json(os.path.join(DATA_DIR,"fanvue_stats.json"), stats)
+                self.send_json(200,{"ok":True})
             except Exception as e: self.send_json(500,{"error":str(e)})
 
         elif p.path == "/check-payment":

@@ -1261,6 +1261,42 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         return None, None
 
     # /status — system status
+    if text.strip() == "/earnings" and from_id in OWNER_CHAT_IDS:
+        _wh = "https://bella-poynt-webhook-production.up.railway.app"
+        _lines = ["Revenue Summary" + chr(10)]
+        try:
+            _req = urllib.request.Request(f"{_wh}/api/summary?token=bella-admin-2024")
+            with urllib.request.urlopen(_req, timeout=8) as _r:
+                _gd = json.loads(_r.read())
+            _lines.append("GoDaddy Payments")
+            _lines.append("  Revenue: " + str(_gd.get("total_revenue","?")))
+            _lines.append("  Transactions: " + str(_gd.get("total_payments",0)))
+            _lines.append("  Delivered: " + str(_gd.get("delivered",0)) + " | Unmatched: " + str(_gd.get("unmatched",0)))
+        except Exception as _ge:
+            _lines.append("  GoDaddy: error")
+        _lines.append("")
+        try:
+            _req2 = urllib.request.Request(f"{_wh}/api/fanvue?token=bella-admin-2024")
+            with urllib.request.urlopen(_req2, timeout=8) as _r2:
+                _fv = json.loads(_r2.read())
+            if _fv and _fv.get("earnings"):
+                _fe = _fv["earnings"]; _fa = _fv.get("account",{}); _bd = _fv.get("breakdown",{})
+                _lines.append("Fanvue")
+                _lines.append("  All time: " + _fe.get("all_time_gross","?") + " gross / " + _fe.get("all_time_net","?") + " net")
+                _lines.append("  Available: " + _fe.get("available_balance","?"))
+                _lines.append("  Subscribers: " + str(_fa.get("subscribers",0)) + " | Followers: " + str(_fa.get("followers",0)))
+                _top = _fv.get("top_spenders",[])[:3]
+                if _top:
+                    _lines.append("  Top: " + ", ".join(s["name"]+" "+s["gross"] for s in _top))
+                _upd = _fv.get("updated_at","?")[:16].replace("T"," ")
+                _lines.append("  (cached " + _upd + " UTC)")
+            else:
+                _lines.append("Fanvue: no cached data (update via /update-fanvue)")
+        except Exception as _fe2:
+            _lines.append("Fanvue: error - " + str(_fe2))
+        tg("sendMessage", {"chat_id": from_id, "text": chr(10).join(_lines)})
+        return None, None
+
     if text.strip() == "/status" and from_id in OWNER_CHAT_IDS:
         _conn2  = _get_db()
         _tfans  = _conn2.execute("SELECT COUNT(*) FROM fans").fetchone()[0]
