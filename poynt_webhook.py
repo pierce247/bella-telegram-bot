@@ -680,7 +680,14 @@ async def run_telethon_authed():
                         log_stars_event(src,sname,sid,stars,at)
                         for oid in OWNER_CHAT_IDS: send_telegram(oid,f"Stars: {stars} from {sname} via {src}")
         me=await c.get_me(); print(f"[stars] Connected as {me.first_name}")
-        for oid in OWNER_CHAT_IDS: send_telegram(oid,f"Stars tracker connected as {me.first_name}")
+        # Only notify once per 24h to avoid spam on redeploys
+        _last_notify_file = os.path.join(DATA_DIR, "stars_last_notify.txt")
+        try:
+            last = float(open(_last_notify_file).read().strip()) if os.path.exists(_last_notify_file) else 0
+        except: last = 0
+        if time.time() - last > 86400:
+            for oid in OWNER_CHAT_IDS: send_telegram(oid,f"Stars tracker connected as {me.first_name}")
+            open(_last_notify_file,"w").write(str(time.time()))
         await c.run_until_disconnected()
     except Exception as e: print(f"[stars] {e}")
 
