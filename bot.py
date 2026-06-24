@@ -14,6 +14,93 @@ from collections import defaultdict, deque
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("bella-bot")
 
+# ── Lightweight stats HTTP server (port 8081) ──────────────────────────────
+import http.server as _http_server
+import threading as _stats_thread_mod
+
+def _stats_handler_factory(db_fn, db_get_fn):
+    """Returns a request handler class with DB access."""
+    class _StatsHandler(_http_server.BaseHTTPRequestHandler):
+        def log_message(self, fmt, *args): pass  # silence logs
+        def do_GET(self):
+            from urllib.parse import urlparse, parse_qs
+            parsed = urlparse(self.path)
+            qs     = parse_qs(parsed.query)
+            token  = self.headers.get("X-Admin-Token", "") or qs.get("token", [""])[0]
+            admin_token = os.environ.get("ADMIN_TOKEN", "bella-admin-2024")
+            if token != admin_token:
+                self._json(401, {"error": "unauthorized"})
+                return
+            if parsed.path == "/api/stats":
+                try:
+                    conn = db_fn()
+                    total_fans     = conn.execute("SELECT COUNT(*) FROM fans").fetchone()[0]
+                    total_msgs     = conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+                    today_msgs     = conn.execute("SELECT COUNT(*) FROM messages WHERE ts > ?", (time.time()-86400,)).fetchone()[0]
+                    week_msgs      = conn.execute("SELECT COUNT(*) FROM messages WHERE ts > ?", (time.time()-604800,)).fetchone()[0]
+                    active_today   = conn.execute("SELECT COUNT(DISTINCT chat_id) FROM messages WHERE ts > ?", (time.time()-86400,)).fetchone()[0]
+                    active_week    = conn.execute("SELECT COUNT(DISTINCT chat_id) FROM messages WHERE ts > ?", (time.time()-604800,)).fetchone()[0]
+                    top_fans_rows  = conn.execute(
+                        "SELECT chat_id, name, msg_count, heat, last_seen, first_seen FROM fans ORDER BY last_seen DESC LIMIT 20"
+                    ).fetchall()
+                    # Daily message counts last 7 days
+                    daily = []
+                    for i in range(6, -1, -1):
+                        day_start = time.time() - (i+1)*86400
+                        day_end   = time.time() - i*86400
+                        cnt = conn.execute("SELECT COUNT(*) FROM messages WHERE ts > ? AND ts <= ?", (day_start, day_end)).fetchone()[0]
+                        daily.append({"date": time.strftime("%m/%d", time.localtime(day_end)), "count": cnt})
+                    top_fans = []
+                    for row in top_fans_rows:
+                        top_fans.append({
+                            "chat_id": row[0], "name": row[1] or "?",
+                            "msg_count": row[2], "heat": row[3],
+                            "last_seen": time.strftime("%m/%d %H:%M", time.localtime(row[4])) if row[4] else "?",
+                            "first_seen": time.strftime("%m/%d", time.localtime(row[5])) if row[5] else "?"
+                        })
+                    self._json(200, {
+                        "total_fans": total_fans, "total_messages": total_msgs,
+                        "messages_today": today_msgs, "messages_this_week": week_msgs,
+                        "active_fans_today": active_today, "active_fans_week": active_week,
+                        "daily_messages": daily, "top_fans": top_fans,
+                        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                    })
+                except Exception as e:
+                    self._json(500, {"error": str(e)})
+            elif parsed.path == "/api/history":
+                chat_id_param = qs.get("chat_id", [None])[0]
+                if not chat_id_param:
+                    self._json(400, {"error": "chat_id required"}); return
+                try:
+                    limit = int(qs.get("limit", ["30"])[0])
+                    msgs  = db_get_fn(int(chat_id_param), limit=limit)
+                    self._json(200, {"chat_id": int(chat_id_param), "messages": msgs})
+                except Exception as e:
+                    self._json(500, {"error": str(e)})
+            elif parsed.path == "/health":
+                self._json(200, {"status": "ok"})
+            else:
+                self._json(404, {"error": "not found"})
+        def _json(self, code, data):
+            body = json.dumps(data, default=str).encode()
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+    return _StatsHandler
+
+def start_stats_server():
+    """Start lightweight stats API on port 8081 in background thread."""
+    stats_port = int(os.environ.get("STATS_PORT", "8081"))
+    handler    = _stats_handler_factory(_get_db, db_load_history)
+    server     = _http_server.HTTPServer(("0.0.0.0", stats_port), handler)
+    t = _stats_thread_mod.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+    log.info(f"Stats API running on port {stats_port}")
+
+
 BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 OPENROUTER_KEY = os.environ["OPENROUTER_API_KEY"]
 _owner_raw = os.environ.get("OWNER_CHAT_ID", "8635601598,993656394")
@@ -1732,6 +1819,7 @@ def main():
 
     # Init SQLite persistent memory
     db_init()
+    start_stats_server()
     db_migrate_fans_json()
     if global_biz_id:
         log.info(f"Loaded business_connection_id from disk: {global_biz_id[:12]}...")
