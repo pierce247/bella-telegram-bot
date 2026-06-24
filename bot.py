@@ -1340,10 +1340,17 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                 ok = send_gift_invoice(_out_chat_id, _gift_key, _out_biz)
                 amt, title, _, _ = GIFT_CATALOG[_gift_key]
                 log.info(f"Gift shortcut /{_gift_key} ({amt}⭐) → chat {_out_chat_id}: {'✅' if ok else '❌'}")
-                # Notify Pierce in bot DM
-                if OWNER_CHAT_ID:
-                    tg("sendMessage", {"chat_id": OWNER_CHAT_ID,
-                        "text": f"{'✅' if ok else '❌'} Gift {title} ({amt}⭐) sent to chat {_out_chat_id}"})
+                # Notify Pierce — both in bot DM AND back in the business DM itself
+                status_msg = f"{'✅' if ok else '❌'} Gift {title} ({amt}⭐) {'sent!' if ok else 'FAILED - check logs'}"
+                for _oid in OWNER_CHAT_IDS:
+                    tg("sendMessage", {"chat_id": _oid, "text": status_msg})
+                if ok and _out_biz:
+                    # Also echo back in the business DM so Pierce can see it
+                    tg("sendMessage", {"chat_id": _out_chat_id,
+                        "text": f"Invoice sent: {title} ({amt}⭐) 🩷",
+                        "business_connection_id": _out_biz})
+                elif not ok:
+                    log.error(f"Gift invoice FAILED for /{_gift_key} → {_out_chat_id}, biz={_out_biz}")
                 return None, None  # don't save /coffee as a chat message
 
             # Register the fan
