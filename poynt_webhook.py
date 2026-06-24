@@ -172,6 +172,7 @@ _raw_api_id = os.environ.get("TELEGRAM_API_ID","0")
 import re as _re_api
 _api_id_match = _re_api.search(r'\d+', _raw_api_id)
 STARS_API_ID = int(_api_id_match.group()) if _api_id_match else 0
+_client = None  # Global Telethon client reference
 STARS_API_HASH    = os.environ.get("TELEGRAM_API_HASH","")
 STARS_PHONE       = os.environ.get("TELEGRAM_PHONE","")
 STARS_SESSION     = os.path.join(DATA_DIR, "stars")
@@ -626,7 +627,13 @@ async def run_telethon_authed():
         c = _stars_auth_pending.get("client")
         if not c:
             c = _TC(STARS_SESSION, STARS_API_ID, STARS_API_HASH)
-            await c.start()
+            # Non-interactive start — uses session file, raises error if invalid
+            if not await c.connect():
+                await c.connect()
+            if not await c.is_user_authorized():
+                print("[stars] Session expired or invalid — re-auth needed at /stars/status")
+                await c.disconnect()
+                return
         _client = c
         @c.on(events.Raw(UpdateStarsBalance))
         async def _on_bal(ev):
