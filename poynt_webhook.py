@@ -512,6 +512,9 @@ class Handler(BaseHTTPRequestHandler):
                 token  = data.get("token","") or self.headers.get("X-Admin-Token","")
                 if token != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
                 new    = data.get("payments",[])
+                # Support reset flag to wipe existing log before import
+                if data.get("reset", False):
+                    save_json(PAYMENTS_LOG, [])
                 log    = load_json(PAYMENTS_LOG,[])
                 # Dedup by resource_id AND by name+amount+date (prevents double-counting manual backfills)
                 existing_ids = {e.get("resource_id") for e in log}
