@@ -438,6 +438,29 @@ def clean_reply(text: str) -> str:
     text = _rec.sub(r'\s*\([^)]{10,}\)\s*$', '', text).strip()
     # Strip any inline parenthetical with AI reasoning keywords
     text = _rec.sub(r'\s*\((?:after|note|heat|level|this means|internally|as bella|remember)[^)]*\)', '', text, flags=_rec.I).strip()
+    # CRITICAL: Extract only Bella's reply if AI output conversation format
+    # e.g. "Fan said: ... Reply as Bella: ..." → extract only the last Bella part
+    import re as _rec2
+    if "fan said:" in text.lower() or "reply as bella:" in text.lower():
+        # Find the last "Reply as Bella:" and take everything after it
+        _patterns = ["reply as bella:", "bella:", "as bella:"]
+        _extracted = ""
+        for _pat in _patterns:
+            _idx = text.lower().rfind(_pat)
+            if _idx != -1:
+                _extracted = text[_idx + len(_pat):].strip()
+                # Remove any trailing "Fan said:" portion
+                _fan_idx = _extracted.lower().find("fan said:")
+                if _fan_idx != -1:
+                    _extracted = _extracted[:_fan_idx].strip()
+                if len(_extracted) > 5:
+                    break
+        if _extracted:
+            text = _extracted
+        else:
+            # If we can't extract, discard completely — triggers fallback
+            return ""
+
     # Strip leading heat/vibe declarations the AI might output
     text = _rec.sub(r'^(?:CURRENT VIBE|TONE GUIDANCE|INTERNAL TONE)[^:]*:\s*', '', text, flags=_rec.I).strip()
     text = _rec.sub(r'^(?:Heat|Option|Version|Response)\s*\d[:\s]+', '', text, flags=_rec.I).strip()
@@ -482,7 +505,8 @@ def clean_reply(text: str) -> str:
                   "i am an ai", "i'm an ai model", "since i'm an ai",
                   "this is where i have to leave", "i have to leave things",
                   "would be illegal", "most jurisdictions", "yield severe consequences",
-                  "i cannot create explicit", "cannot create explicit content"]
+                  "i cannot create explicit", "cannot create explicit content",
+                  "fan said:", "reply as bella:", "user said:", "user:", "fan:"]
     if any(tell in result.lower() for tell in _bot_tells):
         log.warning(f"Full AI leak detected, discarding: {result[:60]!r}")
         return ""  # triggers fallback to next model
@@ -578,7 +602,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
         messages.append(h)  # {role: user/assistant, content: raw text}
     messages.append({
         "role": "user",
-        "content": f'Fan says: {user_text}\n\nReply as Bella. ALWAYS respond directly to what they just said — stay contextually relevant. Don\'t pivot to a random question if they said something specific. Fresh, real, enticing. No quotation marks around your response.{extra}\n\nBE BRIEF. 1 sentence at heat 1-3. 2 short sentences MAX at heat 4-5.'
+        "content": f'Fan says: {user_text}\n\nReply as Bella. CRITICAL: Output ONLY Bella\'s reply — NEVER use \"Fan said:\" labels, NEVER use \"Reply as Bella:\" labels, NEVER output a conversation format. Just one Bella response. No quotation marks. ALWAYS respond directly to what they just said.{extra}\n\nBE BRIEF. 1 sentence at heat 1-3. 2 short sentences MAX at heat 4-5.'
     })
 
     # Single high-quality model — retry on 429, no fallback to worse models
@@ -1223,6 +1247,18 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
             _stars_cnt    = _conn.execute("SELECT COUNT(*) FROM star_payments").fetchone()[0]
             _stars_by_src = _conn.execute("SELECT source, COUNT(*), SUM(stars) FROM star_payments GROUP BY source").fetchall()
             _src_lines    = [f"    {row[0]}: {row[1]} payments, {row[2]:,}⭐" for row in _stars_by_src]
+            # Fetch Stars balance from webhook (channel + group + personal)
+            _stars_channel = 0; _stars_group = 0
+            try:
+                _wh_req = urllib.request.Request(
+                    "https://bella-poynt-webhook-production.up.railway.app/api/fanvue?token=bella-admin-2024")
+                with urllib.request.urlopen(_wh_req, timeout=5) as _wh_r:
+                    _wh_data = json.loads(_wh_r.read())
+                    _sb = _wh_data.get("stars_balance", {})
+                    _stars_channel = _sb.get("bellavistaxo", {}).get("stars", 0) if isinstance(_sb.get("bellavistaxo"), dict) else 0
+                    _stars_group   = _sb.get("bellavistaxox", {}).get("stars", 0) if isinstance(_sb.get("bellavistaxox"), dict) else 0
+            except Exception: pass
+            _stars_all = _stars_total + _stars_channel + _stars_group
             _lines = [
                 "📊 Bella Bot Stats\n",
                 f"👥 Total unique fans: {_total_fans}",
@@ -1230,9 +1266,11 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                 f"📅 Messages today: {_today_msgs}",
                 f"📆 Messages this week: {_week_msgs}",
                 f"🔥 Active fans today: {_active_today}",
-                f"\n⭐ Stars Payments ({_stars_cnt} total)",
-                f"  All time: {_stars_total:,} stars ≈ ${_stars_total*0.013:.2f}",
-                f"  Today: {_stars_today:,} stars ≈ ${_stars_today*0.013:.2f}",
+                f"\n⭐ Stars ({_stars_cnt} bot invoice payments)",
+                f"  Bot invoices: {_stars_total:,}⭐ ≈ ${_stars_total*0.013:.2f}",
+                f"  @bellavistaxo channel: {_stars_channel:,}⭐ ≈ ${_stars_channel*0.013:.2f}",
+                f"  @bellavistaxox group: {_stars_group:,}⭐ ≈ ${_stars_group*0.013:.2f}",
+                f"  TOTAL: {_stars_all:,}⭐ ≈ ${_stars_all*0.013:.2f}",
             ] + _src_lines + [
                 "\n🌟 Most recent fans:"
             ]
