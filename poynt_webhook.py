@@ -589,6 +589,33 @@ async def _stars_auth_2fa_coro(pw):
         await c.sign_in(password=pw); return {"ok": True}
     except Exception as pe: return {"ok": False, "error": str(pe)}
 
+async def _query_stars_balance():
+    """Query live Telegram Stars balance for personal account + channels."""
+    result = {}
+    try:
+        from telethon.tl.functions.payments import GetStarsStatusRequest
+        # Personal balance
+        personal = await _client(GetStarsStatusRequest(peer=await _client.get_me()))
+        result["personal"] = {
+            "balance": getattr(personal, "balance", None),
+            "stars": getattr(getattr(personal, "balance", None), "amount", 0) if hasattr(getattr(personal, "balance", None), "amount") else personal.balance if isinstance(personal.balance, int) else 0
+        }
+        # Channel balances
+        for username in ("bellavistaxo", "bellavistaxox"):
+            try:
+                entity = await _client.get_entity(username)
+                ch = await _client(GetStarsStatusRequest(peer=entity))
+                bal = getattr(ch, "balance", None)
+                result[username] = {
+                    "balance": bal.amount if hasattr(bal, "amount") else bal,
+                    "next_withdrawal": str(getattr(ch, "next_withdrawal_at", ""))
+                }
+            except Exception as ce:
+                result[username] = {"error": str(ce)}
+    except Exception as e:
+        result["error"] = str(e)
+    return result
+
 async def run_telethon_authed():
     global _client
     try:
@@ -1075,6 +1102,19 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 self.send_json(401, {"error":"unauthorized"}); return
             log = load_json(STARS_LOG_FILE, {"events":[],"totals":{},"grand_total":0})
             self.send_json(200, log)
+
+        elif p.path == "/api/stars/balance":
+            if self.require_admin(p) != ADMIN_TOKEN:
+                self.send_json(401, {"error":"unauthorized"}); return
+            # Query live Stars balance from Telegram API via Telethon
+            if not _client:
+                self.send_json(200, {"error":"Stars tracker not connected yet"}); return
+            try:
+                fut = asyncio.run_coroutine_threadsafe(_query_stars_balance(), _STARS_LOOP)
+                result = fut.result(timeout=15)
+                self.send_json(200, result)
+            except Exception as e:
+                self.send_json(500, {"error": str(e)})
 
         elif p.path == "/api/fanvue":
             if self.require_admin(p) != ADMIN_TOKEN:
