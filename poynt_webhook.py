@@ -748,6 +748,28 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.send_html(500, f"<h2>Error</h2><p>{e}</p>")
 
+        elif p.path == "/fanvue-webhook":
+            # Fanvue real-time event webhook
+            # No signature verification yet — events trigger a stats refresh
+            try:
+                event = json.loads(body)
+                event_type = event.get("event","") or event.get("type","")
+                print(f"[fanvue_webhook] event={event_type}")
+                # Refresh stats immediately on any Fanvue event
+                import threading as _fvt
+                _fvt.Thread(target=fanvue_refresh_stats, daemon=True).start()
+                # Also notify owners for earnings events
+                earnings_events = {"purchase_received","tip_received","item_purchased","new_subscriber"}
+                if event_type.lower().replace("-","_") in earnings_events:
+                    fan = event.get("user",{}).get("displayName","Fan") or event.get("fan",{}).get("displayName","Fan")
+                    amount = event.get("amount",0) or event.get("price",0)
+                    msg = "Fanvue " + event_type + chr(10) + "Fan: " + fan + (chr(10) + "$"+str(round(amount/100,2)) if amount else "")
+                    for oid in OWNER_CHAT_IDS: send_telegram(oid, msg)
+                self.send_json(200, {"ok":True})
+            except Exception as e:
+                print(f"[fanvue_webhook] error: {e}")
+                self.send_json(200, {"ok":True})  # always 200 so Fanvue doesn't retry
+
         elif p.path == "/check-payment":
             try:
                 data=json.loads(body); cid=data.get("chat_id"); fname=data.get("name","babe")
