@@ -1085,6 +1085,18 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(401,{"error":"unauthorized"}); return
             log=load_json(PAYMENTS_LOG,[])
             self.send_json(200,{"count":len(log),"payments":list(reversed(log))})
+        elif p.path == "/stars/reset":
+            # Delete stale session file so fresh auth can happen
+            token = self.require_admin(p)
+            if token != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
+            session_path = STARS_SESSION + ".session"
+            if os.path.exists(session_path):
+                os.remove(session_path)
+                print("[stars] Session file deleted for fresh auth")
+                self.send_json(200,{"ok":True,"message":"Session deleted. Visit /stars/status to re-authenticate."})
+            else:
+                self.send_json(200,{"ok":True,"message":"No session file found."})
+
         elif p.path == "/stars/status":
             session_exists = os.path.exists(STARS_SESSION + ".session")
             status_txt = "Active" if session_exists else "Not authenticated"
