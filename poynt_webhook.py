@@ -248,6 +248,16 @@ def clean_reply(text: str) -> str:
     text = _rec.sub(r'\s*\([^)]{10,}\)\s*$', '', text).strip()
     # Strip any inline parenthetical with AI reasoning keywords
     text = _rec.sub(r'\s*\((?:after|note|heat|level|this means|internally|as bella|remember)[^)]*\)', '', text, flags=_rec.I).strip()
+    # Strip leading heat/vibe declarations
+    text = _rec.sub(r'^(?:CURRENT VIBE|TONE GUIDANCE|INTERNAL TONE)[^:]*:\s*', '', text, flags=_rec.I).strip()
+    text = _rec.sub(r'^(?:Heat|Option|Version|Response)\s*\d[:\s]+', '', text, flags=_rec.I).strip()
+    if chr(10)+"---"+chr(10) in text:
+        text = text.split(chr(10)+"---"+chr(10))[0].strip()
+    lines_tmp = text.split(chr(10))
+    if len(lines_tmp) > 1:
+        import re as _reb
+        lines_tmp = [l for l in lines_tmp if not _reb.match(r'^(?:heat|option|version|response|variant)\s*[\d\w][:\.\s]', l.strip(), _reb.I)]
+        text = chr(10).join(lines_tmp).strip()
     # Strip trailing heat level references
     text = _rec.sub(r'\s*[-–]?\s*(?:heat|level)\s*\d[^.]*$', '', text, flags=_rec.I).strip()
     text = _rec.sub(r'\s*\(heat goes[^)]*\)', '', text, flags=_rec.I).strip()
@@ -381,25 +391,31 @@ def fanvue_generate_reply(fan_uuid, message, at):
     import random as _r
     if not OPENROUTER_KEY: return _r.choice(FANVUE_FALLBACKS)
     history = fanvue_get_history(fan_uuid, at)
-    # Same model chain as Telegram bot: Euryale primary, Llama fallback
-    prompt_msg = ("Fan says: " + message +
-                  chr(10) + chr(10) +
-                  "Reply as Bella. Stay contextually relevant. No quotation marks. BE BRIEF — 1-2 sentences max.")
+    # No heat levels — clean Bella system prompt only
+    # "babe" is always the default, never declare heat or tone to fan
+    prompt_msg = ("Fan says: " + message + chr(10) + chr(10) +
+                  "Reply as Bella. Direct, natural response to exactly what they said. "
+                  "No quotation marks. 1-2 sentences max. Never mention heat levels.")
     msgs = [{"role":"system","content":BELLA_SYSTEM}] + history + [{"role":"user","content":prompt_msg}]
-    headers = {"Authorization":f"Bearer {OPENROUTER_KEY}","Content-Type":"application/json",
-               "HTTP-Referer":"https://bellavistaxo.com","X-Title":"Bella Fanvue Bot"}
-    for model, max_tok in [("sao10k/l3.3-euryale-70b",200),("meta-llama/llama-3.3-70b-instruct",150)]:
-        try:
-            payload = json.dumps({"model":model,"max_tokens":max_tok,"temperature":0.9,"messages":msgs}).encode()
-            req = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions",
-                                         data=payload, headers=headers)
-            with urllib.request.urlopen(req, timeout=20) as r:
-                raw = json.loads(r.read()).get("choices",[{}])[0].get("message",{}).get("content","").strip()
-                if raw:
-                    cleaned = clean_reply(raw)
-                    return cleaned or raw[:200]
-        except Exception as e:
-            print(f"[fanvue_ai] {model} failed: {e}")
+    try:
+        payload = json.dumps({
+            "model": "sao10k/l3.3-euryale-70b",
+            "max_tokens": 180,
+            "temperature": 0.9,
+            "messages": msgs
+        }).encode()
+        req = urllib.request.Request(
+            "https://openrouter.ai/api/v1/chat/completions", data=payload,
+            headers={"Authorization":f"Bearer {OPENROUTER_KEY}","Content-Type":"application/json",
+                     "HTTP-Referer":"https://bellavistaxo.com","X-Title":"Bella Fanvue Bot"}
+        )
+        with urllib.request.urlopen(req, timeout=20) as r:
+            raw = json.loads(r.read()).get("choices",[{}])[0].get("message",{}).get("content","").strip()
+            if raw:
+                cleaned = clean_reply(raw)
+                return cleaned or raw[:200]
+    except Exception as e:
+        print(f"[fanvue_ai] {e}")
     return _r.choice(FANVUE_FALLBACKS)
 
 def fanvue_send_dm(fan_uuid, text, at):

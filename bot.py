@@ -438,6 +438,18 @@ def clean_reply(text: str) -> str:
     text = _rec.sub(r'\s*\([^)]{10,}\)\s*$', '', text).strip()
     # Strip any inline parenthetical with AI reasoning keywords
     text = _rec.sub(r'\s*\((?:after|note|heat|level|this means|internally|as bella|remember)[^)]*\)', '', text, flags=_rec.I).strip()
+    # Strip leading heat/vibe declarations the AI might output
+    text = _rec.sub(r'^(?:CURRENT VIBE|TONE GUIDANCE|INTERNAL TONE)[^:]*:\s*', '', text, flags=_rec.I).strip()
+    text = _rec.sub(r'^(?:Heat|Option|Version|Response)\s*\d[:\s]+', '', text, flags=_rec.I).strip()
+    # If AI provided multiple responses separated by --- or numbered list, keep only first
+    if chr(10)+"---"+chr(10) in text:
+        text = text.split(chr(10)+"---"+chr(10))[0].strip()
+    # Strip lines that look like "Heat 3:" or "Option A:" or "Version 1:"
+    lines_tmp = text.split(chr(10))
+    if len(lines_tmp) > 1:
+        import re as _reb
+        lines_tmp = [l for l in lines_tmp if not _reb.match(r'^(?:heat|option|version|response|variant)\s*[\d\w][:\.\s]', l.strip(), _reb.I)]
+        text = chr(10).join(lines_tmp).strip()
     # Strip trailing heat level references
     text = _rec.sub(r'\s*[-–]?\s*(?:heat|level)\s*\d[^.]*$', '', text, flags=_rec.I).strip()
     text = _rec.sub(r'\s*\(heat goes[^)]*\)', '', text, flags=_rec.I).strip()
@@ -556,7 +568,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
     # No name extraction — Bella calls everyone "babe" to avoid confusion, jealousy,
     # and false positives from "I'm [adjective]" being misread as a name introduction.
     name_hint = ""
-    tone_note = f"\n\nCURRENT VIBE (heat {heat}/5): {HEAT_TONES[heat]}"
+    tone_note = f"\n\nINTERNAL TONE GUIDANCE (never say this to the fan, never mention heat levels or numbers): {HEAT_TONES[heat]}"
 
     system = BELLA_SYSTEM + tone_note
 
