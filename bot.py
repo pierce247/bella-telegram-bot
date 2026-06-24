@@ -1297,6 +1297,37 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                     log.info(f"Saved biz_id from outgoing message: {_out_biz[:12]}...")
         return None, None
 
+    # ── Auto-delete join/leave service messages ──────────────────────────────
+    if msg:
+        _chat_type = msg.get("chat", {}).get("type", "private")
+        if _chat_type in ("group", "supergroup"):
+            _del_reason = None
+            if msg.get("new_chat_members"):
+                _del_reason = "join"
+            elif msg.get("left_chat_member"):
+                _del_reason = "leave"
+            elif msg.get("new_chat_title") or msg.get("new_chat_photo") or msg.get("delete_chat_photo"):
+                _del_reason = "admin_action"
+            if _del_reason and msg.get("message_id"):
+                _gcid = msg["chat"]["id"]
+                _gmid = msg["message_id"]
+                tg("deleteMessage", {"chat_id": _gcid, "message_id": _gmid})
+                log.info(f"Deleted {_del_reason} service message {_gmid} in group {_gcid}")
+                # If someone joined, send them a welcome DM if WELCOME_DM is set
+                if _del_reason == "join":
+                    _welcome_msg = os.environ.get("WELCOME_DM", "")
+                    for _new_member in msg.get("new_chat_members", []):
+                        _new_id = _new_member.get("id")
+                        _new_name = _new_member.get("first_name", "")
+                        if _new_id and not _new_member.get("is_bot") and _welcome_msg:
+                            try:
+                                tg("sendMessage", {"chat_id": _new_id,
+                                    "text": _welcome_msg.replace("{name}", _new_name or "babe")})
+                                log.info(f"Welcome DM sent to {_new_id} ({_new_name})")
+                            except Exception:
+                                pass  # Can't DM if they haven't started the bot
+                return None, None
+
     # Skip VIP chats — Pierce is handling manually (extract chat_id early for this check)
     _early_chat_id = msg.get("chat", {}).get("id") if msg else None
     if vip_chats and _early_chat_id and _early_chat_id in vip_chats:
