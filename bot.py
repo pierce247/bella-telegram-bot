@@ -58,11 +58,25 @@ def _stats_handler_factory(db_fn, db_get_fn):
                             "last_seen": time.strftime("%m/%d %H:%M", time.localtime(row[4])) if row[4] else "?",
                             "first_seen": time.strftime("%m/%d", time.localtime(row[5])) if row[5] else "?"
                         })
+                    # Stars stats
+                    stars_total = conn.execute("SELECT COALESCE(SUM(stars),0) FROM star_payments").fetchone()[0]
+                    stars_today = conn.execute("SELECT COALESCE(SUM(stars),0) FROM star_payments WHERE ts > ?", (time.time()-86400,)).fetchone()[0]
+                    stars_cnt   = conn.execute("SELECT COUNT(*) FROM star_payments").fetchone()[0]
+                    stars_by_src= conn.execute("SELECT source, COUNT(*), SUM(stars) FROM star_payments GROUP BY source").fetchall()
+                    daily_stars = []
+                    for i in range(6,-1,-1):
+                        d_s=time.time()-(i+1)*86400; d_e=time.time()-i*86400
+                        s = conn.execute("SELECT COALESCE(SUM(stars),0) FROM star_payments WHERE ts > ? AND ts <= ?", (d_s,d_e)).fetchone()[0]
+                        daily_stars.append({"date":time.strftime("%m/%d",time.localtime(d_e)),"stars":s,"usd":round(s*0.013,2)})
                     self._json(200, {
                         "total_fans": total_fans, "total_messages": total_msgs,
                         "messages_today": today_msgs, "messages_this_week": week_msgs,
                         "active_fans_today": active_today, "active_fans_week": active_week,
                         "daily_messages": daily, "top_fans": top_fans,
+                        "stars_total": stars_total, "stars_today": stars_today,
+                        "stars_payments_count": stars_cnt,
+                        "stars_by_source": [{"source":r[0],"count":r[1],"stars":r[2]} for r in stars_by_src],
+                        "daily_stars": daily_stars,
                         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                     })
                 except Exception as e:
@@ -178,7 +192,8 @@ def get_updates(offset: int = 0) -> list:
     params = {
         "timeout": 30, "limit": 20,
         "allowed_updates": ["message", "business_message", "business_connection",
-                            "pre_checkout_query", "successful_payment"]
+                            "pre_checkout_query", "successful_payment",
+                            "channel_post", "edited_channel_post"]
     }
     if offset:
         params["offset"] = offset
@@ -673,10 +688,9 @@ STARS_THANKYOU = [
 ]
 
 def notify_owner(text: str) -> None:
-    """Send a notification to Pierce's personal Telegram."""
-    if not OWNER_CHAT_ID:
-        return
-    tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": text})
+    """Send a notification to ALL owner Telegram accounts."""
+    for _oid in OWNER_CHAT_IDS:
+        tg("sendMessage", {"chat_id": _oid, "text": text})
 
 # ── Daily stats ───────────────────────────────────────────────────────────────
 
@@ -753,29 +767,58 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         log.info(f"Pre-checkout approved for {pcq.get('from', {}).get('id')}")
         return None, None
 
-    # Handle successful Stars payment — send thank-you + notify Pierce
-    msg = update.get("message") or update.get("business_message")
+    # Handle successful Stars payment — DMs, business messages, AND channel posts
+    msg = update.get("message") or update.get("business_message") or update.get("channel_post")
     if msg and msg.get("successful_payment"):
         chat_id = msg["chat"]["id"]
+        chat_type = msg["chat"].get("type", "private")
         biz = msg.get("business_connection_id", "")
         payment = msg["successful_payment"]
         stars = payment.get("total_amount", 0)
+        payload = payment.get("invoice_payload", "")
+        from_id = msg.get("from", {}).get("id", 0)
         fan_name = msg.get("from", {}).get("first_name", "Someone")
+        chat_title = msg["chat"].get("title", "") or msg["chat"].get("username", "")
 
-        # Thank the fan
-        thank_you = random.choice(STARS_THANKYOU)
-        send_typing(chat_id, biz)
-        time.sleep(1.5)
-        send_raw(chat_id, thank_you, biz)
-        log.info(f"Stars thank-you sent to {chat_id}")
+        # Determine source context
+        if chat_type == "channel":
+            source = "channel"
+            ctx = f"@{chat_title}" if chat_title else f"channel {chat_id}"
+        elif chat_type in ("group", "supergroup"):
+            source = "group"
+            ctx = f"@{chat_title}" if chat_title else f"group {chat_id}"
+        elif biz:
+            source = "business"
+            ctx = f"DM (business)"
+        else:
+            source = "dm"
+            ctx = f"DM from {fan_name}"
 
-        # Notify Pierce
-        notify_owner(f"⭐ {fan_name} just sent {stars:,} Stars to Bella!\n💰 ≈ ${stars * 0.013:.2f} USD")
+        # Thank the fan (only for DMs/business, not channel posts)
+        if chat_type == "private":
+            thank_you = random.choice(STARS_THANKYOU)
+            send_typing(chat_id, biz)
+            time.sleep(1.5)
+            send_raw(chat_id, thank_you, biz)
+            log.info(f"Stars thank-you sent to {chat_id}")
 
-        # Update stats
+        # Notify all owner accounts
+        notify_owner(
+            f"⭐ Stars received!\n"
+            f"👤 {fan_name} (ID: {from_id})\n"
+            f"✨ {stars:,} Stars ≈ ${stars * 0.013:.2f}\n"
+            f"📍 Via: {ctx}\n"
+            f"📦 Payload: {payload or 'n/a'}"
+        )
+
+        # Persist to DB
+        db_save_stars(chat_id, from_id, fan_name, stars, payload, source)
+
+        # Update in-memory stats
         daily_stats["stars_payments"] += 1
         daily_stats["stars_total"] += stars
 
+        log.info(f"Stars payment: {fan_name} sent {stars} stars via {source} ({ctx})")
         return chat_id, biz
 
     if not msg:
@@ -1120,6 +1163,12 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
             _week_msgs    = _conn.execute("SELECT COUNT(*) FROM messages WHERE ts > ?", (time.time()-604800,)).fetchone()[0]
             _active_today = _conn.execute("SELECT COUNT(DISTINCT chat_id) FROM messages WHERE ts > ?", (time.time()-86400,)).fetchone()[0]
             _hot_fans     = _conn.execute("SELECT chat_id, name, msg_count, heat FROM fans ORDER BY last_seen DESC LIMIT 5").fetchall()
+            # Stars stats
+            _stars_total  = _conn.execute("SELECT COALESCE(SUM(stars),0) FROM star_payments").fetchone()[0]
+            _stars_today  = _conn.execute("SELECT COALESCE(SUM(stars),0) FROM star_payments WHERE ts > ?", (time.time()-86400,)).fetchone()[0]
+            _stars_cnt    = _conn.execute("SELECT COUNT(*) FROM star_payments").fetchone()[0]
+            _stars_by_src = _conn.execute("SELECT source, COUNT(*), SUM(stars) FROM star_payments GROUP BY source").fetchall()
+            _src_lines    = [f"    {row[0]}: {row[1]} payments, {row[2]:,}⭐" for row in _stars_by_src]
             _lines = [
                 "📊 Bella Bot Stats\n",
                 f"👥 Total unique fans: {_total_fans}",
@@ -1127,6 +1176,10 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                 f"📅 Messages today: {_today_msgs}",
                 f"📆 Messages this week: {_week_msgs}",
                 f"🔥 Active fans today: {_active_today}",
+                f"\n⭐ Stars Payments ({_stars_cnt} total)",
+                f"  All time: {_stars_total:,} stars ≈ ${_stars_total*0.013:.2f}",
+                f"  Today: {_stars_today:,} stars ≈ ${_stars_today*0.013:.2f}",
+            ] + _src_lines + [
                 "\n🌟 Most recent fans:"
             ]
             for _row in _hot_fans:
@@ -1610,6 +1663,18 @@ def db_init():
         );
         CREATE INDEX IF NOT EXISTS idx_messages_chat_ts ON messages(chat_id, ts);
         CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts);
+        CREATE TABLE IF NOT EXISTS star_payments (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id     INTEGER,
+            from_id     INTEGER,
+            fan_name    TEXT    DEFAULT '',
+            stars       INTEGER DEFAULT 0,
+            usd_approx  REAL    DEFAULT 0,
+            payload     TEXT    DEFAULT '',
+            source      TEXT    DEFAULT 'dm',
+            ts          REAL    NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_stars_ts ON star_payments(ts);
     """)
     # Schema migrations — safe to re-run (ALTER TABLE ignores errors if column exists)
     migrations = [
@@ -1698,6 +1763,21 @@ def db_upsert_fan(chat_id: int, name: str = None, biz: str = None, heat: int = N
         conn.commit()
     except Exception as e:
         log.warning(f"db_upsert_fan error: {e}")
+
+
+def db_save_stars(chat_id: int, from_id: int, fan_name: str, stars: int, payload: str, source: str = "dm"):
+    """Persist a Stars payment to the database."""
+    usd = round(stars * 0.013, 2)
+    try:
+        conn = _get_db()
+        conn.execute(
+            "INSERT INTO star_payments (chat_id, from_id, fan_name, stars, usd_approx, payload, source, ts) VALUES (?,?,?,?,?,?,?,?)",
+            (chat_id, from_id, fan_name, stars, usd, payload, source, time.time())
+        )
+        conn.commit()
+    except Exception as e:
+        log.error(f"db_save_stars error: {e}")
+
 
 def db_get_fan(chat_id: int) -> dict:
     """Return fan record as dict, or {} if not found."""

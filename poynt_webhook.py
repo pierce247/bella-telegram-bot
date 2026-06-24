@@ -217,11 +217,16 @@ def build_dashboard(payment_stats, conv_stats):
     # Conversation stats boxes
     conv_html = ""
     if cs:
-        conv_html = f"""
-        <div class="stat"><div class="val">{cs.get('total_fans',0)}</div><div class="lbl">Total Fans</div></div>
-        <div class="stat"><div class="val">{cs.get('total_messages',0)}</div><div class="lbl">Total Messages</div></div>
-        <div class="stat"><div class="val">{cs.get('messages_today',0)}</div><div class="lbl">Msgs Today</div></div>
-        <div class="stat"><div class="val">{cs.get('active_fans_today',0)}</div><div class="lbl">Active Today</div></div>"""
+        stars_total = cs.get('stars_total', 0)
+        stars_usd   = round(stars_total * 0.013, 2)
+        conv_html = (
+            f'<div class="stat"><div class="val">{cs.get("total_fans",0)}</div><div class="lbl">Total Fans</div></div>'
+            f'<div class="stat"><div class="val">{cs.get("total_messages",0)}</div><div class="lbl">Total Messages</div></div>'
+            f'<div class="stat"><div class="val">{cs.get("messages_today",0)}</div><div class="lbl">Msgs Today</div></div>'
+            f'<div class="stat"><div class="val">{cs.get("active_fans_today",0)}</div><div class="lbl">Active Today</div></div>'
+            f'<div class="stat"><div class="val">{stars_total:,}&#11088;</div><div class="lbl">Total Stars<br><small>~${stars_usd:.2f}</small></div></div>'
+            f'<div class="stat"><div class="val">{cs.get("stars_today",0):,}&#11088;</div><div class="lbl">Stars Today</div></div>'
+        )
     else:
         conv_html = '<div class="stat conv-offline"><div class="val">—</div><div class="lbl">Conversation stats<br><small>add STATS_URL env var</small></div></div>'
 
@@ -241,6 +246,15 @@ def build_dashboard(payment_stats, conv_stats):
     for d in daily_conv:
         h = max(4, int(d["count"] / max_msg * 80))
         conv_bars += f'<div class="bar-wrap"><div class="bar conv-bar" style="height:{h}px" title="{d[\"count\"]} msgs"></div><div class="bar-lbl">{d["date"]}<br><small>{d["count"]}</small></div></div>'
+
+    # Stars chart
+    daily_stars = cs.get("daily_stars", []) if cs else []
+    max_stars   = max((d.get("stars", 0) for d in daily_stars), default=1) or 1
+    star_bars   = "".join(
+        f'<div class="bar-wrap"><div class="bar" style="height:{max(4, int(d.get("stars",0)/max_stars*80))}px;background:#f59e0b"></div>'
+        f'<div class="bar-lbl">{d["date"]}<br><small>{d.get("stars",0)}</small></div></div>'
+        for d in daily_stars
+    )
 
     # Top payers table
     payer_rows = ""
@@ -324,6 +338,10 @@ a{{color:#f472b6;text-decoration:none}}
   <div class="chart">
     <div class="chart-title">💬 Daily Messages (7d)</div>
     <div class="bars">{conv_bars or '<div style="color:#333;margin:auto;font-size:12px">Add STATS_URL for conversation data</div>'}</div>
+  </div>
+  <div class="chart">
+    <div class="chart-title">&#11088; Daily Stars (7d)</div>
+    <div class="bars">{star_bars or '<div style="color:#333;margin:auto;font-size:12px">No stars data yet</div>'}</div>
   </div>
 </div>
 
