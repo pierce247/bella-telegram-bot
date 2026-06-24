@@ -918,6 +918,24 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                 tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /fan CHAT_ID"})
         return None, None
 
+    # Individual gift link generator — /coffee /wine etc. in bot chat → get shareable link
+    if text.startswith("/") and from_id in OWNER_CHAT_IDS:
+        _solo_key = text.strip().lstrip("/").lower().split()[0]
+        if _solo_key in GIFT_CATALOG:
+            amt, title, desc, payload = GIFT_CATALOG[_solo_key]
+            p = {"title": title, "description": desc, "payload": payload,
+                 "currency": "XTR", "prices": [{"label": "Stars", "amount": amt}]}
+            r = tg("createInvoiceLink", p)
+            link = r.get("result", "")
+            if link:
+                for _oid in OWNER_CHAT_IDS:
+                    tg("sendMessage", {"chat_id": _oid,
+                        "text": f"{title} ({amt}⭐)\nShareable link:\n{link}\n\nPaste this in any DM, group, or channel."})
+            else:
+                for _oid in OWNER_CHAT_IDS:
+                    tg("sendMessage", {"chat_id": _oid, "text": f"❌ Failed to generate {title} link: {r}"})
+            return None, None
+
     # /links — generate shareable t.me payment links for all gift types
     if text.strip() == "/links" and from_id == OWNER_CHAT_ID:
         tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "⏳ Generating payment links for all gifts..."})
