@@ -591,29 +591,31 @@ async def _stars_auth_2fa_coro(pw):
 
 async def _query_stars_balance():
     """Query live Telegram Stars balance for personal account + channels."""
-    result = {}
+    import asyncio as _ai
+    result = {"queried_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    if not _client:
+        return {"error": "Telethon not connected yet"}
+    # Try GetStarsStatus — may not be in all Telethon versions
     try:
-        from telethon.tl.functions.payments import GetStarsStatusRequest
-        # Personal balance
-        personal = await _client(GetStarsStatusRequest(peer=await _client.get_me()))
-        result["personal"] = {
-            "balance": getattr(personal, "balance", None),
-            "stars": getattr(getattr(personal, "balance", None), "amount", 0) if hasattr(getattr(personal, "balance", None), "amount") else personal.balance if isinstance(personal.balance, int) else 0
-        }
-        # Channel balances
+        from telethon.tl.functions.payments import GetStarsStatusRequest as _GSS
+        me = await _ai.wait_for(_client.get_me(), timeout=5)
+        personal = await _ai.wait_for(_client(_GSS(peer=me)), timeout=10)
+        bal = getattr(personal, "balance", None)
+        result["personal"] = {"stars": getattr(bal, "amount", bal) if bal else 0}
         for username in ("bellavistaxo", "bellavistaxox"):
             try:
-                entity = await _client.get_entity(username)
-                ch = await _client(GetStarsStatusRequest(peer=entity))
-                bal = getattr(ch, "balance", None)
-                result[username] = {
-                    "balance": bal.amount if hasattr(bal, "amount") else bal,
-                    "next_withdrawal": str(getattr(ch, "next_withdrawal_at", ""))
-                }
+                entity = await _ai.wait_for(_client.get_entity(username), timeout=5)
+                ch = await _ai.wait_for(_client(_GSS(peer=entity)), timeout=10)
+                cbal = getattr(ch, "balance", None)
+                result[username] = {"stars": getattr(cbal, "amount", cbal) if cbal else 0,
+                                    "next_withdrawal": str(getattr(ch, "next_withdrawal_at", ""))}
             except Exception as ce:
-                result[username] = {"error": str(ce)}
+                result[username] = {"error": str(ce)[:100]}
+    except ImportError:
+        result["error"] = "GetStarsStatusRequest not available in this Telethon version"
+        result["tip"] = "Stars balance visible in Telegram app > Settings > Telegram Stars"
     except Exception as e:
-        result["error"] = str(e)
+        result["error"] = str(e)[:200]
     return result
 
 async def run_telethon_authed():
@@ -1111,7 +1113,10 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 self.send_json(200, {"error":"Stars tracker not connected yet"}); return
             try:
                 fut = asyncio.run_coroutine_threadsafe(_query_stars_balance(), _STARS_LOOP)
-                result = fut.result(timeout=15)
+                try:
+                    result = fut.result(timeout=12)
+                except Exception as _te:
+                    result = {"error": str(_te), "note": "Telethon may still be connecting"}
                 self.send_json(200, result)
             except Exception as e:
                 self.send_json(500, {"error": str(e)})
