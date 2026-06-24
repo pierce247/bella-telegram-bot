@@ -645,11 +645,15 @@ async def run_telethon_authed():
         c = _stars_auth_pending.get("client")
         if not c:
             c = _TC(STARS_SESSION, STARS_API_ID, STARS_API_HASH)
-            # Non-interactive start — uses session file, raises error if invalid
-            if not await c.connect():
-                await c.connect()
-            if not await c.is_user_authorized():
-                print("[stars] Session expired or invalid — re-auth needed at /stars/status")
+            await c.connect()
+            # Try to get current user — proves session is valid
+            try:
+                me = await asyncio.wait_for(c.get_me(), timeout=10)
+                if me is None:
+                    raise Exception("get_me returned None")
+                print(f"[stars] Session valid for {me.first_name} (@{me.username})")
+            except Exception as _ce:
+                print(f"[stars] Session invalid ({_ce}) — re-auth at /stars/status")
                 await c.disconnect()
                 return
         _client = c
