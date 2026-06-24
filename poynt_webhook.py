@@ -794,15 +794,12 @@ def get_conv_stats():
         except: pass
     # Inject latest Fanvue stats
     result["_fanvue"] = load_json(os.path.join(DATA_DIR,"fanvue_stats.json"), {})
-    # Inject Stars balance if Telethon is connected
-    if _client:
-        try:
-            fut = asyncio.run_coroutine_threadsafe(_query_stars_balance(), _STARS_LOOP)
-            stars = fut.result(timeout=8)
-            result["_stars_balance"] = stars
-        except Exception: pass
+    # Stars balance — always read from cache (updated by /api/stars/balance calls)
+    # Fanvue stats also contain stars_balance from last update
+    fv_stars = result.get("_fanvue",{}).get("stars_balance",{})
+    if fv_stars:
+        result["_stars_balance"] = fv_stars
     else:
-        # Use cached balance from last successful query
         result["_stars_balance"] = load_json(os.path.join(DATA_DIR,"stars_balance_cache.json"), {})
     return result
 
