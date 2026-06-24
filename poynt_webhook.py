@@ -591,30 +591,48 @@ async def _stars_auth_2fa_coro(pw):
     except Exception as pe: return {"ok": False, "error": str(pe)}
 
 async def _query_stars_balance():
-    """Query live Telegram Stars balance for personal account + channels."""
+    """Query live Telegram Stars balance using payments.getStarsStatus MTProto method."""
+    # Correct API: payments.getStarsStatus (layer 181+, added in Telegram API)
+    # Ref: https://core.telegram.org/method/payments.getStarsStatus
     import asyncio as _ai
     result = {"queried_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
     if not _client:
-        return {"error": "Telethon not connected yet"}
-    # Try GetStarsStatus — may not be in all Telethon versions
+        return {"status": "not_connected", "note": "Re-authenticate at /stars/status"}
     try:
         from telethon.tl.functions.payments import GetStarsStatusRequest as _GSS
-        me = await _ai.wait_for(_client.get_me(), timeout=5)
-        personal = await _ai.wait_for(_client(_GSS(peer=me)), timeout=10)
-        bal = getattr(personal, "balance", None)
-        result["personal"] = {"stars": getattr(bal, "amount", bal) if bal else 0}
+        from telethon.tl.types import InputPeerSelf as _IPS
+
+        def _extract_stars(status_obj):
+            bal = getattr(status_obj, "balance", None)
+            if bal is None: return 0
+            # StarsAmount has .amount (int) and optionally .nanostar_amount
+            if hasattr(bal, "amount"): return bal.amount
+            return int(bal) if isinstance(bal, (int, float)) else 0
+
+        # Personal account
+        personal = await _ai.wait_for(_client(_GSS(peer=_IPS())), timeout=10)
+        result["personal"] = {
+            "stars": _extract_stars(personal),
+            "usd_approx": round(_extract_stars(personal) * 0.013, 2)
+        }
+
+        # Channel + group balances
         for username in ("bellavistaxo", "bellavistaxox"):
             try:
                 entity = await _ai.wait_for(_client.get_entity(username), timeout=5)
-                ch = await _ai.wait_for(_client(_GSS(peer=entity)), timeout=10)
-                cbal = getattr(ch, "balance", None)
-                result[username] = {"stars": getattr(cbal, "amount", cbal) if cbal else 0,
-                                    "next_withdrawal": str(getattr(ch, "next_withdrawal_at", ""))}
+                ch_status = await _ai.wait_for(_client(_GSS(peer=entity)), timeout=10)
+                stars = _extract_stars(ch_status)
+                result[username] = {
+                    "stars": stars,
+                    "usd_approx": round(stars * 0.013, 2),
+                    "next_withdrawal_at": str(getattr(ch_status, "next_withdrawal_at", ""))
+                }
             except Exception as ce:
-                result[username] = {"error": str(ce)[:100]}
+                result[username] = {"error": str(ce)[:120]}
+
     except ImportError:
-        result["error"] = "GetStarsStatusRequest not available in this Telethon version"
-        result["tip"] = "Stars balance visible in Telegram app > Settings > Telegram Stars"
+        result["status"] = "GetStarsStatusRequest not in Telethon 1.44"
+        result["note"] = "Upgrade Telethon or check Stars in Telegram app"
     except Exception as e:
         result["error"] = str(e)[:200]
     return result
