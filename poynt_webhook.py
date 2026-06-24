@@ -921,11 +921,15 @@ def build_dashboard(payment_stats, conv_stats):
 
     fan_rows = ""
     for f in cs.get("top_fans",[])[:15] if conv_ok else []:
-        fan_rows += '<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>'.format(
-            f.get("name","?"),f.get("chat_id",""),f.get("msg_count",""),
-            "🔥"*min(f.get("heat",1),5),f.get("last_seen","?"))
+        last = f.get("last_seen","?")
+        # Shorten last_seen to just time if today
+        if isinstance(last,str) and "T" in last:
+            last = last[11:16] + " UTC"
+        fan_rows += '<tr><td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{}</td><td>{}</td><td>{}</td><td style="font-size:11px;color:#888">{}</td></tr>'.format(
+            f.get("name","?"), f.get("msg_count",""),
+            "🔥"*min(f.get("heat",1),5), last)
     if not fan_rows:
-        fan_rows = '<tr><td colspan=5 class="empty">{}</td></tr>'.format(
+        fan_rows = '<tr><td colspan=4 class="empty">{}</td></tr>'.format(
             "No fan data" if conv_ok else "Add STATS_URL env var to show fan data")
 
     return """<!DOCTYPE html><html lang="en"><head>
@@ -959,8 +963,6 @@ tr:hover td{background:#161616}
 .empty{color:#333;text-align:center;padding:20px!important}
 .badge{background:#f472b620;color:#f472b6;padding:2px 7px;border-radius:4px;font-size:11px}
 .badge.green{background:#22c55e20;color:#22c55e}
-.side-by-side{display:flex;gap:12px;flex-wrap:wrap}
-.side-by-side > *{flex:1;min-width:200px}
 .filters{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
 .filter-btn{background:#1a1a1a;border:1px solid #333;color:#888;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px}
 .filter-btn.active{background:#f472b620;border-color:#f472b6;color:#f472b6}
@@ -968,19 +970,47 @@ tr:hover td{background:#161616}
 .footer{color:#333;font-size:11px;margin-top:24px;text-align:center}
 a{color:#f472b6;text-decoration:none}
 .fv-badge{background:#818cf820;color:#818cf8;padding:2px 7px;border-radius:4px;font-size:10px}
+/* ── Payment cards ── */
+.pay-list{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.pay-card{background:#111;border:1px solid #1e1e1e;border-radius:12px;overflow:hidden;cursor:pointer;transition:border-color .15s}
+.pay-card:hover{border-color:#333}
+.pay-card.declined{border-left:3px solid #ef4444}
+.pay-card.captured{border-left:3px solid #22c55e}
+.pay-card.fanvue{border-left:3px solid #818cf8}
+.pay-summary{display:flex;align-items:center;padding:12px 14px;gap:12px}
+.pay-icon{font-size:20px;flex-shrink:0}
+.pay-main{flex:1;min-width:0}
+.pay-name{font-size:14px;font-weight:600;color:#f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pay-meta{font-size:11px;color:#555;margin-top:2px}
+.pay-amount{font-size:18px;font-weight:700;color:#f472b6;flex-shrink:0;text-align:right}
+.pay-amount.declined{color:#ef4444}
+.pay-amount.fanvue{color:#818cf8}
+.pay-detail{display:none;padding:0 14px 14px;border-top:1px solid #1a1a1a;margin-top:0}
+.pay-detail.open{display:block}
+.pay-detail-row{display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:1px solid #141414;font-size:13px}
+.pay-detail-row:last-child{border-bottom:none}
+.pay-detail-lbl{color:#555;font-size:11px;text-transform:uppercase;letter-spacing:.04em;flex-shrink:0;margin-right:12px}
+.pay-detail-val{color:#e0e0e0;text-align:right;word-break:break-all}
+/* ── Fanvue combined ── */
+.fv-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.fv-row{background:#111;border:1px solid #1a1a1a;border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center}
+.fv-row-lbl{font-size:12px;color:#888}
+.fv-row-val{font-size:14px;font-weight:600;color:#818cf8}
+.fv-divider{grid-column:1/-1;border:none;border-top:1px solid #1a1a1a;margin:4px 0}
+/* ── Fans table ── */
+.fan-table{width:100%;border-collapse:collapse;background:#111;border-radius:10px;overflow:hidden;margin-bottom:12px}
+.fan-table th{background:#181818;padding:9px 10px;text-align:left;font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.05em}
+.fan-table td{padding:9px 10px;border-top:1px solid #1a1a1a;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:640px){
 body{padding:10px}
 h1{font-size:18px}h2{font-size:12px}
 .stats{gap:6px}.stat{min-width:calc(50% - 6px)!important;padding:10px 12px}.stat .val{font-size:18px}
 .charts{flex-direction:column!important}.bar-lbl{font-size:8px}
 .hide-mob{display:none!important}
-table{font-size:11px;width:100%;table-layout:fixed}
-th,td{padding:6px 8px!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-th:nth-child(1),td:nth-child(1){width:72px}
-th:nth-child(2),td:nth-child(2){width:auto;max-width:0}
-th:nth-child(3),td:nth-child(3){width:58px;text-align:right}
 .search-input{width:100%!important}.filters{flex-wrap:wrap;gap:5px}.filter-btn{font-size:11px;padding:4px 8px}
-.side-by-side{flex-direction:column}
+.pay-amount{font-size:16px}
+.fv-grid{grid-template-columns:1fr}
+table{font-size:12px}th,td{padding:7px 10px!important}
 }
 </style>
 <script>setTimeout(()=>location.reload(),60000)</script>
@@ -1002,13 +1032,17 @@ th:nth-child(3),td:nth-child(3){width:58px;text-align:right}
   <div class="stat fv-stat"><div class="val">""" + str(fv_subs) + """</div><div class="lbl">Subscribers</div></div>
   <div class="stat fv-stat"><div class="val">""" + str(fv_foll) + """</div><div class="lbl">Followers</div></div>
 </div>
-<div class="side-by-side">
-  <div>
-    <table><thead><tr><th>Top Spenders</th><th>Spent</th></tr></thead><tbody>""" + fv_top_rows + """</tbody></table>
-  </div>
-  <div>
-    <table><thead><tr><th>Revenue Source</th><th>Gross</th></tr></thead><tbody>""" + fv_bd_rows + """</tbody></table>
-  </div>
+<div class="fv-grid">
+  <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.05em;padding:4px 0;grid-column:1/-1">🏆 Top Spenders &nbsp;·&nbsp; 💰 Revenue Breakdown</div>
+  """ + "".join(
+      f'<div class="fv-row"><span class="fv-row-lbl">{s["name"]}</span><span class="fv-row-val">{s["gross"]}</span></div>'
+      for s in fv_top
+  ) + ("" if fv_top else '<div class="fv-row"><span class="fv-row-lbl">No data</span></div>') + """
+  <hr class="fv-divider">
+  """ + "".join(
+      f'<div class="fv-row"><span class="fv-row-lbl" style="text-transform:capitalize">{k}</span><span class="fv-row-val">{v["gross"]}</span></div>'
+      for k,v in fv_breakdown.items() if v.get("gross_cents",0)>0
+  ) + ("" if fv_breakdown else '<div class="fv-row"><span class="fv-row-lbl">No data</span></div>') + """
 </div>
 <div class="charts">
   <div class="chart"><div class="chart-title">Fanvue daily (June)</div><div class="bars">""" + (fv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
@@ -1034,10 +1068,9 @@ th:nth-child(3),td:nth-child(3){width:58px;text-align:right}
   <button class="filter-btn" onclick="filterPay('captured',this)">✅ Captured (""" + str(len(cap)) + """)</button>
   <button class="filter-btn" onclick="filterPay('declined',this)">❌ Declined (""" + str(len(all_p)-len(cap)) + """)</button>
   <button class="filter-btn" onclick="filterPay('unmatched',this)">📬 Unmatched (""" + str(gd_unmatched) + """)</button>
-  <input class="search-input" id="paySearch" oninput="filterPay(currentFilter,null)" placeholder="Search name / email…">
 </div>
-<table id="payTable" style="display:table"><thead><tr><th>Date</th><th>Name</th><th>Amount</th><th class="hide-mob">Email</th><th class="hide-mob">Status</th><th class="hide-mob">Chat</th></tr></thead>
-<tbody id="payBody"></tbody></table>
+<input class="search-input" id="paySearch" oninput="filterPay(currentFilter,null)" placeholder="Search name / email…" style="margin-bottom:10px">
+<div class="pay-list" id="payList"></div>
 
 <h2>💬 Conversations</h2>
 <div class="stats">
@@ -1047,8 +1080,8 @@ th:nth-child(3),td:nth-child(3){width:58px;text-align:right}
   <div class="stat"><div class="val">""" + str(active_today) + """</div><div class="lbl">Active Today</div></div>
 </div>
 <h2>👥 Active Fans</h2>
-<div class="filters"><input class="search-input" id="fanSearch" oninput="filterFans()" placeholder="Search fans…" style="max-width:280px"></div>
-<table id="fanTable"><thead><tr><th>Name</th><th class="hide-mob">Chat ID</th><th>Msgs</th><th class="hide-mob">Heat</th><th class="hide-mob">Last</th></tr></thead>
+<input class="search-input" id="fanSearch" oninput="filterFans()" placeholder="Search fans…" style="margin-bottom:10px">
+<table class="fan-table" id="fanTable"><thead><tr><th>Name</th><th>Msgs</th><th>Heat</th><th>Last Active</th></tr></thead>
 <tbody id="fanBody">""" + fan_rows + """</tbody></table>
 
 <p class="footer">""" + now_str + """ · <a href="?token=bella-admin-2024">Refresh</a> · <a href="/payments?token=bella-admin-2024">Raw JSON</a></p>
@@ -1056,19 +1089,57 @@ th:nth-child(3),td:nth-child(3){width:58px;text-align:right}
 <script>
 const PAYMENTS = """ + pay_data + """;
 let currentFilter = 'all';
-function renderPayRows(rows){
+
+function fmtDate(ts){
+  if(!ts)return"—";
+  const d=new Date(ts);
+  const mo=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()];
+  const hr=d.getHours()%12||12, mn=String(d.getMinutes()).padStart(2,"0"), ampm=d.getHours()<12?"am":"pm";
+  return mo+" "+d.getDate()+" · "+hr+":"+mn+ampm;
+}
+
+function toggleDetail(id){
+  const el=document.getElementById("det-"+id);
+  if(el)el.classList.toggle("open");
+}
+
+function renderPayCards(rows){
   const q=(document.getElementById('paySearch').value||"").toLowerCase();
   const f=rows.filter(p=>!q||((p.name||"").toLowerCase().includes(q)||(p.email||"").toLowerCase().includes(q)));
-  const tb=document.getElementById('payBody');
-  if(!f.length){tb.innerHTML='<tr><td colspan=6 class="empty">No results</td></tr>';return;}
-  tb.innerHTML=f.map(p=>{
+  const list=document.getElementById('payList');
+  if(!f.length){list.innerHTML='<div style="color:#333;text-align:center;padding:24px">No results</div>';return;}
+  list.innerHTML=f.map((p,i)=>{
     const dec=(p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED";
-    const ok=["CAPTURED","AUTHORIZED","COMPLETED"].includes(p.status||"");
-    const dot=p.delivered?"✅":(dec?"❌":(ok?"📬":"?"));
-    const bf=p.backfilled?'<span class="badge" style="font-size:9px">backfill</span>':"";
-    return '<tr><td>'+(p.ts||"").slice(0,10)+'</td><td><strong>'+(p.name||"?")+'</strong>'+bf+'</td><td>'+dot+' '+(p.amount_usd||"?")+'</td><td style="color:#555;font-size:12px">'+(p.email||"")+'</td><td>'+(p.status||"?")+'</td><td style="font-size:11px;color:#888">'+(p.chat_id||"—")+'</td></tr>';
+    const isFv=(p.source||"").startsWith("fanvue");
+    const cls=dec?"declined":isFv?"fanvue":"captured";
+    const icon=dec?"❌":isFv?"🌸":"✅";
+    const amtCls=dec?"declined":isFv?"fanvue":"";
+    const src=p.source||p.event_type||"";
+    const srcLabel=isFv?"Fanvue":(src.includes("gmail")?"GoDaddy Email":"GoDaddy");
+    const rid=(p.resource_id||"").replace(/^gmail-order-/,"Order #").replace(/-.*$/,"");
+    const note=p.notes?"<div class='pay-detail-row'><span class='pay-detail-lbl'>Note</span><span class='pay-detail-val'>"+p.notes+"</span></div>":"";
+    const chat=p.chat_id?"<div class='pay-detail-row'><span class='pay-detail-lbl'>Chat ID</span><span class='pay-detail-val'>"+p.chat_id+"</span></div>":"";
+    return '<div class="pay-card '+cls+'" onclick="toggleDetail('+i+')">'
+      +'<div class="pay-summary">'
+        +'<div class="pay-icon">'+icon+'</div>'
+        +'<div class="pay-main">'
+          +'<div class="pay-name">'+(p.name||"Unknown")+'</div>'
+          +'<div class="pay-meta">'+fmtDate(p.ts)+" · "+srcLabel+'</div>'
+        +'</div>'
+        +'<div class="pay-amount '+amtCls+'">'+(p.amount_usd||"?")+'</div>'
+      +'</div>'
+      +'<div class="pay-detail" id="det-'+i+'">'
+        +(p.email?'<div class="pay-detail-row"><span class="pay-detail-lbl">Email</span><span class="pay-detail-val">'+p.email+'</span></div>':"")
+        +'<div class="pay-detail-row"><span class="pay-detail-lbl">Status</span><span class="pay-detail-val">'+(dec?"❌ Declined":"✅ Captured")+'</span></div>'
+        +'<div class="pay-detail-row"><span class="pay-detail-lbl">Date</span><span class="pay-detail-val">'+(p.ts||"").slice(0,16).replace("T"," ")+" UTC"+'</span></div>'
+        +(rid?'<div class="pay-detail-row"><span class="pay-detail-lbl">Reference</span><span class="pay-detail-val">'+rid+'</span></div>':"")
+        +'<div class="pay-detail-row"><span class="pay-detail-lbl">Source</span><span class="pay-detail-val">'+srcLabel+'</span></div>'
+        +note+chat
+      +'</div>'
+    +'</div>';
   }).join("");
 }
+
 function filterPay(t,btn){
   currentFilter=t;
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
@@ -1077,7 +1148,7 @@ function filterPay(t,btn){
   if(t==="captured")r=r.filter(p=>!((p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED"));
   else if(t==="declined")r=r.filter(p=>(p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED");
   else if(t==="unmatched")r=r.filter(p=>!p.delivered&&!((p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED"));
-  renderPayRows(r);
+  renderPayCards(r);
 }
 function filterFans(){
   const q=(document.getElementById('fanSearch').value||"").toLowerCase();
