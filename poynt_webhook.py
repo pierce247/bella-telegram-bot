@@ -19,7 +19,8 @@ POYNT_APP_ID_RAW = os.environ.get("POYNT_APP_ID", "")
 POYNT_SECRET_RAW = os.environ.get("POYNT_CLIENT_SECRET", "")
 WEBHOOK_SECRET   = os.environ.get("POYNT_WEBHOOK_SECRET", "")
 ADMIN_TOKEN      = os.environ.get("ADMIN_TOKEN", "bella-admin-2024")
-OWNER_CHAT_ID    = int(os.environ.get("OWNER_CHAT_ID", "8635601598"))
+_owner_raw       = os.environ.get("OWNER_CHAT_ID", "8635601598,993656394")
+OWNER_CHAT_IDS   = [int(x.strip()) for x in _owner_raw.split(",") if x.strip()]
 CONTENT_MESSAGE  = os.environ.get("CONTENT_MESSAGE",
     "omg thank you SO much!! 🩷✨\n\nhere's your exclusive access → https://linktr.ee/bellavistaxo\n\nyou're officially one of my faves now 😏🔥")
 BUSINESS_ID      = "8b2a6d7f-7a1f-4a96-9ea5-abc73755d69a"
@@ -119,7 +120,7 @@ def send_telegram(chat_id, text, biz_conn_id=""):
         return False
 
 def notify_owner(name, amount_cents, email, delivered, chat_id=None):
-    """Send payment alert to Pierce's Telegram."""
+    """Send payment alert to all owner Telegram accounts."""
     amt    = f"${amount_cents/100:.2f}" if amount_cents else "?"
     status = "✅ delivered" if delivered else "📬 logged (no fan registered)"
     fan    = f"chat {chat_id}" if chat_id else "unknown chat"
@@ -129,7 +130,8 @@ def notify_owner(name, amount_cents, email, delivered, chat_id=None):
               f"📧 {email}\n"
               f"📲 {fan}\n"
               f"📦 {status}")
-    send_telegram(OWNER_CHAT_ID, msg)
+    for owner_id in OWNER_CHAT_IDS:
+        send_telegram(owner_id, msg)
 
 
 # ── Smart payment matching ────────────────────────────────────────────────────
@@ -425,6 +427,6 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     print(f"[startup] Bella webhook v2 on port {PORT}")
-    print(f"[startup] Owner notifications → chat {OWNER_CHAT_ID}")
+    print(f"[startup] Owner notifications → chats {OWNER_CHAT_IDS}")
     print(f"[startup] Dashboard → /dashboard?token={ADMIN_TOKEN}")
     HTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
