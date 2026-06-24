@@ -921,7 +921,11 @@ def build_dashboard(payment_stats, conv_stats):
     for entry in payer_map.values():
         k = entry["name"].strip().lower()
         entry["tg_username"] = tg_usernames.get(k, "")
-    top_payers = sorted(payer_map.values(), key=lambda x: x["amount"], reverse=True)[:8]
+    # Filter out unknown/empty entries with $0
+    top_payers = sorted(
+        [v for v in payer_map.values() if v["amount"] > 0 and v["name"].lower() not in ("unknown","")],
+        key=lambda x: x["amount"], reverse=True
+    )[:8]
     payer_rows = "".join(
         '<div class="pay-card captured" style="cursor:default">'
         '<div class="pay-summary">'
@@ -939,7 +943,9 @@ def build_dashboard(payment_stats, conv_stats):
         ) for p in top_payers
     ) or '<div style="color:#333;text-align:center;padding:16px">No payments yet</div>'
 
-    pay_data = json.dumps(list(reversed(all_p)), default=str)
+    # Always sort newest first for display
+    all_p_sorted = sorted(all_p, key=lambda p: p.get("ts",""), reverse=True)
+    pay_data = json.dumps(all_p_sorted, default=str)
     payer_data = json.dumps(top_payers, default=str)
     tg_users_data = json.dumps(tg_usernames)
 
