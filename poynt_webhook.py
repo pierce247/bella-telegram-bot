@@ -961,7 +961,17 @@ tr:hover td{background:#161616}
 .footer{color:#333;font-size:11px;margin-top:24px;text-align:center}
 a{color:#f472b6;text-decoration:none}
 .fv-badge{background:#818cf820;color:#818cf8;padding:2px 7px;border-radius:4px;font-size:10px}
-@media(max-width:600px){.stats{gap:8px}.stat{min-width:calc(50% - 8px)!important}.charts{flex-direction:column}.bar-lbl{font-size:8px}table{font-size:12px}th,td{padding:7px 8px!important}}
+@media(max-width:640px){
+body{padding:10px}
+h1{font-size:18px}h2{font-size:12px}
+.stats{gap:6px}.stat{min-width:calc(50% - 6px)!important;padding:10px 12px}.stat .val{font-size:18px}
+.charts{flex-direction:column!important}.bar-lbl{font-size:8px}
+.hide-mob{display:none!important}
+table{font-size:11px;display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap;max-width:100%}
+th,td{padding:6px 8px!important}
+.search-input{width:100%!important}.filters{flex-wrap:wrap;gap:5px}.filter-btn{font-size:11px;padding:4px 8px}
+.side-by-side{flex-direction:column}
+}
 </style>
 <script>setTimeout(()=>location.reload(),60000)</script>
 </head><body>
@@ -1016,7 +1026,7 @@ a{color:#f472b6;text-decoration:none}
   <button class="filter-btn" onclick="filterPay('unmatched',this)">📬 Unmatched (""" + str(gd_unmatched) + """)</button>
   <input class="search-input" id="paySearch" oninput="filterPay(currentFilter,null)" placeholder="Search name / email…">
 </div>
-<table id="payTable"><thead><tr><th>Date</th><th>Name</th><th>Amount</th><th>Email</th><th>Status</th><th>Chat</th></tr></thead>
+<table id="payTable" style="display:table"><thead><tr><th>Date</th><th>Name</th><th>Amount</th><th class="hide-mob">Email</th><th class="hide-mob">Status</th><th class="hide-mob">Chat</th></tr></thead>
 <tbody id="payBody"></tbody></table>
 
 <h2>💬 Conversations</h2>
@@ -1028,7 +1038,7 @@ a{color:#f472b6;text-decoration:none}
 </div>
 <h2>👥 Active Fans</h2>
 <div class="filters"><input class="search-input" id="fanSearch" oninput="filterFans()" placeholder="Search fans…" style="max-width:280px"></div>
-<table id="fanTable"><thead><tr><th>Name</th><th>Chat ID</th><th>Messages</th><th>Heat</th><th>Last Active</th></tr></thead>
+<table id="fanTable"><thead><tr><th>Name</th><th class="hide-mob">Chat ID</th><th>Msgs</th><th class="hide-mob">Heat</th><th class="hide-mob">Last</th></tr></thead>
 <tbody id="fanBody">""" + fan_rows + """</tbody></table>
 
 <p class="footer">""" + now_str + """ · <a href="?token=bella-admin-2024">Refresh</a> · <a href="/payments?token=bella-admin-2024">Raw JSON</a></p>
