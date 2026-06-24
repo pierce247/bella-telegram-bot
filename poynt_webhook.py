@@ -549,14 +549,84 @@ async def run_telethon():
         print(f"[stars] Client error: {e}")
 
 
+# Single persistent asyncio loop for all Telethon operations
+_STARS_LOOP = asyncio.new_event_loop()
+
+def _run_stars_loop():
+    asyncio.set_event_loop(_STARS_LOOP)
+    _STARS_LOOP.run_forever()
+
+threading.Thread(target=_run_stars_loop, daemon=True).start()
+
+async def _stars_auth_start_coro(phone):
+    result = {"ok": False}
+    try:
+        from telethon import TelegramClient as _TC
+        c = _TC(STARS_SESSION, STARS_API_ID, STARS_API_HASH)
+        await c.connect()
+        sent = await c.send_code_request(phone)
+        _stars_auth_pending["phone_hash"] = sent.phone_code_hash
+        _stars_auth_pending["phone"] = phone
+        _stars_auth_pending["client"] = c
+        result["ok"] = True
+    except Exception as e: result["error"] = str(e)
+    return result
+
+async def _stars_auth_verify_coro(phone, code):
+    c = _stars_auth_pending.get("client")
+    if not c: return {"ok": False, "error": "start auth first"}
+    try:
+        await c.sign_in(phone, code, phone_code_hash=_stars_auth_pending["phone_hash"])
+        return {"ok": True}
+    except Exception as ve:
+        if "2FA" in str(ve) or "password" in str(ve).lower(): return {"needs_2fa": True}
+        return {"ok": False, "error": str(ve)}
+
+async def _stars_auth_2fa_coro(pw):
+    c = _stars_auth_pending.get("client")
+    if not c: return {"ok": False, "error": "no pending auth"}
+    try:
+        await c.sign_in(password=pw); return {"ok": True}
+    except Exception as pe: return {"ok": False, "error": str(pe)}
+
+async def run_telethon_authed():
+    global _client
+    try:
+        from telethon import TelegramClient as _TC, events
+        from telethon.tl.types import UpdateStarsBalance
+        c = _stars_auth_pending.get("client")
+        if not c:
+            c = _TC(STARS_SESSION, STARS_API_ID, STARS_API_HASH)
+            await c.start()
+        _client = c
+        @c.on(events.Raw(UpdateStarsBalance))
+        async def _on_bal(ev):
+            d = getattr(ev,"balance",None)
+            if d: log_stars_event("personal","?",0,d,"balance"); send_telegram(OWNER_CHAT_IDS[0],f"Stars: +{d}")
+        @c.on(events.NewMessage)
+        async def _on_msg(ev):
+            msg=ev.message
+            if hasattr(msg,"action") and msg.action:
+                at=type(msg.action).__name__
+                if "Star" in at or "star" in at.lower():
+                    chat=await ev.get_chat(); s=await ev.get_sender()
+                    sname=getattr(s,"first_name","?"); sid=getattr(s,"id",0)
+                    stars=getattr(msg.action,"stars",0) or getattr(msg.action,"amount",0)
+                    cn=getattr(chat,"username","")
+                    src=cn if cn in ("bellavistaxo","bellavistaxox") else ("personal" if not cn else f"chat_{chat.id}")
+                    if stars:
+                        log_stars_event(src,sname,sid,stars,at)
+                        for oid in OWNER_CHAT_IDS: send_telegram(oid,f"Stars: {stars} from {sname} via {src}")
+        me=await c.get_me(); print(f"[stars] Connected as {me.first_name}")
+        for oid in OWNER_CHAT_IDS: send_telegram(oid,f"Stars tracker connected as {me.first_name}")
+        await c.run_until_disconnected()
+    except Exception as e: print(f"[stars] {e}")
+
 def start_telethon():
-    """Run Telethon in a background thread with its own event loop."""
-    if not API_ID or not API_HASH:
-        print("[stars] TELEGRAM_API_ID / TELEGRAM_API_HASH not set — auth not possible")
-        return
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(run_telethon())
+    """Schedule Telethon on the persistent loop."""
+    if not STARS_API_ID or not STARS_API_HASH:
+        print("[stars] API credentials not set"); return
+    asyncio.run_coroutine_threadsafe(run_telethon_authed(), _STARS_LOOP)
 
 # ── Smart matching ────────────────────────────────────────────────────────────
 def find_unmatched(hours=2, amount_cents=None):
@@ -1072,20 +1142,9 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 if data.get("token","") != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
                 phone = data.get("phone", STARS_PHONE)
                 if not STARS_API_ID or not STARS_API_HASH:
-                    self.send_json(400,{"error":"TELEGRAM_API_ID and TELEGRAM_API_HASH not set"}); return
-                result = {"ok": False, "error": "auth failed"}
-                import asyncio as _asyncio
-                async def _start_auth():
-                    from telethon import TelegramClient as _TC
-                    c = _TC(STARS_SESSION, STARS_API_ID, STARS_API_HASH)
-                    await c.connect()
-                    sent = await c.send_code_request(phone)
-                    _stars_auth_pending["phone_hash"] = sent.phone_code_hash
-                    _stars_auth_pending["phone"] = phone
-                    _stars_auth_pending["client"] = c
-                    result["ok"] = True
-                loop = _asyncio.new_event_loop(); loop.run_until_complete(_start_auth()); loop.close()
-                self.send_json(200, result)
+                    self.send_json(400,{"error":"TELEGRAM_API_ID and TELEGRAM_API_HASH not configured"}); return
+                fut = asyncio.run_coroutine_threadsafe(_stars_auth_start_coro(phone), _STARS_LOOP)
+                self.send_json(200, fut.result(timeout=30))
             except Exception as e: self.send_json(500, {"error": str(e)})
 
         elif p.path == "/stars/auth/verify":
@@ -1094,22 +1153,10 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 if data.get("token","") != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
                 code  = data.get("code","")
                 phone = data.get("phone", _stars_auth_pending.get("phone",""))
-                if "client" not in _stars_auth_pending:
-                    self.send_json(400,{"error":"start auth first"}); return
-                result = {"ok": False}
-                import asyncio as _asyncio
-                async def _verify():
-                    c = _stars_auth_pending["client"]
-                    try:
-                        await c.sign_in(phone, code, phone_code_hash=_stars_auth_pending["phone_hash"])
-                        await c.disconnect(); result["ok"] = True
-                    except Exception as ve:
-                        if "2FA" in str(ve) or "password" in str(ve).lower(): result["needs_2fa"] = True
-                        else: result["error"] = str(ve)
-                loop = _asyncio.new_event_loop(); loop.run_until_complete(_verify()); loop.close()
+                fut = asyncio.run_coroutine_threadsafe(_stars_auth_verify_coro(phone, code), _STARS_LOOP)
+                result = fut.result(timeout=30)
                 if result.get("ok"):
-                    import threading as _thr
-                    _thr.Thread(target=start_telethon, daemon=True).start()
+                    asyncio.run_coroutine_threadsafe(run_telethon_authed(), _STARS_LOOP)
                 self.send_json(200, result)
             except Exception as e: self.send_json(500, {"error": str(e)})
 
@@ -1118,18 +1165,10 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 data = json.loads(body)
                 if data.get("token","") != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
                 pw = data.get("password","")
-                result = {"ok": False}
-                import asyncio as _asyncio
-                async def _2fa():
-                    c = _stars_auth_pending.get("client")
-                    if not c: result["error"] = "no pending auth"; return
-                    try:
-                        await c.sign_in(password=pw); await c.disconnect(); result["ok"] = True
-                    except Exception as pe: result["error"] = str(pe)
-                loop = _asyncio.new_event_loop(); loop.run_until_complete(_2fa()); loop.close()
+                fut = asyncio.run_coroutine_threadsafe(_stars_auth_2fa_coro(pw), _STARS_LOOP)
+                result = fut.result(timeout=30)
                 if result.get("ok"):
-                    import threading as _thr
-                    _thr.Thread(target=start_telethon, daemon=True).start()
+                    asyncio.run_coroutine_threadsafe(run_telethon_authed(), _STARS_LOOP)
                 self.send_json(200, result)
             except Exception as e: self.send_json(500, {"error": str(e)})
 
