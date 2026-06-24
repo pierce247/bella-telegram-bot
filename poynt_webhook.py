@@ -1630,7 +1630,14 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 token = data.get("token","") or self.headers.get("X-Admin-Token","")
                 if token != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
                 stats = data.get("stats",{})
+                # Guard: never overwrite with empty/broken data
+                if not stats or not stats.get("earnings"):
+                    self.send_json(400,{"error":"stats missing or incomplete — not saved"}); return
                 stats["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime())
+                # Preserve stars_balance from existing file if not in new push
+                existing = load_json(os.path.join(DATA_DIR,"fanvue_stats.json"), {})
+                if "stars_balance" not in stats and "stars_balance" in existing:
+                    stats["stars_balance"] = existing["stars_balance"]
                 save_json(os.path.join(DATA_DIR,"fanvue_stats.json"), stats)
                 self.send_json(200,{"ok":True})
             except Exception as e: self.send_json(500,{"error":str(e)})
