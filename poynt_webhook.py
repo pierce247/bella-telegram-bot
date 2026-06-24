@@ -206,170 +206,250 @@ def get_conv_stats():
 
 # ── Dashboard HTML ────────────────────────────────────────────────────────────
 def build_dashboard(payment_stats, conv_stats):
-    ps   = payment_stats
-    cs   = conv_stats or {}
-    rev  = ps.get("total_revenue","$0.00")
-    tp   = ps.get("total_payments",0)
-    td   = ps.get("delivered",0)
-    tum  = ps.get("unmatched",0)
-    tpf  = ps.get("pending_fans",0)
+    ps = payment_stats
+    cs = conv_stats or {}
+    now_str = time.strftime("%Y-%m-%d %H:%M UTC")
 
-    # Conversation stats boxes
-    conv_html = ""
-    if cs:
-        stars_total = cs.get('stars_total', 0)
-        stars_usd   = round(stars_total * 0.013, 2)
-        conv_html = (
-            f'<div class="stat"><div class="val">{cs.get("total_fans",0)}</div><div class="lbl">Total Fans</div></div>'
-            f'<div class="stat"><div class="val">{cs.get("total_messages",0)}</div><div class="lbl">Total Messages</div></div>'
-            f'<div class="stat"><div class="val">{cs.get("messages_today",0)}</div><div class="lbl">Msgs Today</div></div>'
-            f'<div class="stat"><div class="val">{cs.get("active_fans_today",0)}</div><div class="lbl">Active Today</div></div>'
-            f'<div class="stat"><div class="val">{stars_total:,}&#11088;</div><div class="lbl">Total Stars<br><small>~${stars_usd:.2f}</small></div></div>'
-            f'<div class="stat"><div class="val">{cs.get("stars_today",0):,}&#11088;</div><div class="lbl">Stars Today</div></div>'
-        )
-    else:
-        conv_html = '<div class="stat conv-offline"><div class="val">—</div><div class="lbl">Conversation stats<br><small>add STATS_URL env var</small></div></div>'
+    # Compute accurate metrics — exclude declined
+    all_payments = ps.get("recent", [])
+    captured = [p for p in all_payments if p.get("status","") in ("CAPTURED","AUTHORIZED","COMPLETED","") 
+                and not p.get("event_type","").endswith("DECLINED")]
+    declined = [p for p in all_payments if p.get("event_type","").endswith("DECLINED") 
+                or p.get("status","") == "DECLINED"]
+    revenue_cents = sum(p.get("amount_cents",0) for p in captured)
+    delivered = sum(1 for p in captured if p.get("delivered"))
+    unmatched = len(captured) - delivered
+    pending_fans = ps.get("pending_fans", 0)
 
-    # Daily bar chart data
-    daily   = ps.get("daily",[])
-    max_rev = max((d["revenue_cents"] for d in daily), default=1) or 1
-    daily_bars = ""
-    for d in daily:
-        h   = max(4, int(d["revenue_cents"] / max_rev * 80))
-        amt = f"${d['revenue_cents']/100:.0f}"
-        daily_bars += f'<div class="bar-wrap"><div class="bar" style="height:{h}px" title="{amt}"></div><div class="bar-lbl">{d["date"]}<br><small>{amt}</small></div></div>'
+    # Conversation stats
+    total_fans = cs.get("total_fans", "—")
+    total_msgs = cs.get("total_messages", "—")
+    msgs_today = cs.get("messages_today", "—")
+    active_today = cs.get("active_fans_today", "—")
+    stars_total = cs.get("stars_total", 0)
+    stars_today = cs.get("stars_today", 0)
+    conv_online = cs != {}
 
-    # Daily conv chart
-    daily_conv = cs.get("daily_messages",[]) if cs else []
-    max_msg    = max((d["count"] for d in daily_conv), default=1) or 1
-    conv_bars  = ""
-    for d in daily_conv:
-        h   = max(4, int(d["count"] / max_msg * 80))
-        cnt = d["count"]
-        dt  = d["date"]
-        conv_bars += f'<div class="bar-wrap"><div class="bar conv-bar" style="height:{h}px" title="{cnt} msgs"></div><div class="bar-lbl">{dt}<br><small>{cnt}</small></div></div>'
-
-    # Stars chart
-    daily_stars = cs.get("daily_stars", []) if cs else []
-    max_stars   = max((d.get("stars", 0) for d in daily_stars), default=1) or 1
-    star_bars   = "".join(
-        f'<div class="bar-wrap"><div class="bar" style="height:{max(4, int(d.get("stars",0)/max_stars*80))}px;background:#f59e0b"></div>'
-        f'<div class="bar-lbl">{d["date"]}<br><small>{d.get("stars",0)}</small></div></div>'
-        for d in daily_stars
+    # Build daily revenue chart
+    daily = ps.get("daily", [])
+    max_rev = max((d.get("revenue_cents",0) for d in daily), default=1) or 1
+    daily_bars = "".join(
+        '<div class="bar-wrap">'
+        '<div class="bar" style="height:{}px;background:#f472b6" title="${:.2f}"></div>'
+        '<div class="bar-lbl">{}<br><small>${:.0f}</small></div></div>'.format(
+            max(4, int(d.get("revenue_cents",0)/max_rev*80)),
+            d.get("revenue_cents",0)/100,
+            d.get("date",""),
+            d.get("revenue_cents",0)/100
+        ) for d in daily
     )
 
-    # Top payers table
-    payer_rows = ""
-    for p in ps.get("top_payers",[]):
-        payer_rows += f'<tr><td>{p["name"]}</td><td>{p["email"]}</td><td><strong>${p["amount"]/100:.2f}</strong></td><td>{p["count"]}</td></tr>'
+    # Daily messages chart
+    daily_conv = cs.get("daily_messages",[])
+    max_msg = max((d.get("count",0) for d in daily_conv), default=1) or 1
+    conv_bars = "".join(
+        '<div class="bar-wrap">'
+        '<div class="bar conv-bar" style="height:{}px" title="{} msgs"></div>'
+        '<div class="bar-lbl">{}<br><small>{}</small></div></div>'.format(
+            max(4, int(d.get("count",0)/max_msg*80)), d.get("count",0), d.get("date",""), d.get("count",0)
+        ) for d in daily_conv
+    ) if daily_conv else ""
 
-    # Recent payments table
-    pay_rows = ""
-    for e in ps.get("recent",[])[:30]:
-        clr = "#22c55e" if e.get("delivered") else ("#f59e0b" if e.get("status","") in ("CAPTURED","AUTHORIZED","COMPLETED","") else "#ef4444")
-        dot = "✅" if e.get("delivered") else ("💵" if e.get("status","") in ("CAPTURED","AUTHORIZED","COMPLETED","") else "❌")
-        bf  = " <span class='badge'>backfill</span>" if e.get("backfilled") else ""
-        pay_rows += f"""<tr>
-            <td>{e.get('ts','')[:16].replace('T',' ')}</td>
-            <td><strong>{e.get('name','?')}</strong></td>
-            <td style="color:{clr}">{dot} {e.get('amount_usd','?')}</td>
-            <td>{e.get('email','')}</td>
-            <td>{'✅ Delivered' if e.get('delivered') else '📬 Unmatched'}{bf}</td>
-        </tr>"""
+    # Daily stars chart
+    daily_stars = cs.get("daily_stars", [])
+    max_stars = max((d.get("stars",0) for d in daily_stars), default=1) or 1
+    star_bars = "".join(
+        '<div class="bar-wrap">'
+        '<div class="bar" style="height:{}px;background:#f59e0b" title="{}⭐"></div>'
+        '<div class="bar-lbl">{}<br><small>{}⭐</small></div></div>'.format(
+            max(4, int(d.get("stars",0)/max_stars*80)), d.get("stars",0), d.get("date",""), d.get("stars",0)
+        ) for d in daily_stars
+    ) if daily_stars else ""
+
+    # Top payers
+    from collections import defaultdict
+    payer_map = defaultdict(lambda: {"name":"","amount":0,"count":0,"email":"","chat_id":None})
+    for p in captured:
+        k = p.get("email","?")
+        payer_map[k]["name"]  = p.get("name","?")
+        payer_map[k]["email"] = k
+        payer_map[k]["amount"] += p.get("amount_cents",0)
+        payer_map[k]["count"]  += 1
+        if p.get("chat_id"): payer_map[k]["chat_id"] = p.get("chat_id")
+    top_payers = sorted(payer_map.values(), key=lambda x: x["amount"], reverse=True)[:10]
+    payer_rows = "".join(
+        '<tr><td>{}</td><td>{}</td><td><strong>${:.2f}</strong></td><td>{}</td><td>{}</td></tr>'.format(
+            p["name"], p["email"], p["amount"]/100, p["count"],
+            '<span class="badge green">chat '+str(p["chat_id"])+'</span>' if p["chat_id"] else '<span class="badge">unmatched</span>'
+        ) for p in top_payers
+    ) or '<tr><td colspan=5 class="empty">No payments yet</td></tr>'
+
+    # All payments table (data for JS filter)
+    pay_data = json.dumps(list(reversed(all_payments)), default=str)
 
     # Top fans table
     fan_rows = ""
-    for f in cs.get("top_fans",[])[:15] if cs else []:
-        fan_rows += f'<tr><td>{f["name"]}</td><td>{f["chat_id"]}</td><td>{f["msg_count"]}</td><td>{"🔥"*min(f["heat"],5)}</td><td>{f["last_seen"]}</td></tr>'
+    for f in cs.get("top_fans",[])[:20] if cs else []:
+        heat_dots = "🔥" * min(f.get("heat",1),5)
+        fan_rows += '<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>'.format(
+            f.get("name","?"), f.get("chat_id",""), f.get("msg_count",""),
+            heat_dots, f.get("last_seen","?")
+        )
     if not fan_rows:
-        fan_rows = '<tr><td colspan=5 style="color:#555;text-align:center;padding:20px">Add STATS_URL env var to show fan data</td></tr>'
+        fan_rows = '<tr><td colspan=5 class="empty">{}</td></tr>'.format(
+            "Add STATS_URL env var to show fan data" if not conv_online else "No fans yet"
+        )
 
-    now = time.strftime("%Y-%m-%d %H:%M UTC")
-    return f"""<!DOCTYPE html><html lang="en"><head>
+    return """<!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>🩷 Bella Ops Dashboard</title>
 <style>
-*{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#f0f0f0;padding:20px;min-height:100vh}}
-h1{{color:#f472b6;font-size:26px;margin-bottom:2px}}
-.sub{{color:#666;font-size:13px;margin-bottom:24px}}
-.section{{margin-bottom:36px}}
-h2{{color:#f472b6;font-size:16px;font-weight:600;margin-bottom:12px;text-transform:uppercase;letter-spacing:.05em}}
-.stats{{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px}}
-.stat{{background:#141414;border:1px solid #222;border-radius:12px;padding:16px 20px;min-width:110px;flex:1}}
-.stat .val{{font-size:26px;font-weight:700;color:#f472b6}}
-.stat .lbl{{font-size:11px;color:#666;margin-top:4px;line-height:1.4}}
-.conv-offline .val{{font-size:18px;color:#555}}
-table{{width:100%;border-collapse:collapse;background:#111;border-radius:12px;overflow:hidden}}
-th{{background:#1a1a1a;padding:10px 14px;text-align:left;font-size:11px;color:#666;text-transform:uppercase;letter-spacing:.05em}}
-td{{padding:10px 14px;border-top:1px solid #1a1a1a;font-size:13px}}
-tr:hover td{{background:#161616}}
-.badge{{background:#f472b620;color:#f472b6;padding:1px 6px;border-radius:4px;font-size:10px}}
-.charts{{display:flex;gap:24px;margin-bottom:24px;flex-wrap:wrap}}
-.chart{{background:#111;border:1px solid #1a1a1a;border-radius:12px;padding:16px;flex:1;min-width:280px}}
-.chart-title{{font-size:12px;color:#666;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px}}
-.bars{{display:flex;align-items:flex-end;gap:6px;height:90px}}
-.bar-wrap{{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}}
-.bar{{background:#f472b6;border-radius:3px 3px 0 0;width:100%;min-width:8px;transition:.3s}}
-.conv-bar{{background:#818cf8}}
-.bar-lbl{{font-size:9px;color:#555;text-align:center;line-height:1.3}}
-.refresh{{color:#444;font-size:11px;margin-top:32px;text-align:center}}
-a{{color:#f472b6;text-decoration:none}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#f0f0f0;padding:20px}
+h1{color:#f472b6;font-size:24px;margin-bottom:2px}
+.sub{color:#555;font-size:13px;margin-bottom:24px}
+h2{color:#f472b6;font-size:14px;font-weight:600;margin:28px 0 10px;text-transform:uppercase;letter-spacing:.06em}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.stat{background:#141414;border:1px solid #222;border-radius:10px;padding:14px 18px;flex:1;min-width:100px}
+.stat .val{font-size:24px;font-weight:700;color:#f472b6}
+.stat .lbl{font-size:11px;color:#555;margin-top:3px}
+.stat .sub2{font-size:11px;color:#888;margin-top:2px}
+.charts{display:flex;gap:14px;margin-bottom:8px;flex-wrap:wrap}
+.chart{background:#111;border:1px solid #1a1a1a;border-radius:10px;padding:14px;flex:1;min-width:220px}
+.chart-title{font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.bars{display:flex;align-items:flex-end;gap:5px;height:90px}
+.bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+.bar{background:#f472b6;border-radius:3px 3px 0 0;width:100%}
+.conv-bar{background:#818cf8}
+.bar-lbl{font-size:9px;color:#444;text-align:center;line-height:1.3}
+table{width:100%;border-collapse:collapse;background:#111;border-radius:10px;overflow:hidden;margin-bottom:8px}
+th{background:#181818;padding:9px 12px;text-align:left;font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.05em}
+td{padding:9px 12px;border-top:1px solid #1a1a1a;font-size:13px}
+tr:hover td{background:#161616}
+.empty{color:#333;text-align:center;padding:24px!important}
+.badge{background:#f472b620;color:#f472b6;padding:2px 7px;border-radius:4px;font-size:11px}
+.badge.green{background:#22c55e20;color:#22c55e}
+.badge.red{background:#ef444420;color:#ef4444}
+.badge.yellow{background:#f59e0b20;color:#f59e0b}
+.filters{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.filter-btn{background:#1a1a1a;border:1px solid #333;color:#888;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px}
+.filter-btn.active{background:#f472b620;border-color:#f472b6;color:#f472b6}
+.search-input{background:#1a1a1a;border:1px solid #333;color:#f0f0f0;padding:5px 12px;border-radius:6px;font-size:12px;width:200px}
+.search-input:focus{outline:none;border-color:#f472b6}
+.dot-green{color:#22c55e}
+.dot-yellow{color:#f59e0b}
+.dot-red{color:#ef4444}
+.footer{color:#333;font-size:11px;margin-top:28px;text-align:center}
+a{color:#f472b6;text-decoration:none}
 </style>
 <script>setTimeout(()=>location.reload(),60000)</script>
 </head><body>
 <h1>🩷 Bella Ops Dashboard</h1>
-<p class="sub">bellavistaxo · Live operations · auto-refreshes every 60s · {now}</p>
+<p class="sub">bellavistaxo · live ops · auto-refreshes 60s · """ + now_str + """</p>
 
-<div class="section">
-<h2>💰 Revenue Overview</h2>
+<h2>💰 Revenue</h2>
 <div class="stats">
-  <div class="stat"><div class="val">{rev}</div><div class="lbl">Total Revenue</div></div>
-  <div class="stat"><div class="val">{tp}</div><div class="lbl">Total Payments</div></div>
-  <div class="stat"><div class="val">{td}</div><div class="lbl">Auto-Delivered</div></div>
-  <div class="stat"><div class="val">{tum}</div><div class="lbl">Unmatched</div></div>
-  <div class="stat"><div class="val">{tpf}</div><div class="lbl">Pending Fans</div></div>
-  {conv_html}
-</div></div>
+  <div class="stat"><div class="val">$""" + f"{revenue_cents/100:.2f}" + """</div><div class="lbl">Total Revenue</div><div class="sub2">from """ + str(len(captured)) + """ payments</div></div>
+  <div class="stat"><div class="val">""" + str(len(captured)) + """</div><div class="lbl">Captured Payments</div><div class="sub2">""" + str(len(declined)) + """ declined</div></div>
+  <div class="stat"><div class="val">""" + str(delivered) + """</div><div class="lbl">Auto-Delivered</div><div class="sub2">content sent</div></div>
+  <div class="stat"><div class="val">""" + str(unmatched) + """</div><div class="lbl">Unmatched</div><div class="sub2">no chat ID yet</div></div>
+  <div class="stat"><div class="val">""" + str(pending_fans) + """</div><div class="lbl">Pending Fans</div><div class="sub2">awaiting payment</div></div>
+</div>
+
+<h2>💬 Conversations""" + ("" if conv_online else ' <span class="badge yellow">stats offline</span>') + """</h2>
+<div class="stats">
+  <div class="stat"><div class="val">""" + str(total_fans) + """</div><div class="lbl">Total Fans</div></div>
+  <div class="stat"><div class="val">""" + str(total_msgs) + """</div><div class="lbl">Total Messages</div></div>
+  <div class="stat"><div class="val">""" + str(msgs_today) + """</div><div class="lbl">Messages Today</div></div>
+  <div class="stat"><div class="val">""" + str(active_today) + """</div><div class="lbl">Active Today</div></div>
+  <div class="stat"><div class="val">""" + str(stars_total) + """⭐</div><div class="lbl">Stars Received</div><div class="sub2">via bot invoices</div></div>
+  <div class="stat"><div class="val">""" + str(stars_today) + """⭐</div><div class="lbl">Stars Today</div></div>
+</div>
 
 <div class="charts">
-  <div class="chart">
-    <div class="chart-title">💵 Daily Revenue (7d)</div>
-    <div class="bars">{daily_bars or '<div style="color:#333;margin:auto">no data</div>'}</div>
-  </div>
-  <div class="chart">
-    <div class="chart-title">💬 Daily Messages (7d)</div>
-    <div class="bars">{conv_bars or '<div style="color:#333;margin:auto;font-size:12px">Add STATS_URL for conversation data</div>'}</div>
-  </div>
-  <div class="chart">
-    <div class="chart-title">&#11088; Daily Stars (7d)</div>
-    <div class="bars">{star_bars or '<div style="color:#333;margin:auto;font-size:12px">No stars data yet</div>'}</div>
-  </div>
+  <div class="chart"><div class="chart-title">💵 Daily Revenue (7d)</div>
+    <div class="bars">""" + (daily_bars or '<div style="color:#333;margin:auto;font-size:11px">No data</div>') + """</div></div>
+  <div class="chart"><div class="chart-title">💬 Daily Messages (7d)</div>
+    <div class="bars">""" + (conv_bars or '<div style="color:#333;margin:auto;font-size:11px">Connecting...</div>') + """</div></div>
+  <div class="chart"><div class="chart-title">⭐ Daily Stars (7d)</div>
+    <div class="bars">""" + (star_bars or '<div style="color:#333;margin:auto;font-size:11px">No stars yet via bot</div>') + """</div></div>
 </div>
 
-<div class="section">
-<h2>🌟 Top Payers (All Time)</h2>
-<table><thead><tr><th>Name</th><th>Email</th><th>Total Paid</th><th>Payments</th></tr></thead>
-<tbody>{payer_rows or '<tr><td colspan=4 style="color:#333;text-align:center;padding:20px">No payments yet</td></tr>'}</tbody></table>
-</div>
+<h2>🌟 Top Payers</h2>
+<table><thead><tr><th>Name</th><th>Email</th><th>Total Paid</th><th>Payments</th><th>Matched</th></tr></thead>
+<tbody>""" + payer_rows + """</tbody></table>
 
-<div class="section">
-<h2>📋 Recent Transactions</h2>
-<table><thead><tr><th>Time</th><th>Name</th><th>Amount</th><th>Email</th><th>Status</th></tr></thead>
-<tbody>{pay_rows or '<tr><td colspan=5 style="color:#333;text-align:center;padding:20px">No transactions yet</td></tr>'}</tbody></table>
+<h2>📋 All Transactions</h2>
+<div class="filters">
+  <button class="filter-btn active" onclick="filterPay('all',this)">All (""" + str(len(all_payments)) + """)</button>
+  <button class="filter-btn" onclick="filterPay('captured',this)">✅ Captured (""" + str(len(captured)) + """)</button>
+  <button class="filter-btn" onclick="filterPay('declined',this)">❌ Declined (""" + str(len(declined)) + """)</button>
+  <button class="filter-btn" onclick="filterPay('unmatched',this)">📬 Unmatched (""" + str(unmatched) + """)</button>
+  <input class="search-input" id="paySearch" oninput="filterPay(currentFilter,null)" placeholder="Search name / email…">
 </div>
+<table id="payTable"><thead><tr><th>Date</th><th>Name</th><th>Amount</th><th>Email</th><th>Status</th><th>Chat ID</th></tr></thead>
+<tbody id="payBody"></tbody></table>
 
-<div class="section">
-<h2>👥 Active Fans (Most Recent)</h2>
-<table><thead><tr><th>Name</th><th>Chat ID</th><th>Messages</th><th>Heat</th><th>Last Active</th></tr></thead>
-<tbody>{fan_rows}</tbody></table>
+<h2>👥 Active Fans</h2>
+<div class="filters">
+  <input class="search-input" id="fanSearch" oninput="filterFans()" placeholder="Search fan name…" style="width:250px">
 </div>
+<table id="fanTable"><thead><tr><th>Name</th><th>Chat ID</th><th>Messages</th><th>Heat</th><th>Last Active</th></tr></thead>
+<tbody id="fanBody">""" + fan_rows + """</tbody></table>
 
-<div class="refresh">Last updated: {now} · <a href="?token=bella-admin-2024">Refresh</a> · Commands: /stats /payments /history /fan /deliver</div>
+<p class="footer">Updated: """ + now_str + """ · <a href="?token=bella-admin-2024">Refresh</a> · <a href="/payments?token=bella-admin-2024">Raw JSON</a></p>
+
+<script>
+const PAYMENTS = """ + pay_data + """;
+let currentFilter = 'all';
+
+function renderPayRows(rows) {
+  const q = (document.getElementById('paySearch').value||'').toLowerCase();
+  const filtered = rows.filter(p => {
+    if (q && !((p.name||'').toLowerCase().includes(q)||(p.email||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  const tbody = document.getElementById('payBody');
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan=6 class="empty">No matching payments</td></tr>'; return; }
+  tbody.innerHTML = filtered.map(p => {
+    const isDeclined = (p.event_type||'').endsWith('DECLINED') || p.status === 'DECLINED';
+    const isCaptured = p.status === 'CAPTURED' || p.status === 'AUTHORIZED' || p.status === 'COMPLETED';
+    const dot = p.delivered ? '<span class="dot-green">✅</span>' : (isDeclined ? '<span class="dot-red">❌</span>' : (isCaptured ? '<span class="dot-yellow">📬</span>' : '<span>?</span>'));
+    const bf = p.backfilled ? ' <span class="badge" style="font-size:9px">backfill</span>' : '';
+    return '<tr>'
+      +'<td>'+(p.ts||'').slice(0,10)+'</td>'
+      +'<td><strong>'+(p.name||'?')+'</strong>'+bf+'</td>'
+      +'<td>'+dot+' '+(p.amount_usd||'?')+'</td>'
+      +'<td style="color:#666;font-size:12px">'+(p.email||'')+'</td>'
+      +'<td>'+(p.status||'?')+'</td>'
+      +'<td style="font-size:12px;color:#888">'+(p.chat_id||'—')+'</td>'
+      +'</tr>';
+  }).join('');
+}
+
+function filterPay(type, btn) {
+  currentFilter = type;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  let rows = PAYMENTS;
+  if (type === 'captured') rows = rows.filter(p => !((p.event_type||'').endsWith('DECLINED')||p.status==='DECLINED'));
+  else if (type === 'declined') rows = rows.filter(p => (p.event_type||'').endsWith('DECLINED')||p.status==='DECLINED');
+  else if (type === 'unmatched') rows = rows.filter(p => !p.delivered && !((p.event_type||'').endsWith('DECLINED')||p.status==='DECLINED'));
+  renderPayRows(rows);
+}
+
+function filterFans() {
+  const q = (document.getElementById('fanSearch').value||'').toLowerCase();
+  document.querySelectorAll('#fanBody tr').forEach(tr => {
+    const text = tr.textContent.toLowerCase();
+    tr.style.display = (!q || text.includes(q)) ? '' : 'none';
+  });
+}
+
+filterPay('all', document.querySelector('.filter-btn.active'));
+</script>
 </body></html>"""
 
-
-# ── Sig validation ────────────────────────────────────────────────────────────
 def valid_sig(body, hdr):
     if not WEBHOOK_SECRET: return True
     mac = hmac.new(WEBHOOK_SECRET.encode(), body, hashlib.sha1)
