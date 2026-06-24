@@ -102,6 +102,69 @@ def notify_owners(name, amount_cents, email, delivered, fan_chat=None):
     for oid in OWNER_CHAT_IDS: send_telegram(oid, msg)
 
 
+# ── Fanvue auto-refresh ──────────────────────────────────────────────────────
+FANVUE_CLIENT_ID     = os.environ.get("FANVUE_CLIENT_ID","")
+FANVUE_CLIENT_SECRET = os.environ.get("FANVUE_CLIENT_SECRET","")
+FANVUE_REFRESH_TOKEN = os.environ.get("FANVUE_REFRESH_TOKEN","")
+
+def fanvue_get_access_token():
+    import urllib.parse as _up, base64 as _b64
+    rt = FANVUE_REFRESH_TOKEN
+    if not rt or not FANVUE_CLIENT_ID: return None
+    creds = _b64.b64encode(f"{FANVUE_CLIENT_ID}:{FANVUE_CLIENT_SECRET}".encode()).decode()
+    data = _up.urlencode({"grant_type":"refresh_token","refresh_token":rt}).encode()
+    req = urllib.request.Request("https://auth.fanvue.com/oauth2/token", data=data,
+          headers={"Content-Type":"application/x-www-form-urlencoded","Authorization":f"Basic {creds}"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return json.loads(r.read()).get("access_token")
+    except Exception as e:
+        print(f"[fanvue_auth] {e}"); return None
+
+def fanvue_refresh_stats():
+    at = fanvue_get_access_token()
+    if not at: return
+    try:
+        req = urllib.request.Request("https://api.fanvue.com/insights/earnings/summary",
+              headers={"Authorization":f"Bearer {at}"})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            data = json.loads(r.read())
+        req2 = urllib.request.Request("https://api.fanvue.com/insights/top-spenders?limit=5",
+               headers={"Authorization":f"Bearer {at}"})
+        with urllib.request.urlopen(req2, timeout=15) as r2:
+            sp_data = json.loads(r2.read())
+        totals = data.get("totals",{}).get("allTime",{})
+        gross  = totals.get("gross",0)
+        net    = totals.get("net",0)
+        bd     = data.get("breakdownBySource",{})
+        spenders = [{"name":s["user"]["displayName"],"gross_cents":s["gross"],"gross":f'${s["gross"]/100:.2f}'}
+                    for s in sp_data.get("data",[])]
+        stats = {
+            "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
+            "source": "fanvue_api_auto",
+            "earnings": {"all_time_gross_cents":gross,"all_time_net_cents":net,
+                         "all_time_gross":f"${gross/100:.2f}","all_time_net":f"${net/100:.2f}",
+                         "available_balance":"see Fanvue dashboard"},
+            "breakdown": {k:{"gross_cents":v.get("gross",0),"gross":f'${v.get("gross",0)/100:.2f}'}
+                          for k,v in bd.items() if v.get("gross",0)>0},
+            "top_spenders": spenders
+        }
+        save_json(os.path.join(DATA_DIR,"fanvue_stats.json"), stats)
+        print(f"[fanvue] Stats refreshed: ${gross/100:.2f} gross all time")
+    except Exception as e:
+        print(f"[fanvue_refresh] {e}")
+
+def start_fanvue_scheduler():
+    import threading as _t
+    def _loop():
+        fanvue_refresh_stats()  # run immediately on startup
+        while True:
+            _t.Event().wait(3600)  # refresh hourly
+            fanvue_refresh_stats()
+    if FANVUE_REFRESH_TOKEN:
+        _t.Thread(target=_loop, daemon=True).start()
+        print("[fanvue] Auto-refresh scheduler started (hourly)")
+
 # ── Smart matching ────────────────────────────────────────────────────────────
 def find_unmatched(hours=2, amount_cents=None):
     log    = load_json(PAYMENTS_LOG, [])
@@ -710,4 +773,5 @@ if __name__ == "__main__":
     print(f"[startup] Owner IDs: {OWNER_CHAT_IDS}")
     print(f"[startup] Stats URL: {STATS_URL or 'not set'}")
     print(f"[startup] Content delivery: {'custom' if CONTENT_MESSAGE else 'placeholder mode'}")
+    start_fanvue_scheduler()
     HTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
