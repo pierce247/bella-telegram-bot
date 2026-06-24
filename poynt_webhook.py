@@ -613,6 +613,56 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200,{"ok":True})
             except Exception as e: self.send_json(500,{"error":str(e)})
 
+        elif p.path == "/oauth/callback":
+            # Fanvue OAuth 2.0 callback — captures code and exchanges for tokens
+            qs = parse_qs(p.query)
+            code = qs.get("code",[""])[0]
+            error = qs.get("error",[""])[0]
+            if error:
+                html = f"<h2>OAuth Error: {error}</h2><p>{qs.get('error_description',[''])[0]}</p>"
+                self.send_html(400, html)
+                return
+            if not code:
+                self.send_html(400, "<h2>No code received</h2>")
+                return
+            # Exchange code for tokens
+            import urllib.parse as _up
+            fv_client_id     = os.environ.get("FANVUE_CLIENT_ID","")
+            fv_client_secret = os.environ.get("FANVUE_CLIENT_SECRET","")
+            redirect_uri     = f"https://bella-poynt-webhook-production.up.railway.app/oauth/callback"
+            token_data = _up.urlencode({
+                "grant_type":"authorization_code","code":code,
+                "redirect_uri":redirect_uri,
+                "client_id":fv_client_id,"client_secret":fv_client_secret
+            }).encode()
+            req = urllib.request.Request("https://auth.fanvue.com/oauth2/token", data=token_data,
+                  headers={"Content-Type":"application/x-www-form-urlencoded"})
+            try:
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    tokens = json.loads(r.read())
+                refresh_token = tokens.get("refresh_token","")
+                access_token  = tokens.get("access_token","")
+                expires_in    = tokens.get("expires_in",0)
+                # Save to fanvue_tokens.json on the volume
+                save_json(os.path.join(DATA_DIR,"fanvue_tokens.json"), {
+                    "refresh_token": refresh_token, "access_token": access_token,
+                    "expires_in": expires_in, "captured_at": time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime())
+                })
+                print(f"[oauth] Fanvue tokens saved. Refresh token: {refresh_token[:20]}...")
+                html = (f"<h2>Connected!</h2>"
+                        f"<p>Access token expires in: {expires_in}s</p>"
+                        f"<p>Refresh token saved to Railway volume.</p>"
+                        f"<p style='font-family:monospace;background:#eee;padding:10px;word-break:break-all'>"
+                        f"<b>Copy this refresh token to Railway FANVUE_REFRESH_TOKEN env var:</b><br><br>"
+                        f"{refresh_token}</p>"
+                        f"<p>You can now close this tab.</p>")
+                self.send_html(200, html)
+            except urllib.error.HTTPError as e:
+                err_body = e.read().decode()
+                self.send_html(400, f"<h2>Token exchange failed (HTTP {e.code})</h2><pre>{err_body}</pre>")
+            except Exception as e:
+                self.send_html(500, f"<h2>Error</h2><p>{e}</p>")
+
         elif p.path == "/check-payment":
             try:
                 data=json.loads(body); cid=data.get("chat_id"); fname=data.get("name","babe")
