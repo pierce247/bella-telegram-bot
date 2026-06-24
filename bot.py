@@ -107,7 +107,7 @@ def _stats_handler_factory(db_fn, db_get_fn):
 
 def start_stats_server():
     """Start lightweight stats API on port 8081 in background thread."""
-    stats_port = int(os.environ.get("STATS_PORT", "8081"))
+    stats_port = int(os.environ.get("STATS_PORT", "8082"))
     handler    = _stats_handler_factory(_get_db, db_load_history)
     server     = _http_server.HTTPServer(("0.0.0.0", stats_port), handler)
     t = _stats_thread_mod.Thread(target=server.serve_forever, daemon=True)
@@ -1153,7 +1153,31 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         tg("sendMessage", {"chat_id": from_id, "text": "📊 Dashboard:\nhttps://bella-poynt-webhook-production.up.railway.app/dashboard?token=bella-admin-2024"})
         return None, None
 
-    # /stats — show conversation stats from local DB
+    if text.startswith("/search") and from_id in OWNER_CHAT_IDS:
+        sq = text[7:].strip()
+        if not sq:
+            tg("sendMessage", {"chat_id": from_id, "text": "Usage: /search NAME"})
+        else:
+            try:
+                sc = _get_db()
+                sr = sc.execute(
+                    "SELECT chat_id, name, msg_count, heat, last_seen FROM fans WHERE LOWER(name) LIKE ? ORDER BY last_seen DESC LIMIT 10",
+                    ("%"+sq.lower()+"%",)
+                ).fetchall()
+                if not sr:
+                    tg("sendMessage", {"chat_id": from_id, "text": "No fans found matching: " + sq})
+                else:
+                    sl = ["Search results for: " + sq + chr(10)]
+                    for r in sr:
+                        ls = time.strftime("%m/%d", time.localtime(r[4])) if r[4] else "?"
+                        sl.append("  chat_id " + str(r[0]) + " | " + (r[1] or "?") + " | " + str(r[2]) + " msgs | last: " + ls)
+                    sl.append(chr(10) + "Use /fan CHAT_ID for full profile")
+                    tg("sendMessage", {"chat_id": from_id, "text": chr(10).join(sl)})
+            except Exception as se:
+                tg("sendMessage", {"chat_id": from_id, "text": "Search error: " + str(se)})
+        return None, None
+
+        # /stats — show conversation stats from local DB
     if text.strip() == "/stats" and from_id in OWNER_CHAT_IDS:
         try:
             _conn = _get_db()
@@ -1256,11 +1280,11 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     # ── END PAYMENT & DASHBOARD COMMANDS ──────────────────────────────────
 
     # Skip messages sent BY Pierce (outgoing business messages) — capture fan + save to DB history
-    if OWNER_CHAT_ID and from_id == OWNER_CHAT_ID:
+    if from_id in OWNER_CHAT_IDS:
         _out_chat_id = msg.get("chat", {}).get("id")
         _out_biz = msg.get("business_connection_id", "")
         _out_text = msg.get("text", "").strip()
-        if _out_chat_id and _out_chat_id != OWNER_CHAT_ID:
+        if _out_chat_id and _out_chat_id not in OWNER_CHAT_IDS:
             # ── Gift shortcut: Pierce types /coffee /wine etc. IN a fan's Business chat ──
             # Intercept before saving as a regular message
             _gift_key = _out_text.lstrip("/").lower() if _out_text.startswith("/") else None
@@ -1636,9 +1660,86 @@ class PoyntWebhookHandler(BaseHTTPRequestHandler):
             log.error(f"Poynt webhook error: {e}")
 
     def do_GET(self):
-        self.send_response(200)
+        from urllib.parse import urlparse, parse_qs
+        parsed = urlparse(self.path)
+        qs     = parse_qs(parsed.query)
+        token  = self.headers.get("X-Admin-Token","") or qs.get("token",[""])[0]
+        admin_t = os.environ.get("ADMIN_TOKEN","bella-admin-2024")
+
+        if parsed.path in ("/", "/health"):
+            self._resp(200, b"Bella Bot Webhook OK")
+        elif parsed.path == "/api/stats":
+            if token != admin_t: self._json(401, {"error":"unauthorized"}); return
+            try:
+                conn = _get_db()
+                tf = conn.execute("SELECT COUNT(*) FROM fans").fetchone()[0]
+                tm = conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+                td = conn.execute("SELECT COUNT(*) FROM messages WHERE ts > ?", (time.time()-86400,)).fetchone()[0]
+                tw = conn.execute("SELECT COUNT(*) FROM messages WHERE ts > ?", (time.time()-604800,)).fetchone()[0]
+                at = conn.execute("SELECT COUNT(DISTINCT chat_id) FROM messages WHERE ts > ?", (time.time()-86400,)).fetchone()[0]
+                aw = conn.execute("SELECT COUNT(DISTINCT chat_id) FROM messages WHERE ts > ?", (time.time()-604800,)).fetchone()[0]
+                st = conn.execute("SELECT COALESCE(SUM(stars),0) FROM star_payments").fetchone()[0]
+                sd = conn.execute("SELECT COALESCE(SUM(stars),0) FROM star_payments WHERE ts > ?", (time.time()-86400,)).fetchone()[0]
+                fans_r = conn.execute("SELECT chat_id,name,msg_count,heat,last_seen,first_seen FROM fans ORDER BY last_seen DESC LIMIT 50").fetchall()
+                daily = []
+                for i in range(6,-1,-1):
+                    ds=time.time()-(i+1)*86400; de=time.time()-i*86400
+                    cnt=conn.execute("SELECT COUNT(*) FROM messages WHERE ts>? AND ts<=?",(ds,de)).fetchone()[0]
+                    daily.append({"date":time.strftime("%m/%d",time.localtime(de)),"count":cnt})
+                dstars = []
+                for i in range(6,-1,-1):
+                    ds=time.time()-(i+1)*86400; de=time.time()-i*86400
+                    s=conn.execute("SELECT COALESCE(SUM(stars),0) FROM star_payments WHERE ts>? AND ts<=?",(ds,de)).fetchone()[0]
+                    dstars.append({"date":time.strftime("%m/%d",time.localtime(de)),"stars":s,"usd":round(s*0.013,2)})
+                fans = [{"chat_id":r[0],"name":r[1] or "?","msg_count":r[2],"heat":r[3],
+                         "last_seen":time.strftime("%m/%d %H:%M",time.localtime(r[4])) if r[4] else "?",
+                         "first_seen":time.strftime("%m/%d",time.localtime(r[5])) if r[5] else "?"}
+                        for r in fans_r]
+                self._json(200,{"total_fans":tf,"total_messages":tm,"messages_today":td,
+                    "messages_this_week":tw,"active_fans_today":at,"active_fans_week":aw,
+                    "daily_messages":daily,"top_fans":fans,"stars_total":st,"stars_today":sd,
+                    "daily_stars":dstars,"generated_at":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime())})
+            except Exception as e:
+                self._json(500, {"error": str(e)})
+        elif parsed.path == "/api/search":
+            if token != admin_t: self._json(401, {"error":"unauthorized"}); return
+            name_q = qs.get("name",[""])[0].lower()
+            if not name_q: self._json(400, {"error":"name param required"}); return
+            try:
+                conn = _get_db()
+                rows = conn.execute(
+                    "SELECT chat_id,name,msg_count,heat,last_seen FROM fans WHERE LOWER(name) LIKE ? ORDER BY last_seen DESC LIMIT 20",
+                    ("%"+name_q+"%",)
+                ).fetchall()
+                results = [{"chat_id":r[0],"name":r[1],"msg_count":r[2],"heat":r[3],
+                            "last_seen":time.strftime("%m/%d %H:%M",time.localtime(r[4])) if r[4] else "?"} for r in rows]
+                self._json(200, {"query": name_q, "results": results})
+            except Exception as e:
+                self._json(500, {"error": str(e)})
+        elif parsed.path == "/api/fans":
+            if token != admin_t: self._json(401, {"error":"unauthorized"}); return
+            try:
+                conn = _get_db()
+                rows = conn.execute("SELECT chat_id,name,msg_count,heat,last_seen FROM fans ORDER BY last_seen DESC LIMIT 200").fetchall()
+                fans = [{"chat_id":r[0],"name":r[1],"msg_count":r[2],"heat":r[3],
+                         "last_seen":time.strftime("%m/%d %H:%M",time.localtime(r[4])) if r[4] else "?"} for r in rows]
+                self._json(200, {"count": len(fans), "fans": fans})
+            except Exception as e:
+                self._json(500, {"error": str(e)})
+        else:
+            self._resp(200, b"Bella Bot Webhook OK")
+
+    def _resp(self, code, body):
+        self.send_response(code); self.end_headers(); self.wfile.write(body)
+
+    def _json(self, code, data):
+        body = json.dumps(data, default=str).encode()
+        self.send_response(code)
+        self.send_header("Content-Type","application/json")
+        self.send_header("Access-Control-Allow-Origin","*")
+        self.send_header("Content-Length",str(len(body)))
         self.end_headers()
-        self.wfile.write(b"Bella Bot Webhook OK")
+        self.wfile.write(body)
 
 def start_webhook_server():
     port = int(os.environ.get("PORT", 8080))
