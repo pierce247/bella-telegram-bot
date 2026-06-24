@@ -902,20 +902,36 @@ def build_dashboard(payment_stats, conv_stats):
         ) for d in fv_daily
     )
 
-    # ── Payer tables ────────────────────────────────────────────────────────
+    # ── Payer aggregation (key by name+email to avoid merging different people) ──
     from collections import defaultdict
     payer_map = defaultdict(lambda: {"name":"","amount":0,"count":0,"email":"","chat_id":None})
     for p in cap:
-        k=p.get("email","?"); payer_map[k]["name"]=p.get("name","?"); payer_map[k]["email"]=k
-        payer_map[k]["amount"]+=p.get("amount_cents",0); payer_map[k]["count"]+=1
-        if p.get("chat_id"): payer_map[k]["chat_id"]=p.get("chat_id")
-    top_payers = sorted(payer_map.values(), key=lambda x:x["amount"], reverse=True)[:8]
+        name = (p.get("name","") or "Unknown").strip()
+        email = (p.get("email","") or "").strip()
+        # Use name as primary key; fall back to email if name is blank
+        k = name.lower() if name and name != "Unknown" else (email or "unknown")
+        payer_map[k]["name"] = name or email or "Unknown"
+        payer_map[k]["email"] = email
+        payer_map[k]["amount"] += p.get("amount_cents", 0)
+        payer_map[k]["count"] += 1
+        if p.get("chat_id"): payer_map[k]["chat_id"] = p.get("chat_id")
+    top_payers = sorted(payer_map.values(), key=lambda x: x["amount"], reverse=True)[:8]
     payer_rows = "".join(
-        '<tr><td>{}</td><td>{}</td><td><strong>${:.2f}</strong></td><td>{}</td><td>{}</td></tr>'.format(
-            p["name"],p["email"],p["amount"]/100,p["count"],
-            '<span class="badge green">chat '+str(p["chat_id"])+'</span>' if p["chat_id"] else '<span class="badge">unmatched</span>'
+        '<div class="pay-card captured" style="cursor:default">'
+        '<div class="pay-summary">'
+        '<div class="pay-icon">👤</div>'
+        '<div class="pay-main">'
+        '<div class="pay-name">{name}</div>'
+        '<div class="pay-meta">{email}{count}</div>'
+        '</div>'
+        '<div class="pay-amount">${amount:.2f}</div>'
+        '</div></div>'.format(
+            name=p["name"],
+            email=(p["email"] + " · ") if p["email"] else "",
+            count=str(p["count"]) + (" payment" if p["count"]==1 else " payments"),
+            amount=p["amount"]/100
         ) for p in top_payers
-    ) or '<tr><td colspan=5 class="empty">No payments yet</td></tr>'
+    ) or '<div style="color:#333;text-align:center;padding:16px">No payments yet</div>'
 
     pay_data = json.dumps(list(reversed(all_p)), default=str)
 
@@ -1059,8 +1075,7 @@ table{font-size:12px}th,td{padding:7px 10px!important}
   <div class="stat"><div class="val">""" + str(pending_fans) + """</div><div class="lbl">Pending Fans</div></div>
 </div>
 <h2>🌟 Top Payers (GoDaddy)</h2>
-<table><thead><tr><th>Name</th><th>Email</th><th>Total</th><th>Payments</th><th>Matched</th></tr></thead>
-<tbody>""" + payer_rows + """</tbody></table>
+<div class="pay-list">""" + payer_rows + """</div>
 
 <h2>📋 All Transactions</h2>
 <div class="filters">
