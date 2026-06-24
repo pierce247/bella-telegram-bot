@@ -601,6 +601,20 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200,{"ok":True,"count":len(payments)})
             except Exception as e: self.send_json(500,{"error":str(e)})
 
+        elif p.path == "/store-pkce":
+            # Store PKCE code_verifier before OAuth redirect
+            try:
+                data  = json.loads(body)
+                token = data.get("token","") or self.headers.get("X-Admin-Token","")
+                if token != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
+                save_json(os.path.join(DATA_DIR,"fanvue_pkce.json"), {
+                    "code_verifier": data.get("code_verifier",""),
+                    "state": data.get("state",""),
+                    "stored_at": time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime())
+                })
+                self.send_json(200,{"ok":True})
+            except Exception as e: self.send_json(500,{"error":str(e)})
+
         elif p.path == "/update-fanvue":
             # Store fresh Fanvue stats (called from Hyperagent after MCP fetch)
             try:
@@ -630,11 +644,19 @@ class Handler(BaseHTTPRequestHandler):
             fv_client_id     = os.environ.get("FANVUE_CLIENT_ID","")
             fv_client_secret = os.environ.get("FANVUE_CLIENT_SECRET","")
             redirect_uri     = f"https://bella-poynt-webhook-production.up.railway.app/oauth/callback"
-            token_data = _up.urlencode({
+            # PKCE: code_verifier is stored in fanvue_pkce.json on the volume
+            pkce = load_json(os.path.join(DATA_DIR,"fanvue_pkce.json"), {})
+            code_verifier = pkce.get("code_verifier","")
+            token_params = {
                 "grant_type":"authorization_code","code":code,
                 "redirect_uri":redirect_uri,
-                "client_id":fv_client_id,"client_secret":fv_client_secret
-            }).encode()
+                "client_id":fv_client_id
+            }
+            if code_verifier:
+                token_params["code_verifier"] = code_verifier
+            else:
+                token_params["client_secret"] = fv_client_secret
+            token_data = _up.urlencode(token_params).encode()
             req = urllib.request.Request("https://auth.fanvue.com/oauth2/token", data=token_data,
                   headers={"Content-Type":"application/x-www-form-urlencoded"})
             try:
