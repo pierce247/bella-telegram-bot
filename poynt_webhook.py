@@ -635,6 +635,10 @@ async def _query_stars_balance():
         result["note"] = "Upgrade Telethon or check Stars in Telegram app"
     except Exception as e:
         result["error"] = str(e)[:200]
+    # Cache successful balance query
+    if "personal" in result:
+        try: save_json(os.path.join(DATA_DIR,"stars_balance_cache.json"), result)
+        except: pass
     return result
 
 async def run_telethon_authed():
@@ -780,7 +784,7 @@ def get_payment_stats():
             "daily":daily,"top_payers":top_payers,"recent":list(reversed(log))[:50]}
 
 def get_conv_stats():
-    """Fetch conversation stats from bella-bot stats API + inject Fanvue data."""
+    """Fetch conversation stats from bella-bot stats API + inject Fanvue + Stars balance."""
     result = {}
     if STATS_URL:
         try:
@@ -790,6 +794,16 @@ def get_conv_stats():
         except: pass
     # Inject latest Fanvue stats
     result["_fanvue"] = load_json(os.path.join(DATA_DIR,"fanvue_stats.json"), {})
+    # Inject Stars balance if Telethon is connected
+    if _client:
+        try:
+            fut = asyncio.run_coroutine_threadsafe(_query_stars_balance(), _STARS_LOOP)
+            stars = fut.result(timeout=8)
+            result["_stars_balance"] = stars
+        except Exception: pass
+    else:
+        # Use cached balance from last successful query
+        result["_stars_balance"] = load_json(os.path.join(DATA_DIR,"stars_balance_cache.json"), {})
     return result
 
 
@@ -810,6 +824,12 @@ def build_dashboard(payment_stats, conv_stats):
     fv_net_cents = fv.get("earnings",{}).get("all_time_net_cents",0)
     stars_total  = cs.get("stars_total",0)
     stars_usd    = round(stars_total*0.013,2)
+    # Real Stars balance from MTProto
+    _sb = cs.get("_stars_balance",{})
+    if _sb and "personal" in _sb and "error" not in _sb:
+        _total_real = sum(v.get("stars",0) for k,v in _sb.items() if isinstance(v,dict))
+        stars_usd = round(_total_real * 0.013, 2)
+        stars_total = _total_real
 
     combined_cents = gd_rev_cents + fv_rev_cents + int(stars_usd*100)
     combined_str   = f"${combined_cents/100:.2f}"
