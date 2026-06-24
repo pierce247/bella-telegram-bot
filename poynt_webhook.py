@@ -244,8 +244,10 @@ def build_dashboard(payment_stats, conv_stats):
     max_msg    = max((d["count"] for d in daily_conv), default=1) or 1
     conv_bars  = ""
     for d in daily_conv:
-        h = max(4, int(d["count"] / max_msg * 80))
-        conv_bars += f'<div class="bar-wrap"><div class="bar conv-bar" style="height:{h}px" title="{d[\"count\"]} msgs"></div><div class="bar-lbl">{d["date"]}<br><small>{d["count"]}</small></div></div>'
+        h   = max(4, int(d["count"] / max_msg * 80))
+        cnt = d["count"]
+        dt  = d["date"]
+        conv_bars += f'<div class="bar-wrap"><div class="bar conv-bar" style="height:{h}px" title="{cnt} msgs"></div><div class="bar-lbl">{dt}<br><small>{cnt}</small></div></div>'
 
     # Stars chart
     daily_stars = cs.get("daily_stars", []) if cs else []
