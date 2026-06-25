@@ -1245,14 +1245,43 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
             _cid = chat_id
             _gift_query = " ".join(_parts[1:]).strip().lower() if len(_parts) > 1 else ""
         else:
-            # /giftme 7230207776 Rose — from owner's own chat
-            if len(_parts) < 3 or not _parts[1].lstrip('-').isdigit():
-                tg("sendMessage", {"chat_id": from_id,
-                    "text": "Usage:\n• In a fan's chat: /giftme Rose\n• From your chat: /giftme CHAT_ID Rose\n\nSee catalog: /gifts"})
+            # From bot chat — accept: /giftme FanName GiftName OR /giftme ChatID GiftName
+            if len(_parts) < 3:
+                _gift_only = " ".join(_parts[1:]).strip() if len(_parts) > 1 else ""
+                try:
+                    _fans = _get_db().execute(
+                        "SELECT chat_id, name FROM fans ORDER BY ROWID DESC LIMIT 8").fetchall()
+                    if _fans:
+                        _fan_list = "\n".join(
+                            f"• /giftme {(f[1] or str(f[0])).split()[0]} {_gift_only or 'Rose'}"
+                            for f in _fans if f[1] and f[0] not in OWNER_CHAT_IDS)
+                        tg("sendMessage", {"chat_id": from_id,
+                            "text": f"Which fan? Pick one:\n{_fan_list or 'No fans yet'}\n\nOr go into their chat and type /giftme {_gift_only or 'Rose'}"})
+                    else:
+                        tg("sendMessage", {"chat_id": from_id,
+                            "text": "Usage:\n• In a fan's chat: /giftme Rose\n• From here: /giftme FanName Rose\n\nSee catalog: /gifts"})
+                except Exception as _fe:
+                    tg("sendMessage", {"chat_id": from_id, "text": f"Usage: /giftme FanName GiftName\nErr: {_fe}"})
                 return None, None
-            try: _cid = int(_parts[1])
-            except: _cid = 0
-            _gift_query = _parts[2].lower().strip() if len(_parts) > 2 else ""
+            _second = _parts[1]
+            if _second.lstrip('-').isdigit():
+                try: _cid = int(_second)
+                except: _cid = 0
+                _gift_query = _parts[2].lower().strip()
+            else:
+                # Name lookup
+                try:
+                    _fan_row = _get_db().execute(
+                        "SELECT chat_id FROM fans WHERE LOWER(name) LIKE ? AND chat_id NOT IN ({}) ORDER BY ROWID DESC LIMIT 1".format(
+                            ",".join(str(x) for x in OWNER_CHAT_IDS)),
+                        (f"%{_second.lower()}%",)).fetchone()
+                    _cid = _fan_row[0] if _fan_row else 0
+                except: _cid = 0
+                _gift_query = _parts[2].lower().strip() if len(_parts) > 2 else ""
+                if not _cid:
+                    tg("sendMessage", {"chat_id": from_id,
+                        "text": f"❌ Fan '{_second}' not found.\nTry: /giftme Chad Rose\nOr go into their chat and type: /giftme Rose"})
+                    return None, None
         if not _gift_query:
             tg("sendMessage", {"chat_id": from_id, "text": "Which gift? See /gifts for the catalog."})
             return None, None
