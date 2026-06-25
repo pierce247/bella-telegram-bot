@@ -1200,6 +1200,87 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 
     # ── PAYMENT & DASHBOARD COMMANDS ──────────────────────────────────────
 
+    # /gifts — browse the full Telegram gift catalog via MTProto
+    if text.strip() == "/gifts" and from_id in OWNER_CHAT_IDS:
+        try:
+            import urllib.request as _ur3
+            _req = _ur3.Request("https://bella-poynt-webhook-production.up.railway.app/api/gifts?token=bella-admin-2024")
+            with _ur3.urlopen(_req, timeout=15) as _r:
+                _catalog = json.loads(_r.read())
+            _gifts = _catalog.get("gifts", [])
+            if not _gifts:
+                tg("sendMessage", {"chat_id": from_id,
+                    "text": f"⚠️ Gift catalog unavailable: {_catalog.get('error','unknown')}\n\nMake sure Telethon is connected (/stars)."})
+            else:
+                _lines = ["⭐ Telegram Gift Catalog\n"]
+                for _g in _gifts:
+                    _sold = " [SOLD OUT]" if _g.get("sold_out") else ""
+                    _ltd = f" (limited: {_g.get('availability_remains','?')} left)" if _g.get("limited") else ""
+                    _upg = f" | upgrade: {_g.get('upgrade_stars','?')}⭐" if _g.get("upgrade_stars") else ""
+                    _lines.append(f"{_g.get('emoji','⭐')} {_g.get('title','Gift')} — {_g['stars']}⭐{_sold}{_ltd}{_upg}")
+                _lines.append(f"\nTotal: {len(_gifts)} gifts")
+                _lines.append("\nRequest one: /gift_request CHAT_ID gift_title")
+                tg("sendMessage", {"chat_id": from_id, "text": "\n".join(_lines)})
+        except Exception as _e:
+            tg("sendMessage", {"chat_id": from_id, "text": f"❌ Error fetching catalog: {_e}"})
+        return None, None
+
+    # /gift_request <chat_id> <gift_name_or_stars> — request a specific gift from a fan
+    if text.strip().startswith("/gift_request") and from_id in OWNER_CHAT_IDS:
+        _parts = text.strip().split(maxsplit=2)
+        if len(_parts) < 3:
+            tg("sendMessage", {"chat_id": from_id,
+                "text": "Usage: /gift_request CHAT_ID gift_name\nExample: /gift_request 7230207776 Rose\n\nSee catalog with /gifts"})
+            return None, None
+        try:
+            _cid = int(_parts[1])
+            _gift_query = _parts[2].lower().strip()
+            # Fetch catalog to find the gift
+            import urllib.request as _ur4
+            _req4 = _ur4.Request("https://bella-poynt-webhook-production.up.railway.app/api/gifts?token=bella-admin-2024")
+            with _ur4.urlopen(_req4, timeout=15) as _r4:
+                _catalog4 = json.loads(_r4.read())
+            _gifts4 = _catalog4.get("gifts", [])
+            # Find matching gift (by title or emoji)
+            _match = next((g for g in _gifts4 if
+                _gift_query in g.get("title","").lower() or
+                _gift_query == g.get("emoji","") or
+                _gift_query == str(g.get("stars",""))), None)
+            if not _match:
+                _names = ", ".join(g.get("title","?") for g in _gifts4[:10])
+                tg("sendMessage", {"chat_id": from_id,
+                    "text": f"❌ Gift '{_parts[2]}' not found.\n\nAvailable: {_names}\n\nSee full catalog: /gifts"})
+                return None, None
+            _stars = _match["stars"]
+            _title = _match.get("title", "Gift")
+            _emoji = _match.get("emoji", "⭐")
+            # Send Stars invoice to the fan for this specific gift amount
+            _fan = db_load_fans_by_id(_cid) if hasattr(__import__('__main__'), 'db_load_fans_by_id') else None
+            _biz = ""
+            try:
+                _biz_row = _get_db().execute("SELECT biz_conn_id FROM fans WHERE chat_id=?",(_cid,)).fetchone()
+                _biz = _biz_row[0] if _biz_row and _biz_row[0] else ""
+            except: pass
+            _invoice_args = {
+                "chat_id": _cid,
+                "title": f"{_emoji} {_title}",
+                "description": f"Send Bella a {_title} gift 💕",
+                "payload": f"bella_gift_mtproto_{_match['id']}",
+                "currency": "XTR",
+                "prices": [{"label": f"{_emoji} {_title}", "amount": _stars}],
+            }
+            if _biz: _invoice_args["business_connection_id"] = _biz
+            _res = tg("sendInvoice", _invoice_args)
+            if _res.get("ok"):
+                tg("sendMessage", {"chat_id": from_id,
+                    "text": f"✅ Gift request sent to chat {_cid}\n{_emoji} {_title} — {_stars}⭐"})
+            else:
+                tg("sendMessage", {"chat_id": from_id,
+                    "text": f"❌ Failed: {_res.get('description','unknown error')}"})
+        except Exception as _e:
+            tg("sendMessage", {"chat_id": from_id, "text": f"❌ Error: {_e}"})
+        return None, None
+
     # /blast_preview — preview Telegram blast (count + message preview)
     if text.strip().startswith("/blast_preview") and from_id in OWNER_CHAT_IDS:
         _preview_text = text.strip()[len("/blast_preview"):].strip()
@@ -2374,7 +2455,10 @@ def register_commands():
         {"command": "photos",         "description": "📸 Photos link  e.g. /photos 35"},
         {"command": "videos",         "description": "🎥 Videos link  e.g. /videos 50"},
         {"command": "custom",         "description": "✨ Custom link  e.g. /custom 75 Name"},
-        # Stars gift invoices
+        # MTProto gift catalog
+        {"command": "gifts",          "description": "🎁 Browse full Telegram gift catalog"},
+        {"command": "gift_request",   "description": "⭐ Request specific gift  /gift_request CHAT_ID Rose"},
+        # Stars gift invoices (fixed amounts)
         {"command": "gift",           "description": "⭐ Send Stars gift  /gift CHAT_ID coffee"},
         {"command": "coffee",         "description": "☕ 150⭐ Buy Me a Coffee (shareable link)"},
         {"command": "flowers",        "description": "🌸 300⭐ Send Me Flowers"},
