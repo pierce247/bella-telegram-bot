@@ -234,6 +234,32 @@ def send_lucky_invoice(chat_id: int, biz: str = "") -> None:
     r = tg("sendInvoice", p)
     log.info(f"Lucky invoice: {'ok' if r.get('ok') else r}")
 
+# ── Animated gift triggers (via MTProto on webhook service) ──────────────────
+
+ANIMATED_GIFTS = {
+    "rose": "Rose", "ring": "Diamond Ring", "diamond": "Diamond Ring",
+    "cake": "Birthday Cake", "bouquet": "Bouquet", "rocket": "Rocket",
+    "champagne": "Champagne", "trophy": "Trophy", "heart": "Heart",
+    "teddy": "Teddy Bear", "gift": "Rose",
+}
+
+WEBHOOK_BASE = os.environ.get("STATS_URL", "").rstrip("/") or "https://bella-poynt-webhook-production.up.railway.app"
+
+def send_animated_gift(chat_id: int, gift_name: str) -> bool:
+    """Request an animated Telegram gift for a fan via the webhook/MTProto service."""
+    try:
+        payload = json.dumps({"chat_id": chat_id, "gift_name": gift_name,
+                              "token": os.environ.get("ADMIN_TOKEN", "bella-admin-2024")}).encode()
+        req = urllib.request.Request(
+            f"{WEBHOOK_BASE}/gift_request",
+            data=payload, headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read())
+            return data.get("ok", False)
+    except Exception as e:
+        log.warning(f"Animated gift error: {e}")
+        return False
+
 # ── Gift catalog ──────────────────────────────────────────────────────────────
 
 GIFT_CATALOG = {
@@ -772,6 +798,99 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                 tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /fan CHAT_ID"})
         return None, None
 
+    # /gifts — show Telegram animated gift catalog
+    if text.strip() == "/gifts" and from_id in OWNER_CHAT_IDS:
+        try:
+            req = urllib.request.Request(f"{WEBHOOK_BASE}/api/gifts?token={os.environ.get('ADMIN_TOKEN','bella-admin-2024')}")
+            with urllib.request.urlopen(req, timeout=10) as r:
+                catalog = json.loads(r.read())
+            gifts = catalog.get("gifts", catalog) if isinstance(catalog, dict) else catalog
+            lines = ["⭐ Telegram Gift Catalog\n"]
+            for g in (gifts if isinstance(gifts, list) else [])[:20]:
+                name = g.get("name","?")
+                stars = g.get("stars", g.get("price","?"))
+                lines.append(f"{name} — {stars}⭐")
+            lines.append(f"\nUse: !rose !ring !diamond !cake !teddy etc. in a fan's chat")
+            lines.append("Or: /giftme [FanName] GiftName")
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "\n".join(lines)})
+        except Exception as e:
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"Gift catalog: {e}"})
+        return None, None
+
+    # /giftme [name|chatid] GiftName — send animated gift to a fan
+    if text.startswith("/giftme") and from_id in OWNER_CHAT_IDS:
+        parts = text[7:].strip().split(None, 1)
+        if not parts:
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID,
+                "text": "Usage:\n/giftme FanName GiftName\n/giftme CHAT_ID GiftName\n/giftme GiftName (shows recent fans)\n\nGifts: rose ring diamond cake bouquet rocket champagne trophy heart teddy"})
+        elif len(parts) == 1:
+            # Just a gift name — show recent fans to pick from
+            gift_name = ANIMATED_GIFTS.get(parts[0].lower(), parts[0])
+            ph = _ph()
+            recent = _exec("SELECT chat_id, name FROM fans WHERE msg_count > 0 ORDER BY last_seen DESC LIMIT 8", fetchall=True) or []
+            if recent:
+                lines = [f"Which fan should receive {gift_name}? Reply with:"]
+                for cid, name in recent:
+                    lines.append(f"/giftme {cid} {parts[0]}")
+                tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "\n".join(lines)})
+            else:
+                tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "No fans found. Use /giftme CHAT_ID GiftName"})
+        else:
+            target, gift_raw = parts[0], parts[1].strip()
+            gift_name = ANIMATED_GIFTS.get(gift_raw.lower(), gift_raw)
+            # Resolve target to chat_id
+            try:
+                cid_gift = int(target)
+            except ValueError:
+                # Search by name
+                ph = _ph()
+                row = _exec(f"SELECT chat_id FROM fans WHERE LOWER(name) LIKE LOWER({ph}) ORDER BY last_seen DESC LIMIT 1",
+                            (f"%{target}%",), fetchone=True)
+                cid_gift = row[0] if row else None
+            if cid_gift:
+                ok = send_animated_gift(cid_gift, gift_name)
+                tg("sendMessage", {"chat_id": OWNER_CHAT_ID,
+                    "text": f"{'✅' if ok else '❌'} {gift_name} → {cid_gift}"})
+            else:
+                tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"Fan '{target}' not found"})
+        return None, None
+
+    # /fanvue [blast|status] — forward to webhook Fanvue endpoints
+    if text.startswith("/fanvue") and from_id in OWNER_CHAT_IDS:
+        parts = text[7:].strip().split(None, 1)
+        subcmd = parts[0].lower() if parts else "status"
+        msg_body = parts[1] if len(parts) > 1 else ""
+        adm = os.environ.get("ADMIN_TOKEN", "bella-admin-2024")
+        if subcmd == "blast" and msg_body:
+            try:
+                payload = json.dumps({"message": msg_body, "token": adm}).encode()
+                req = urllib.request.Request(f"{WEBHOOK_BASE}/fanvue-blast", data=payload,
+                                              headers={"Content-Type": "application/json"})
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    result = json.loads(r.read())
+                tg("sendMessage", {"chat_id": OWNER_CHAT_ID,
+                    "text": f"✅ Fanvue blast sent: {result.get('sent',0)} delivered"})
+            except Exception as e:
+                tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"Fanvue blast error: {e}"})
+        elif subcmd == "status":
+            try:
+                req = urllib.request.Request(f"{WEBHOOK_BASE}/api/fanvue?token={adm}")
+                with urllib.request.urlopen(req, timeout=8) as r:
+                    fv = json.loads(r.read())
+                subs = fv.get("subscribers", {})
+                tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": (
+                    f"📊 Fanvue Status\n"
+                    f"Active subs: {subs.get('active','?')}\n"
+                    f"Followers: {fv.get('followers','?')}\n"
+                    f"Balance: {fv.get('balance','?')}"
+                )})
+            except Exception as e:
+                tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"Fanvue status error: {e}"})
+        else:
+            tg("sendMessage", {"chat_id": OWNER_CHAT_ID,
+                "text": "Usage:\n/fanvue status\n/fanvue blast your message here"})
+        return None, None
+
     # /links — generate shareable t.me payment links for all gift types
     if text.strip() == "/links" and from_id in OWNER_CHAT_IDS:
         tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "⏳ Generating payment links for all gifts..."})
@@ -995,11 +1114,19 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         _out_biz = msg.get("business_connection_id", "")
         _out_text = msg.get("text", "").strip()
         if _out_chat_id and _out_chat_id != OWNER_CHAT_ID:
-            # ── Gift shortcuts: Pierce types /coffee OR !coffee IN a fan's chat ──
-            # Both / and ! prefixes supported. Intercept before saving as a message.
+            # ── Gift shortcuts: Pierce types /coffee, !coffee, !rose etc. IN a fan's chat ──
             _gift_key = None
             if _out_text.startswith("/") or _out_text.startswith("!"):
                 _gift_key = _out_text.lstrip("/!").split()[0].lower()
+            # Check animated gifts first (!rose, !ring, !diamond etc.)
+            if _gift_key and _gift_key in ANIMATED_GIFTS:
+                gift_name = ANIMATED_GIFTS[_gift_key]
+                ok = send_animated_gift(_out_chat_id, gift_name)
+                log.info(f"Animated gift !{_gift_key} ({gift_name}) → {_out_chat_id}: {'✅' if ok else '❌'}")
+                if OWNER_CHAT_ID:
+                    tg("sendMessage", {"chat_id": OWNER_CHAT_ID,
+                        "text": f"{'✅' if ok else '❌'} Gift request: {gift_name} → chat {_out_chat_id}"})
+                return None, None
             if _gift_key and _gift_key in GIFT_CATALOG:
                 ok = send_gift_invoice(_out_chat_id, _gift_key, _out_biz)
                 amt, title, _, _ = GIFT_CATALOG[_gift_key]
@@ -1478,16 +1605,18 @@ def start_webhook_server():
     server.serve_forever()
 
 def start_stats_server():
-    """Run a separate HTTP stats API on port 8080 so Railway domain can reach it."""
+    """Run stats API on STATS_PORT (default 8080) — Railway HTTP domain maps here."""
+    poynt_port = int(os.environ.get("PORT", 8080))
     stats_port = int(os.environ.get("STATS_PORT", 8080))
-    if stats_port == int(os.environ.get("PORT", 8080)):
-        return  # Already serving on that port in webhook server
+    if stats_port == poynt_port:
+        log.info(f"Stats API sharing port {stats_port} with webhook server")
+        return  # Already handled by webhook server on same port
     try:
         stats_server = HTTPServer(("0.0.0.0", stats_port), PoyntWebhookHandler)
-        log.info(f"Stats API listening on port {stats_port}")
+        log.info(f"Stats API listening on port {stats_port} (webhook on {poynt_port})")
         stats_server.serve_forever()
-    except Exception as e:
-        log.warning(f"Stats server error: {e}")
+    except OSError as e:
+        log.warning(f"Stats server port {stats_port} unavailable: {e}")
 
 # ── Offset persistence ────────────────────────────────────────────────────────
 
