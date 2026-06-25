@@ -1380,6 +1380,18 @@ def start_webhook_server():
     log.info(f"Poynt webhook server listening on port {port}")
     server.serve_forever()
 
+def start_stats_server():
+    """Run a separate HTTP stats API on port 8080 so Railway domain can reach it."""
+    stats_port = int(os.environ.get("STATS_PORT", 8080))
+    if stats_port == int(os.environ.get("PORT", 8080)):
+        return  # Already serving on that port in webhook server
+    try:
+        stats_server = HTTPServer(("0.0.0.0", stats_port), PoyntWebhookHandler)
+        log.info(f"Stats API listening on port {stats_port}")
+        stats_server.serve_forever()
+    except Exception as e:
+        log.warning(f"Stats server error: {e}")
+
 # ── Offset persistence ────────────────────────────────────────────────────────
 
 OFFSET_FILE  = "/data/bella_offset.txt"
@@ -1656,6 +1668,7 @@ def save_dedup(ids: set) -> None:
 def main():
     # Start Poynt payment webhook server in background thread
     threading.Thread(target=start_webhook_server, daemon=True).start()
+    threading.Thread(target=start_stats_server, daemon=True).start()
     log.info("🩷 Bella Telegram Bot starting up (v2 — memory + heat + stars thank-you)...")
 
     # ── Watchdog ──────────────────────────────────────────────────────────────
