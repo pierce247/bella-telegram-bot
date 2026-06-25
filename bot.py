@@ -363,6 +363,36 @@ GIFT_CATALOG = {
     "wish":     (1111, "🌸 Make a Wish",         "my undivided attention 🩷 make it count", "bella_gift_wish"),
 }
 
+# MTProto gift aliases — emoji to readable name + Stars price (from available catalog)
+# These map to the unnamed emoji gifts fetched live from Telegram's gift catalog
+MTPROTO_GIFT_ALIASES = {
+    "heart":      ("💝", 15),   "love":      ("💝", 15),
+    "teddy":      ("🧸", 15),   "bear":      ("🧸", 15),
+    "gift":       ("🎁", 25),   "present":   ("🎁", 25),
+    "rose":       ("🌹", 25),   "flower":    ("🌹", 25),
+    "cake":       ("🎂", 50),   "birthday":  ("🎂", 50),
+    "bouquet":    ("💐", 50),   "flowers":   ("💐", 50),  # override stars catalog
+    "rocket":     ("🚀", 50),
+    "champagne":  ("🍾", 50),   "bottle":    ("🍾", 50),   "bubbly":  ("🍾", 50),
+    "trophy":     ("🏆", 100),
+    "ring":       ("💍", 100),  "engagement": ("💍", 100),
+    "diamond":    ("💎", 100),  "gem":       ("💎", 100),
+}
+
+def resolve_gift(query: str):
+    """Resolve a gift name/emoji to (emoji, stars, title, payload_key).
+    Checks MTProto aliases first, then GIFT_CATALOG."""
+    q = query.strip().lower()
+    # MTProto alias
+    if q in MTPROTO_GIFT_ALIASES:
+        emoji, stars = MTPROTO_GIFT_ALIASES[q]
+        return emoji, stars, f"{emoji} Gift Request", f"bella_mtproto_{q}", True
+    # Stars GIFT_CATALOG
+    if q in GIFT_CATALOG:
+        amt, title, desc, payload = GIFT_CATALOG[q]
+        return "⭐", amt, title, payload, False
+    return None
+
 def send_gift_invoice(chat_id: int, gift_key: str, biz: str = "") -> bool:
     """Send a gift invoice from the catalog to a fan."""
     entry = GIFT_CATALOG.get(gift_key.lower())
@@ -1198,6 +1228,31 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"✅ Blast done — {sent} sent, {failed} failed"})
         return None, None
 
+    # ── OWNER GIFT TRIGGERS (works from inside fan chats) ────────────────────
+    # Type !rose, !ring, !diamond etc. in a fan's business chat to send a gift request
+    if from_id in OWNER_CHAT_IDS and text.strip().startswith("!") and chat_id not in OWNER_CHAT_IDS:
+        _trigger = text.strip()[1:].lower().strip()
+        _resolved = resolve_gift(_trigger)
+        if _resolved:
+            _emoji, _stars, _title, _payload, _is_mtproto = _resolved
+            _inv = {
+                "chat_id": chat_id,
+                "title": f"{_emoji} Gift Request",
+                "description": f"Send Bella a {_title.replace(_emoji,'').strip()} 💕",
+                "payload": _payload,
+                "currency": "XTR",
+                "prices": [{"label": _title, "amount": _stars}],
+            }
+            if biz: _inv["business_connection_id"] = biz
+            _r = tg("sendInvoice", _inv)
+            if _r.get("ok"):
+                log.info(f"[trigger] {_emoji} gift sent to {chat_id}")
+            else:
+                tg("sendMessage", {"chat_id": from_id,
+                    "text": f"❌ Gift trigger failed: {_r.get('description','')}"})
+            return chat_id, biz  # don't continue to AI
+        # Unknown trigger — let it fall through (maybe it was meant for the fan)
+
     # ── PAYMENT & DASHBOARD COMMANDS ──────────────────────────────────────
 
     # /gifts [all] — browse the Telegram gift catalog via MTProto
@@ -1227,8 +1282,10 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                     _lines.append(f"{_emoji} {_title} — {_stars}⭐{_sold}{_ltd}{_upg}")
                 _lines.append(f"\n✅ Available: {len(_available)} | Total: {len(_gifts_all)}")
                 if not _show_all: _lines.append("Show all (incl. sold out): /gifts all")
-                _lines.append("\nRequest in a fan chat: /giftme <name>")
-                _lines.append("Or: /giftme <fan_chat_id> <name>")
+                _lines.append("\n📌 Quick names you can use:")
+                _lines.append("rose · ring · diamond · cake · bouquet · rocket · champagne · trophy · heart · teddy · gift")
+                _lines.append("\nIn a fan's chat: !rose  or  /giftme Rose")
+                _lines.append("From here: /giftme FanName Rose")
                 tg("sendMessage", {"chat_id": from_id, "text": "\n".join(_lines)})
         except Exception as _e:
             tg("sendMessage", {"chat_id": from_id, "text": f"❌ Error fetching catalog: {_e}"})
@@ -1286,25 +1343,13 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
             tg("sendMessage", {"chat_id": from_id, "text": "Which gift? See /gifts for the catalog."})
             return None, None
         try:
-            # Fetch catalog to find the gift
-            import urllib.request as _ur4
-            _req4 = _ur4.Request("https://bella-poynt-webhook-production.up.railway.app/api/gifts?token=bella-admin-2024")
-            with _ur4.urlopen(_req4, timeout=15) as _r4:
-                _catalog4 = json.loads(_r4.read())
-            _gifts4 = _catalog4.get("gifts", [])
-            # Find matching gift (by title or emoji)
-            _match = next((g for g in _gifts4 if
-                _gift_query in g.get("title","").lower() or
-                _gift_query == g.get("emoji","") or
-                _gift_query == str(g.get("stars",""))), None)
-            if not _match:
-                _names = ", ".join(g.get("title","?") for g in _gifts4[:10])
+            # Resolve gift using aliases + catalog
+            _resolved = resolve_gift(_gift_query)
+            if not _resolved:
                 tg("sendMessage", {"chat_id": from_id,
-                    "text": f"❌ Gift '{_parts[2]}' not found.\n\nAvailable: {_names}\n\nSee full catalog: /gifts"})
+                    "text": f"❌ Gift '{_gift_query}' not found.\n\nAvailable names:\nrose · ring · diamond · cake · bouquet · rocket · champagne · trophy · heart · teddy · gift\n\nSee full catalog: /gifts"})
                 return None, None
-            _stars = _match["stars"]
-            _title = _match.get("title", "Gift")
-            _emoji = _match.get("emoji", "⭐")
+            _emoji, _stars, _title, _payload_key, _is_mtproto = _resolved
             # Send Stars invoice to the fan for this specific gift amount
             # If we're already IN the fan's chat, biz is available from the current message context
             _biz = biz if _in_fan_chat else ""
@@ -1315,9 +1360,9 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                 except: pass
             _invoice_args = {
                 "chat_id": _cid,
-                "title": f"{_emoji} {_title}",
-                "description": f"Send Bella a {_title} gift 💕",
-                "payload": f"bella_gift_mtproto_{_match['id']}",
+                "title": f"{_emoji} Gift Request",
+                "description": f"Send Bella a {_title.replace(_emoji,'').strip()} 💕",
+                "payload": _payload_key,
                 "currency": "XTR",
                 "prices": [{"label": f"{_emoji} {_title}", "amount": _stars}],
             }
