@@ -1231,9 +1231,10 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     # /whoami — debug: shows your Telegram ID so you can verify you're in OWNER_CHAT_IDS
     if text.strip() == "/whoami":
         _is_owner = from_id in OWNER_CHAT_IDS
-        tg("sendMessage", {"chat_id": from_id if from_id else chat_id,
-            "text": f"Your ID: {from_id}\nChat ID: {chat_id}\nOwner IDs: {sorted(OWNER_CHAT_IDS)}\nIs owner: {'✅ YES' if _is_owner else '❌ NO — add this ID to OWNER_CHAT_ID in Railway'}"})
-        return chat_id, biz
+        _reply_cid = from_id or (msg["chat"]["id"] if msg and "chat" in msg else 0)
+        tg("sendMessage", {"chat_id": _reply_cid,
+            "text": f"Your ID: {from_id}\nOwner IDs: {sorted(OWNER_CHAT_IDS)}\nIs owner: {'✅ YES — commands should work' if _is_owner else '❌ NO — add this ID to OWNER_CHAT_ID in Railway'}"})
+        return None, None
 
     # ── OWNER GIFT TRIGGERS (works from inside fan chats) ────────────────────
     # Type !rose, !ring, !diamond etc. in a fan's business chat to send a gift request
