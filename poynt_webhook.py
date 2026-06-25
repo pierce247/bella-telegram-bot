@@ -1113,12 +1113,51 @@ table{font-size:12px}th,td{padding:7px 10px!important}
 </div>
 
 <h2>📧 Email Subscribers (Linktree)</h2>
-<div class="stats" id="subStats">
-  <div class="stat"><div class="val" id="subTotal">—</div><div class="lbl">Total Subscribers</div></div>
-  <div class="stat"><div class="val" id="subConverted" style="color:#22c55e">—</div><div class="lbl">Converted to Payers</div></div>
-  <div class="stat"><div class="val" id="subRate">—</div><div class="lbl">Conversion Rate</div></div>
+<div class="stats" id="subStats" style="cursor:pointer" onclick="openSubModal()">
+  <div class="stat"><div class="val" id="subTotal">—</div><div class="lbl">Total Active</div><div class="sub2">tap to view list</div></div>
+  <div class="stat"><div class="val" id="subConverted" style="color:#22c55e">—</div><div class="lbl">Converted</div></div>
+  <div class="stat"><div class="val" id="subRate">—</div><div class="lbl">Conv. Rate</div></div>
 </div>
-<div id="subConvertedList" style="margin-bottom:16px"></div>
+
+<!-- Subscriber modal -->
+<div id="subModal" style="display:none;position:fixed;inset:0;background:#000000cc;z-index:999;padding:16px;overflow-y:auto" onclick="if(event.target===this)document.getElementById('subModal').style.display='none'">
+  <div style="background:#111;border:1px solid #222;border-radius:16px;max-width:520px;margin:0 auto;padding:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="margin:0;border:none;padding:0">📧 Subscribers</h2>
+      <button onclick="document.getElementById('subModal').style.display='none'" style="background:none;border:none;color:#888;font-size:20px;cursor:pointer">✕</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="filter-btn active" onclick="filterSubs('all',this)">All</button>
+      <button class="filter-btn" onclick="filterSubs('active',this)">✅ Active</button>
+      <button class="filter-btn" onclick="filterSubs('converted',this)">💰 Converted</button>
+      <button class="filter-btn" onclick="filterSubs('bounced',this)">❌ Bounced</button>
+    </div>
+    <input id="subSearch" class="search-input" placeholder="Search email..." oninput="renderSubList()" style="margin-bottom:10px">
+    <div id="subListBody"></div>
+    <div style="text-align:center;margin:10px 0" id="subLoadWrap" style="display:none">
+      <button class="filter-btn" onclick="subShowMore()" id="subLoadBtn">Load more ↓</button>
+    </div>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid #1a1a1a">
+      <button onclick="openEmailComposer()" style="width:100%;background:#f472b620;border:1px solid #f472b6;color:#f472b6;padding:10px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600">✉️ Compose email to active subscribers</button>
+    </div>
+  </div>
+</div>
+
+<!-- Email composer modal -->
+<div id="emailModal" style="display:none;position:fixed;inset:0;background:#000000cc;z-index:1000;padding:16px;overflow-y:auto" onclick="if(event.target===this)document.getElementById('emailModal').style.display='none'">
+  <div style="background:#111;border:1px solid #222;border-radius:16px;max-width:520px;margin:0 auto;padding:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="margin:0;border:none;padding:0">✉️ Email Subscribers</h2>
+      <button onclick="document.getElementById('emailModal').style.display='none'" style="background:none;border:none;color:#888;font-size:20px;cursor:pointer">✕</button>
+    </div>
+    <div style="margin-bottom:12px">
+      <div style="font-size:11px;color:#555;text-transform:uppercase;margin-bottom:4px">BCC (copy this into Gmail)</div>
+      <textarea id="bccField" style="width:100%;background:#1a1a1a;border:1px solid #333;color:#888;padding:8px;border-radius:6px;font-size:11px;height:80px;resize:vertical" readonly></textarea>
+      <button onclick="copyBCC()" style="margin-top:6px;background:#1a1a1a;border:1px solid #333;color:#888;padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer">📋 Copy BCC list</button>
+    </div>
+    <a id="gmailLink" href="#" target="_blank" style="display:block;text-align:center;background:#f472b620;border:1px solid #f472b6;color:#f472b6;padding:10px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;margin-top:8px">Open Gmail compose ↗</a>
+  </div>
+</div>
 
 <h2>💬 Conversations</h2>
 <div class="stats">
@@ -1275,20 +1314,67 @@ function filterFans(){
 }
 filterPay('all',document.querySelector('.filter-btn.active'));
 
-/* Load subscriber stats */
+/* Subscriber modal logic */
+let ALL_SUBS=[], subFilter='all', subShowCount=10;
 fetch('/api/subscribers?token=bella-admin-2024')
   .then(r=>r.json()).then(d=>{
-    document.getElementById('subTotal').textContent=d.total||0;
-    document.getElementById('subConverted').textContent=d.converted||0;
-    const rate=d.total?Math.round((d.converted/d.total)*100):0;
+    ALL_SUBS=d.subscribers||[];
+    const active=ALL_SUBS.filter(s=>!s.bounced);
+    const conv=ALL_SUBS.filter(s=>s.converted);
+    const rate=active.length?Math.round((conv.length/active.length)*100):0;
+    document.getElementById('subTotal').textContent=active.length;
+    document.getElementById('subConverted').textContent=conv.length;
     document.getElementById('subRate').textContent=rate+'%';
-    const converted=(d.subscribers||[]).filter(s=>s.converted);
-    if(converted.length){
-      document.getElementById('subConvertedList').innerHTML=
-        '<div style="font-size:11px;color:#555;text-transform:uppercase;margin-bottom:8px">Converted subscribers</div>'
-        +converted.map(s=>'<div class="fv-row"><span class="fv-row-lbl">'+s.email+'</span><span class="fv-row-val" style="color:#22c55e">✅ '+s.conversion_date.slice(0,10)+'</span></div>').join('');
-    }
   }).catch(()=>{});
+
+function openSubModal(){
+  subShowCount=10; subFilter='all';
+  document.querySelectorAll('#subModal .filter-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector('#subModal .filter-btn').classList.add('active');
+  renderSubList();
+  document.getElementById('subModal').style.display='block';
+  document.body.style.overflow='hidden';
+}
+function filterSubs(f,btn){
+  subFilter=f; subShowCount=10;
+  document.querySelectorAll('#subModal .filter-btn').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  renderSubList();
+}
+function renderSubList(){
+  const q=(document.getElementById('subSearch').value||'').toLowerCase();
+  let rows=ALL_SUBS;
+  if(subFilter==='active')rows=rows.filter(s=>!s.bounced&&!s.converted);
+  else if(subFilter==='converted')rows=rows.filter(s=>s.converted);
+  else if(subFilter==='bounced')rows=rows.filter(s=>s.bounced);
+  if(q)rows=rows.filter(s=>s.email.includes(q));
+  const shown=rows.slice(0,subShowCount);
+  document.getElementById('subListBody').innerHTML=shown.map(s=>{
+    const icon=s.bounced?'❌':s.converted?'💰':'✅';
+    const meta=s.bounced?'<span style="color:#ef4444;font-size:10px">bounced</span>':
+               s.converted?'<span style="color:#22c55e;font-size:10px">converted '+s.conversion_date.slice(0,10)+'</span>':
+               '<span style="color:#555;font-size:10px">'+s.followed_on+'</span>';
+    return '<div class="fv-row"><span class="fv-row-lbl" style="font-size:12px">'+icon+' '+s.email+'<br>'+meta+'</span></div>';
+  }).join('')||'<div style="color:#333;padding:16px;text-align:center">No results</div>';
+  const wrap=document.getElementById('subLoadWrap');
+  if(rows.length>subShowCount){
+    wrap.style.display='block';
+    document.getElementById('subLoadBtn').textContent='Load more ('+(rows.length-subShowCount)+' more) ↓';
+  } else { wrap.style.display='none'; }
+}
+function subShowMore(){ subShowCount+=20; renderSubList(); }
+function openEmailComposer(){
+  const active=ALL_SUBS.filter(s=>!s.bounced).map(s=>s.email);
+  document.getElementById('bccField').value=active.join(', ');
+  const subject=encodeURIComponent('you left without saying hi 👀');
+  document.getElementById('gmailLink').href='https://mail.google.com/mail/?view=cm&to=bellavistaxo@gmail.com&su='+subject;
+  document.getElementById('emailModal').style.display='block';
+}
+function copyBCC(){
+  const el=document.getElementById('bccField');
+  el.select(); document.execCommand('copy');
+  alert('BCC list copied! Paste it into Gmail BCC field.');
+}
 </script>
 </body></html>"""
 
@@ -1620,11 +1706,23 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 token = data.get("token","") or self.headers.get("X-Admin-Token","")
                 if token != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
                 new_subs = data.get("subscribers",[])
-                existing = load_json(SUBSCRIBERS_FILE, [])
-                existing_emails = {s["email"] for s in existing}
-                # Check conversions against existing payments
+                overwrite = data.get("overwrite", False)
                 payments = load_json(PAYMENTS_LOG, [])
                 paid_emails = {p.get("email","").lower() for p in payments if p.get("status")=="CAPTURED" and p.get("email")}
+                if overwrite:
+                    # Full replace — update status fields on existing records
+                    for s in new_subs:
+                        e = s.get("email","").lower()
+                        if e in paid_emails and not s.get("converted"):
+                            s["converted"] = True
+                            s["conversion_date"] = time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime())
+                    save_json(SUBSCRIBERS_FILE, new_subs)
+                    converted = sum(1 for s in new_subs if s.get("converted"))
+                    active = sum(1 for s in new_subs if not s.get("bounced"))
+                    self.send_json(200, {"ok":True,"total":len(new_subs),"active":active,"converted":converted})
+                    return
+                existing = load_json(SUBSCRIBERS_FILE, [])
+                existing_emails = {s["email"] for s in existing}
                 added = 0
                 for s in new_subs:
                     e = s.get("email","").lower()
