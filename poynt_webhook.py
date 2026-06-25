@@ -1070,17 +1070,30 @@ table{font-size:12px}th,td{padding:7px 10px!important}
   <div class="stat fv-stat"><div class="val">""" + str(fv_subs) + """</div><div class="lbl">Subscribers</div></div>
   <div class="stat fv-stat"><div class="val">""" + str(fv_foll) + """</div><div class="lbl">Followers</div></div>
 </div>
-<div class="fv-grid">
-  <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.05em;padding:4px 0;grid-column:1/-1">🏆 Top Spenders &nbsp;·&nbsp; 💰 Revenue Breakdown</div>
-  """ + "".join(
-      f'<div class="fv-row"><span class="fv-row-lbl">{s["name"]}</span><span class="fv-row-val">{s["gross"]}</span></div>'
-      for s in fv_top
-  ) + ("" if fv_top else '<div class="fv-row"><span class="fv-row-lbl">No data</span></div>') + """
-  <hr class="fv-divider">
-  """ + "".join(
-      f'<div class="fv-row"><span class="fv-row-lbl" style="text-transform:capitalize">{k}</span><span class="fv-row-val">{v["gross"]}</span></div>'
-      for k,v in fv_breakdown.items() if v.get("gross_cents",0)>0
-  ) + ("" if fv_breakdown else '<div class="fv-row"><span class="fv-row-lbl">No data</span></div>') + """
+<!-- Fanvue accordion sections -->
+<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+  <div style="background:#111;border:1px solid #1a1a1a;border-radius:10px;overflow:hidden">
+    <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.arr').textContent=this.nextElementSibling.style.display==='none'?'▶':'▼'" style="width:100%;background:none;border:none;color:#f0f0f0;padding:12px 14px;text-align:left;cursor:pointer;display:flex;justify-content:space-between;font-size:13px;font-weight:600">
+      🏆 Top Spenders <span class="arr">▶</span>
+    </button>
+    <div style="display:none;padding:0 14px 12px">
+      """ + "".join(
+          f'<div class="fv-row"><span class="fv-row-lbl">{s["name"]}</span><span class="fv-row-val">{s["gross"]}</span></div>'
+          for s in fv_top
+      ) + ("" if fv_top else '<div class="fv-row"><span class="fv-row-lbl" style="color:#555">No data yet</span></div>') + """
+    </div>
+  </div>
+  <div style="background:#111;border:1px solid #1a1a1a;border-radius:10px;overflow:hidden">
+    <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('.arr').textContent=this.nextElementSibling.style.display==='none'?'▶':'▼'" style="width:100%;background:none;border:none;color:#f0f0f0;padding:12px 14px;text-align:left;cursor:pointer;display:flex;justify-content:space-between;font-size:13px;font-weight:600">
+      💰 Revenue Breakdown <span class="arr">▶</span>
+    </button>
+    <div style="display:none;padding:0 14px 12px">
+      """ + "".join(
+          f'<div class="fv-row"><span class="fv-row-lbl" style="text-transform:capitalize">{k}</span><span class="fv-row-val">{v["gross"]}</span></div>'
+          for k,v in fv_breakdown.items() if v.get("gross_cents",0)>0
+      ) + ("" if fv_breakdown else '<div class="fv-row"><span class="fv-row-lbl" style="color:#555">No data yet</span></div>') + """
+    </div>
+  </div>
 </div>
 <div class="charts">
   <div class="chart"><div class="chart-title">Fanvue daily (June)</div><div class="bars">""" + (fv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
@@ -1108,7 +1121,7 @@ table{font-size:12px}th,td{padding:7px 10px!important}
 </div>
 <input class="search-input" id="paySearch" oninput="filterPay(currentFilter,null)" placeholder="Search name / email…" style="margin-bottom:10px">
 <div class="pay-list" id="payList"></div>
-<div style="text-align:center;margin:12px 0" id="loadMoreWrap" style="display:none">
+<div id="loadMoreWrap" style="text-align:center;margin:12px 0;display:none">
   <button class="filter-btn" id="loadMoreBtn" onclick="loadMore()" style="padding:8px 24px">Load more ↓</button>
 </div>
 
@@ -1219,7 +1232,7 @@ function buildCard(p,i){
   const note=p.notes?'<div class="pay-detail-row"><span class="pay-detail-lbl">Note</span><span class="pay-detail-val">'+p.notes+'</span></div>':"";
   const tgLink=p.chat_id?'<div class="pay-detail-row"><span class="pay-detail-lbl">Telegram</span><span class="pay-detail-val">'+(tgUser||'Chat '+p.chat_id)+(tgUser?' <a href="https://t.me/'+tgUser.replace('@','')+'" target="_blank" style="color:#f472b6;margin-left:6px">Open ↗</a>':'')+'</span></div>'
     :(tgUser?'<div class="pay-detail-row"><span class="pay-detail-lbl">Telegram</span><span class="pay-detail-val"><a href="https://t.me/'+tgUser.replace('@','')+'" target="_blank" style="color:#f472b6">'+tgUser+' ↗</a></span></div>':"");
-  const setUser='<div class="pay-detail-row"><span class="pay-detail-lbl">Set @username</span><span class="pay-detail-val" style="display:flex;gap:6px"><input id="tgu-'+i+'" placeholder="username" value="'+(tgUser||"").replace('@','')+'" style="background:#1a1a1a;border:1px solid #333;color:#f0f0f0;padding:3px 8px;border-radius:5px;font-size:12px;flex:1"><button onclick="saveTgUser('+(JSON.stringify(p.name))+','+(JSON.stringify(tgUser||""))+','+i+')" style="background:#f472b620;border:1px solid #f472b6;color:#f472b6;padding:3px 8px;border-radius:5px;font-size:11px;cursor:pointer">Save</button></span></div>';
+  const setUser='<div class="pay-detail-row"><span class="pay-detail-lbl">Set @username</span><span class="pay-detail-val" style="display:flex;gap:6px"><input id="tgu-'+i+'" placeholder="username" value="'+(tgUser||"").replace('@','')+'" style="background:#1a1a1a;border:1px solid #333;color:#f0f0f0;padding:3px 8px;border-radius:5px;font-size:12px;flex:1" onclick="event.stopPropagation()"><button onclick="event.stopPropagation();saveTgUser('+(JSON.stringify(p.name))+','+(JSON.stringify(p.email||""))+','+i+')" style="background:#f472b620;border:1px solid #f472b6;color:#f472b6;padding:3px 8px;border-radius:5px;font-size:11px;cursor:pointer">Save</button></span></div>';
   return '<div class="pay-card '+cls+'">'
     +'<div class="pay-summary" onclick="toggleDetail('+i+')" style="cursor:pointer">'
       +'<div class="pay-icon">'+icon+'</div>'
@@ -1239,14 +1252,29 @@ function buildCard(p,i){
   +'</div>';
 }
 
-function saveTgUser(name,oldUser,cardIdx){
+function saveTgUser(name,email,cardIdx){
   const input=document.getElementById('tgu-'+cardIdx);
   const username=(input.value||"").trim().replace(/^@/,"");
+  const nameKey=name.trim().toLowerCase();
   fetch('/set-tg-username',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({token:'bella-admin-2024',name:name,username:username})})
   .then(r=>r.json()).then(d=>{
-    if(d.ok){TG_USERS[name.trim().toLowerCase()]=username?"@"+username:"";renderPayCards(visibleRows.slice(0,showCount),true);}
-    alert(d.ok?'Saved!':'Error: '+d.error);
+    if(d.ok){
+      // Update local cache for this name AND email (auto-match same email)
+      TG_USERS[nameKey]=username?"@"+username:"";
+      if(email){
+        PAYMENTS.forEach(p=>{
+          if((p.email||"").toLowerCase()===email.toLowerCase()){
+            TG_USERS[(p.name||"").trim().toLowerCase()]=username?"@"+username:"";
+          }
+        });
+      }
+      const btn=input.nextElementSibling;
+      if(btn){btn.textContent='✓ Saved';btn.style.background='#22c55e20';btn.style.borderColor='#22c55e';btn.style.color='#22c55e';}
+      setTimeout(()=>{if(btn){btn.textContent='Save';btn.style.background='';btn.style.borderColor='';btn.style.color='';}},2000);
+    } else {
+      alert('Error: '+d.error);
+    }
   });
 }
 
