@@ -14,6 +14,75 @@ import urllib.request, urllib.error
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
+# ── Postgres connection (shared with bella-bot) ───────────────────────────────
+_pg_conn = None
+_pg_lock = threading.Lock()
+
+def _get_pg():
+    global _pg_conn
+    db_url = os.environ.get("DATABASE_PUBLIC_URL") or os.environ.get("DATABASE_URL")
+    if not db_url:
+        return None
+    if _pg_conn is None or (hasattr(_pg_conn, "closed") and _pg_conn.closed):
+        try:
+            import psycopg2
+            _pg_conn = psycopg2.connect(db_url, sslmode="require")
+            _pg_conn.autocommit = True
+            print("[db] Connected to Postgres")
+        except Exception as e:
+            print(f"[db] Postgres unavailable: {e}")
+            _pg_conn = None
+    return _pg_conn
+
+def pg_query(sql, params=(), fetchall=False, fetchone=False):
+    """Run a Postgres query safely."""
+    with _pg_lock:
+        conn = _get_pg()
+        if not conn:
+            return None
+        try:
+            cur = conn.cursor()
+            cur.execute(sql, params)
+            if fetchall: return cur.fetchall()
+            if fetchone: return cur.fetchone()
+            return True
+        except Exception as e:
+            print(f"[db] Query error: {e}")
+            try: conn.rollback()
+            except: pass
+            return None
+
+def get_pg_fans():
+    """Get all fans from shared Postgres DB."""
+    rows = pg_query("SELECT chat_id, name, biz, heat, first_seen, last_seen, msg_count FROM fans ORDER BY last_seen DESC", fetchall=True)
+    if not rows: return []
+    return [{"chat_id": r[0], "name": r[1], "biz": r[2], "heat": r[3],
+             "first_seen": r[4], "last_seen": r[5], "msg_count": r[6]} for r in rows]
+
+def get_pg_stats():
+    """Get aggregate fan/chat stats from shared Postgres DB."""
+    now = time.time()
+    total = pg_query("SELECT COUNT(*) FROM fans", fetchone=True)
+    active_24h = pg_query("SELECT COUNT(*) FROM fans WHERE last_seen > %s", (now - 86400,), fetchone=True)
+    active_7d  = pg_query("SELECT COUNT(*) FROM fans WHERE last_seen > %s", (now - 604800,), fetchone=True)
+    total_msgs = pg_query("SELECT COUNT(*) FROM messages", fetchone=True)
+    heat_dist  = pg_query("SELECT heat, COUNT(*) FROM fans GROUP BY heat ORDER BY heat", fetchall=True)
+    avg_resp   = pg_query("SELECT AVG(response_ms) FROM messages WHERE role='assistant' AND response_ms > 0", fetchone=True)
+    return {
+        "total_fans": total[0] if total else 0,
+        "active_24h": active_24h[0] if active_24h else 0,
+        "active_7d": active_7d[0] if active_7d else 0,
+        "total_messages": total_msgs[0] if total_msgs else 0,
+        "heat_distribution": {str(h): c for h, c in (heat_dist or [])},
+        "avg_response_ms": int(avg_resp[0]) if avg_resp and avg_resp[0] else 0,
+    }
+
+def link_payment_to_fan(resource_id, chat_id, fan_name=""):
+    """Link a Poynt payment to a Telegram fan by resource_id."""
+    mark_delivered(resource_id, chat_id, fan_name)
+    # Also register in pending so future payments from same payer auto-match
+    return True
+
 # v3.1 ── Config ─────────────────────────────────────────────────────────────────
 BOT_TOKEN        = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 POYNT_APP_ID_RAW = os.environ.get("POYNT_APP_ID", "")
@@ -945,12 +1014,15 @@ def build_dashboard(payment_stats, conv_stats):
     gd_unmatched= sum(1 for p in cap if not p.get("chat_id") and not p.get("delivered"))
     pending_fans= ps.get("pending_fans",0)
 
-    # ── Conversation stats ──────────────────────────────────────────────────
-    total_fans   = cs.get("total_fans","—")
-    total_msgs   = cs.get("total_messages","—")
+    # ── Conversation stats — pull from shared Postgres DB ───────────────────
+    pg_stats     = get_pg_stats()
+    total_fans   = pg_stats.get("total_fans") or cs.get("total_fans","—")
+    total_msgs   = pg_stats.get("total_messages") or cs.get("total_messages","—")
     msgs_today   = cs.get("messages_today","—")
-    active_today = cs.get("active_fans_today","—")
-    conv_ok      = cs != {}
+    active_today = pg_stats.get("active_24h") or cs.get("active_fans_today","—")
+    active_7d    = pg_stats.get("active_7d", "—")
+    avg_resp_ms  = pg_stats.get("avg_response_ms", 0)
+    conv_ok      = cs != {} or bool(pg_stats.get("total_fans"))
 
     # ── Fanvue top spenders ─────────────────────────────────────────────────
     fv_top = fv.get("top_spenders",[])
@@ -1264,12 +1336,13 @@ table{font-size:12px}th,td{padding:7px 10px!important}
   </div>
 </div>
 
-<h2>💬 Conversations</h2>
+<h2>💬 Conversations (Postgres)</h2>
 <div class="stats">
   <div class="stat"><div class="val">""" + str(total_fans) + """</div><div class="lbl">Total Fans</div></div>
-  <div class="stat"><div class="val">""" + str(total_msgs) + """</div><div class="lbl">Messages</div></div>
-  <div class="stat"><div class="val">""" + str(msgs_today) + """</div><div class="lbl">Today</div></div>
-  <div class="stat"><div class="val">""" + str(active_today) + """</div><div class="lbl">Active Today</div></div>
+  <div class="stat"><div class="val">""" + str(total_msgs) + """</div><div class="lbl">Total Messages</div></div>
+  <div class="stat"><div class="val">""" + str(active_today) + """</div><div class="lbl">Active 24h</div></div>
+  <div class="stat"><div class="val">""" + str(active_7d) + """</div><div class="lbl">Active 7d</div></div>
+  <div class="stat"><div class="val">""" + (str(avg_resp_ms)+"ms" if avg_resp_ms else "—") + """</div><div class="lbl">Avg Response</div></div>
 </div>
 <h2>👥 Active Fans</h2>
 <input class="search-input" id="fanSearch" oninput="filterFans()" placeholder="Search fans…" style="margin-bottom:10px">
@@ -1729,6 +1802,20 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
             converted = [s for s in subs if s.get("converted")]
             self.send_json(200, {"total": len(subs), "converted": len(converted), "subscribers": subs})
 
+        elif p.path == "/api/fans":
+            # Fan list from shared Postgres DB
+            if qs.get("token",[""])[0] != ADMIN_TOKEN and self.headers.get("X-Admin-Token","") != ADMIN_TOKEN:
+                self.send_json(401,{"error":"unauthorized"}); return
+            fans = get_pg_fans()
+            self.send_json(200, {"fans": fans, "count": len(fans)})
+
+        elif p.path == "/api/pg-stats":
+            # Aggregate stats from shared Postgres DB
+            if qs.get("token",[""])[0] != ADMIN_TOKEN and self.headers.get("X-Admin-Token","") != ADMIN_TOKEN:
+                self.send_json(401,{"error":"unauthorized"}); return
+            stats = get_pg_stats()
+            self.send_json(200, stats)
+
         elif p.path == "/api/summary":
             if self.require_admin(p) != ADMIN_TOKEN:
                 self.send_json(401,{"error":"unauthorized"}); return
@@ -2093,6 +2180,32 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 print(f"[tg_user] {name_key} → @{username}")
                 self.send_json(200, {"ok": True, "name": name_key, "username": username})
             except Exception as e: self.send_json(500, {"error": str(e)})
+
+        elif p.path == "/api/link-payment":
+            # Link an unmatched Poynt payment to a Telegram fan
+            try:
+                data = json.loads(body)
+                token = data.get("token","") or self.headers.get("X-Admin-Token","")
+                if token != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
+                resource_id = data.get("resource_id","")
+                chat_id = data.get("chat_id")
+                fan_name = data.get("fan_name","")
+                email = data.get("email","").lower().strip()
+                if not resource_id or not chat_id:
+                    self.send_json(400,{"error":"resource_id and chat_id required"}); return
+                # Mark payment delivered
+                link_payment_to_fan(resource_id, int(chat_id), fan_name)
+                # Register email→fan mapping for future auto-match
+                if email:
+                    pending = load_json(PENDING_FILE, {})
+                    pending[email] = {"chat_id": int(chat_id), "name": fan_name,
+                                      "biz_conn_id": data.get("biz_conn_id",""),
+                                      "registered_at": time.strftime("%Y-%m-%dT%H:%M:%SZ")}
+                    save_json(PENDING_FILE, pending)
+                print(f"[link] Payment {resource_id} linked to fan {chat_id} ({fan_name})")
+                self.send_json(200, {"ok": True, "linked": resource_id, "chat_id": chat_id})
+            except Exception as e:
+                self.send_json(500, {"error": str(e)})
 
         elif p.path == "/register-fan":
             try:
