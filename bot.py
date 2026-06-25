@@ -1227,28 +1227,28 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                     _lines.append(f"{_emoji} {_title} — {_stars}⭐{_sold}{_ltd}{_upg}")
                 _lines.append(f"\n✅ Available: {len(_available)} | Total: {len(_gifts_all)}")
                 if not _show_all: _lines.append("Show all (incl. sold out): /gifts all")
-                _lines.append("\nRequest in a fan chat: /gift_request <name>")
-                _lines.append("Or: /gift_request <fan_chat_id> <name>")
+                _lines.append("\nRequest in a fan chat: /giftme <name>")
+                _lines.append("Or: /giftme <fan_chat_id> <name>")
                 tg("sendMessage", {"chat_id": from_id, "text": "\n".join(_lines)})
         except Exception as _e:
             tg("sendMessage", {"chat_id": from_id, "text": f"❌ Error fetching catalog: {_e}"})
         return None, None
 
-    # /gift_request [chat_id] <gift_name> — request a specific gift from a fan
+    # /giftme [chat_id] <gift_name> — request a specific gift from a fan
     # Can be used in a fan's chat directly (auto-detects chat_id) OR with explicit chat_id
-    if text.strip().startswith("/gift_request") and from_id in OWNER_CHAT_IDS:
+    if text.strip().startswith("/giftme") and from_id in OWNER_CHAT_IDS:
         _parts = text.strip().split(maxsplit=2)
         # Auto-detect: if used IN a fan's chat (chat_id != owner IDs), use that chat
         _in_fan_chat = chat_id not in OWNER_CHAT_IDS
         if _in_fan_chat:
-            # /gift_request rose — from within fan's chat
+            # /giftme rose — from within fan's chat
             _cid = chat_id
             _gift_query = " ".join(_parts[1:]).strip().lower() if len(_parts) > 1 else ""
         else:
-            # /gift_request 7230207776 Rose — from owner's own chat
+            # /giftme 7230207776 Rose — from owner's own chat
             if len(_parts) < 3 or not _parts[1].lstrip('-').isdigit():
                 tg("sendMessage", {"chat_id": from_id,
-                    "text": "Usage:\n• In a fan's chat: /gift_request Rose\n• From your chat: /gift_request CHAT_ID Rose\n\nSee catalog: /gifts"})
+                    "text": "Usage:\n• In a fan's chat: /giftme Rose\n• From your chat: /giftme CHAT_ID Rose\n\nSee catalog: /gifts"})
                 return None, None
             try: _cid = int(_parts[1])
             except: _cid = 0
@@ -2480,7 +2480,7 @@ def register_commands():
         {"command": "custom",         "description": "✨ Custom link  e.g. /custom 75 Name"},
         # MTProto gift catalog
         {"command": "gifts",          "description": "🎁 Browse full Telegram gift catalog"},
-        {"command": "gift_request",   "description": "⭐ Request specific gift  /gift_request CHAT_ID Rose"},
+        {"command": "giftme",   "description": "⭐ Request specific gift  /giftme CHAT_ID Rose"},
         # Stars gift invoices (fixed amounts)
         {"command": "gift",           "description": "⭐ Send Stars gift  /gift CHAT_ID coffee"},
         {"command": "coffee",         "description": "☕ 150⭐ Buy Me a Coffee (shareable link)"},
