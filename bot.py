@@ -16,7 +16,10 @@ log = logging.getLogger("bella-bot")
 
 BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 OPENROUTER_KEY = os.environ["OPENROUTER_API_KEY"]
-OWNER_CHAT_ID = int(os.environ.get("OWNER_CHAT_ID", "0"))  # your personal Telegram ID
+# Support comma-separated owner IDs (e.g. "123456,789012") — first ID is primary
+_owner_ids_raw = os.environ.get("OWNER_CHAT_ID", "0")
+OWNER_CHAT_IDS = [int(x.strip()) for x in _owner_ids_raw.split(",") if x.strip().lstrip("-").isdigit()]
+OWNER_CHAT_ID = OWNER_CHAT_IDS[0] if OWNER_CHAT_IDS else 0  # primary owner (used for notifications)
 BELLA_CHANNEL_URL = os.environ.get("BELLA_CHANNEL_URL", "https://t.me/bellavistaxo")  # set in Railway vars
 BELLA_PHOTO_IDS  = [x.strip() for x in os.environ.get("BELLA_PHOTO_IDS", "").split(",") if x.strip()]
 GD_API_KEY       = os.environ.get("GODADDY_API_KEY", "")
@@ -718,7 +721,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     from_id = msg.get("from", {}).get("id", 0)
 
     # /vip command — mark a fan as VIP (bot pauses, Pierce handles manually)
-    if text.startswith("/vip ") and from_id == OWNER_CHAT_ID:
+    if text.startswith("/vip ") and from_id in OWNER_CHAT_IDS:
         target_id = text[5:].strip()
         try:
             vip_chats.add(int(target_id))
@@ -728,7 +731,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         return None, None
 
     # /unvip command — resume bot for a VIP chat
-    if text.startswith("/unvip ") and from_id == OWNER_CHAT_ID:
+    if text.startswith("/unvip ") and from_id in OWNER_CHAT_IDS:
         target_id = text[7:].strip()
         try:
             vip_chats.discard(int(target_id))
@@ -738,7 +741,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         return None, None
 
     # /wake command — clear a chat from sleep mode immediately
-    if text.startswith("/wake") and from_id == OWNER_CHAT_ID:
+    if text.startswith("/wake") and from_id in OWNER_CHAT_IDS:
         target = text[5:].strip()
         if target:
             try:
@@ -763,7 +766,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         return None, None
 
     # /fan CHAT_ID — show fan profile from DB
-    if text.startswith("/fan") and from_id == OWNER_CHAT_ID:
+    if text.startswith("/fan") and from_id in OWNER_CHAT_IDS:
         target = text[4:].strip()
         if target:
             try:
@@ -794,7 +797,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         return None, None
 
     # /links — generate shareable t.me payment links for all gift types
-    if text.strip() == "/links" and from_id == OWNER_CHAT_ID:
+    if text.strip() == "/links" and from_id in OWNER_CHAT_IDS:
         tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "⏳ Generating payment links for all gifts..."})
         lines = ["🔗 Shareable Payment Links\n"]
         biz_now = load_biz_id()
@@ -812,7 +815,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         return None, None
 
     # /gift CHAT_ID type — send a gift invoice to a specific fan
-    if text.startswith("/gift") and from_id == OWNER_CHAT_ID:
+    if text.startswith("/gift") and from_id in OWNER_CHAT_IDS:
         parts = text[5:].strip().split(None, 1)
         if not parts or parts[0] in ("", "help", "list"):
             # Show gift menu
@@ -845,7 +848,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         return None, None
 
     # /note CHAT_ID text — add or replace a note on a fan's DB profile
-    if text.startswith("/note") and from_id == OWNER_CHAT_ID:
+    if text.startswith("/note") and from_id in OWNER_CHAT_IDS:
         parts = text[5:].strip().split(None, 1)
         if len(parts) >= 2:
             try:
@@ -863,7 +866,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         return None, None
 
     # /stats — DB research insights
-    if text.strip() == "/stats" and from_id == OWNER_CHAT_ID:
+    if text.strip() == "/stats" and from_id in OWNER_CHAT_IDS:
         try:
             conn = _get_db()
             # Total fans + activity
@@ -905,7 +908,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         return None, None
 
     # /status command — show bot health summary
-    if text.strip() == "/status" and from_id == OWNER_CHAT_ID:
+    if text.strip() == "/status" and from_id in OWNER_CHAT_IDS:
         fans = load_fans()
         cutoff_7d = time.time() - 7 * 86400
         cutoff_24h = time.time() - 86400
@@ -933,7 +936,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         return None, None
 
     # /bizid — show current business_connection_id status
-    if text.strip() == "/bizid" and from_id == OWNER_CHAT_ID:
+    if text.strip() == "/bizid" and from_id in OWNER_CHAT_IDS:
         biz_now = load_biz_id()
         if biz_now:
             tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"✅ Business connection ID:\n{biz_now}\n\nAdd to Railway as BUSINESS_CONNECTION_ID env var to make it permanent."})
@@ -942,7 +945,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         return None, None
 
     # /blast_preview — show how many fans would receive a blast without sending
-    if text.strip() == "/blast_preview" and from_id == OWNER_CHAT_ID:
+    if text.strip() == "/blast_preview" and from_id in OWNER_CHAT_IDS:
         fans = load_fans()
         cutoff = time.time() - 7 * 86400
         recent = {cid: data for cid, data in fans.items() if data.get("last_seen", 0) > cutoff}
@@ -961,7 +964,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 
     # /blast command — fan out a message to all fans active in last 7 days
     # Format: /blast message text | Button Label | https://url | Label2 | https://url2 ...
-    if text.startswith("/blast ") and from_id == OWNER_CHAT_ID:
+    if text.startswith("/blast ") and from_id in OWNER_CHAT_IDS:
         raw = text[7:].strip()
         if not raw:
             tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": (
@@ -1018,7 +1021,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         return None, None
 
     # Skip messages sent BY Pierce (outgoing business messages) — capture fan + save to DB history
-    if OWNER_CHAT_ID and from_id == OWNER_CHAT_ID:
+    if OWNER_CHAT_ID and from_id in OWNER_CHAT_IDS:
         _out_chat_id = msg.get("chat", {}).get("id")
         _out_biz = msg.get("business_connection_id", "")
         _out_text = msg.get("text", "").strip()
