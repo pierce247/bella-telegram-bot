@@ -1228,8 +1228,18 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"✅ Blast done — {sent} sent, {failed} failed"})
         return None, None
 
+    # /whoami — debug: shows your Telegram ID so you can verify you're in OWNER_CHAT_IDS
+    if text.strip() == "/whoami":
+        _is_owner = from_id in OWNER_CHAT_IDS
+        tg("sendMessage", {"chat_id": from_id if from_id else chat_id,
+            "text": f"Your ID: {from_id}\nChat ID: {chat_id}\nOwner IDs: {sorted(OWNER_CHAT_IDS)}\nIs owner: {'✅ YES' if _is_owner else '❌ NO — add this ID to OWNER_CHAT_ID in Railway'}"})
+        return chat_id, biz
+
     # ── OWNER GIFT TRIGGERS (works from inside fan chats) ────────────────────
     # Type !rose, !ring, !diamond etc. in a fan's business chat to send a gift request
+    # Also log when ! is used so we can debug ID issues
+    if text.strip().startswith("!") and not text.strip().startswith("!!"):
+        log.info(f"[trigger] '!' message from {from_id} (owner={from_id in OWNER_CHAT_IDS}) in chat {chat_id}: {text[:30]!r}")
     if from_id in OWNER_CHAT_IDS and text.strip().startswith("!") and chat_id not in OWNER_CHAT_IDS:
         _trigger = text.strip()[1:].lower().strip()
         _resolved = resolve_gift(_trigger)
