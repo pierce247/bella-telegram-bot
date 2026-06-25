@@ -904,8 +904,11 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     if not msg:
         return None, None
 
-    text = msg.get("text", "").strip()
+    text    = msg.get("text", "").strip()
     sticker = msg.get("sticker")
+    # Extract chat_id and biz early so they're available everywhere in this function
+    chat_id = msg.get("chat", {}).get("id", 0) if msg else 0
+    biz     = msg.get("business_connection_id", "") if msg else ""
 
     # Owner commands — must be checked BEFORE the early-return skip
     from_id = msg.get("from", {}).get("id", 0)
@@ -1801,9 +1804,9 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 
     # Skip messages sent BY Pierce (outgoing business messages) — capture fan + save to DB history
     if from_id in OWNER_CHAT_IDS:
-        _out_chat_id = msg.get("chat", {}).get("id")
-        _out_biz = msg.get("business_connection_id", "")
-        _out_text = msg.get("text", "").strip()
+        _out_chat_id = chat_id  # already extracted above
+        _out_biz = biz
+        _out_text = text
         if _out_chat_id and _out_chat_id not in OWNER_CHAT_IDS:
             # ── Gift shortcut: Pierce types /coffee /wine etc. IN a fan's Business chat ──
             # Intercept before saving as a regular message
