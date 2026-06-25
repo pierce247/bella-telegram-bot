@@ -52,15 +52,34 @@ def pg_query(sql, params=(), fetchall=False, fetchone=False):
             except: pass
             return None
 
+def _call_bot_api(path):
+    """Call bella-bot stats API (which has direct Postgres access)."""
+    bot_url = STATS_URL or os.environ.get("BOT_STATS_URL", "")
+    if not bot_url:
+        return None
+    try:
+        req = urllib.request.Request(f"{bot_url}{path}", headers={"X-Admin-Token": ADMIN_TOKEN})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return json.loads(r.read())
+    except Exception as e:
+        print(f"[bot-api] {path} error: {e}")
+        return None
+
 def get_pg_fans():
-    """Get all fans from shared Postgres DB."""
+    """Get fans from bella-bot API or direct Postgres."""
+    data = _call_bot_api("/api/fans")
+    if data and "fans" in data:
+        return data["fans"]
     rows = pg_query("SELECT chat_id, name, biz, heat, first_seen, last_seen, msg_count FROM fans ORDER BY last_seen DESC", fetchall=True)
     if not rows: return []
     return [{"chat_id": r[0], "name": r[1], "biz": r[2], "heat": r[3],
              "first_seen": r[4], "last_seen": r[5], "msg_count": r[6]} for r in rows]
 
 def get_pg_stats():
-    """Get aggregate fan/chat stats from shared Postgres DB."""
+    """Get aggregate fan/chat stats from bella-bot API or direct Postgres."""
+    data = _call_bot_api("/api/pg-stats")
+    if data and "total_fans" in data:
+        return data
     now = time.time()
     total = pg_query("SELECT COUNT(*) FROM fans", fetchone=True)
     active_24h = pg_query("SELECT COUNT(*) FROM fans WHERE last_seen > %s", (now - 86400,), fetchone=True)
