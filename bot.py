@@ -1324,8 +1324,52 @@ class PoyntWebhookHandler(BaseHTTPRequestHandler):
         pass  # suppress default HTTP logging
 
     def do_POST(self):
+        from urllib.parse import urlparse
+        p = urlparse(self.path)
         content_len = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(content_len) if content_len else b""
+        ADMIN = os.environ.get("ADMIN_TOKEN", "bella-admin-2024")
+        admin_tok = self.headers.get("X-Admin-Token", "")
+
+        # POST /api/import-subscribers — bulk import Linktree subscribers into Postgres
+        if p.path == "/api/import-subscribers":
+            if admin_tok != ADMIN:
+                self.send_response(401); self.end_headers(); return
+            try:
+                data = json.loads(body.decode())
+                subs = data if isinstance(data, list) else data.get("subscribers", [])
+                inserted = 0
+                ph = _ph()
+                for s in subs:
+                    try:
+                        _exec(f"""INSERT INTO subscribers (email,phone,source,followed_on,status,converted,conversion_date,bounced,created_at)
+                                  VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})
+                                  ON CONFLICT(email) DO UPDATE SET
+                                    status=excluded.status, converted=excluded.converted,
+                                    conversion_date=excluded.conversion_date, bounced=excluded.bounced""",
+                              (s.get("email",""), s.get("phone",""), s.get("source",""),
+                               s.get("followed_on",""), s.get("status","active"),
+                               bool(s.get("converted", False)), s.get("conversion_date","") or "",
+                               bool(s.get("bounced", False)), time.time()),
+                              commit=True)
+                        inserted += 1
+                    except Exception as e:
+                        log.warning(f"Subscriber insert error: {e}")
+                resp = json.dumps({"ok": True, "imported": inserted, "total": len(subs)}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", len(resp))
+                self.end_headers()
+                self.wfile.write(resp)
+                log.info(f"Imported {inserted} subscribers to Postgres")
+            except Exception as e:
+                resp = json.dumps({"error": str(e)}).encode()
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(resp)
+            return
+
         self.send_response(200)
         self.end_headers()
         try:
