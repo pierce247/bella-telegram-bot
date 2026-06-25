@@ -1517,7 +1517,7 @@ class Handler(BaseHTTPRequestHandler):
             redirect  = "https://bella-poynt-webhook-production.up.railway.app/oauth/callback"
             state_val = _sec.token_hex(16)  # 32 hex chars — well above 8 minimum
             params    = {"response_type":"code","client_id":FANVUE_CLIENT_ID,
-                         "redirect_uri":redirect,"scope":"openid offline_access offline read:chat write:chat read:creator",
+                         "redirect_uri":redirect,"scope":"openid offline_access offline read:chat write:chat read:creator read:fan",
                          "code_challenge":challenge,"code_challenge_method":"S256","state":state_val}
             url = "https://auth.fanvue.com/oauth2/auth?" + _up2.urlencode(params)
             if not FANVUE_CLIENT_ID:
@@ -1971,10 +1971,17 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 at = fanvue_get_access_token()
                 if not at: self.send_json(503,{"error":"Fanvue auth unavailable"}); return
                 # Send to every contact: active subs + followers + expired subs + free trials
-                payload = json.dumps({"text": msg_text, "lists": [
-                    "subscribers", "followers", "expired_subscribers", "free_trial_subscribers"
-                ]}).encode()
-                req = urllib.request.Request("https://api.fanvue.com/messages/mass",
+                # Correct endpoint: POST /chats/mass-messages with includedLists.smartListUuids
+                payload = json.dumps({
+                    "text": msg_text,
+                    "includedLists": {
+                        "smartListUuids": [
+                            "subscribers", "followers",
+                            "expired_subscribers", "free_trial_subscribers"
+                        ]
+                    }
+                }).encode()
+                req = urllib.request.Request("https://api.fanvue.com/chats/mass-messages",
                     data=payload, headers={**fv_headers(at)})
                 try:
                     with urllib.request.urlopen(req, timeout=30) as r:
