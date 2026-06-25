@@ -14,7 +14,7 @@ import urllib.request, urllib.error
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-# ── Config ─────────────────────────────────────────────────────────────────
+# v3.1 ── Config ─────────────────────────────────────────────────────────────────
 BOT_TOKEN        = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 POYNT_APP_ID_RAW = os.environ.get("POYNT_APP_ID", "")
 POYNT_SECRET_RAW = os.environ.get("POYNT_CLIENT_SECRET", "")
