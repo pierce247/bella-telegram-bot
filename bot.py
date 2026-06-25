@@ -1597,6 +1597,41 @@ def db_get_fan(chat_id: int) -> dict:
     except Exception as e:
         log.warning(f"db_get_fan error: {e}")
     return {}
+def get_pg_fans():
+    """Get all fans from Postgres for the stats API."""
+    try:
+        ph = _ph()
+        rows = _exec("SELECT chat_id, name, biz, heat, first_seen, last_seen, msg_count FROM fans ORDER BY last_seen DESC", fetchall=True) or []
+        return [{"chat_id": r[0], "name": r[1], "biz": r[2], "heat": r[3],
+                 "first_seen": r[4], "last_seen": r[5], "msg_count": r[6]} for r in rows]
+    except Exception as e:
+        log.warning(f"get_pg_fans error: {e}")
+        return []
+
+def get_pg_stats():
+    """Get aggregate fan/chat stats from Postgres for the stats API."""
+    try:
+        now = time.time()
+        ph = _ph()
+        total     = _exec("SELECT COUNT(*) FROM fans", fetchone=True)
+        act_24h   = _exec(f"SELECT COUNT(*) FROM fans WHERE last_seen > {ph}", (now-86400,), fetchone=True)
+        act_7d    = _exec(f"SELECT COUNT(*) FROM fans WHERE last_seen > {ph}", (now-604800,), fetchone=True)
+        msgs      = _exec("SELECT COUNT(*) FROM messages", fetchone=True)
+        heat_dist = _exec("SELECT heat, COUNT(*) FROM fans GROUP BY heat ORDER BY heat", fetchall=True) or []
+        avg_resp  = _exec("SELECT AVG(response_ms) FROM messages WHERE role='assistant' AND response_ms > 0", fetchone=True)
+        return {
+            "total_fans": total[0] if total else 0,
+            "active_24h": act_24h[0] if act_24h else 0,
+            "active_7d": act_7d[0] if act_7d else 0,
+            "total_messages": msgs[0] if msgs else 0,
+            "heat_distribution": {str(h): c for h, c in heat_dist},
+            "avg_response_ms": int(avg_resp[0]) if avg_resp and avg_resp[0] else 0,
+        }
+    except Exception as e:
+        log.warning(f"get_pg_stats error: {e}")
+        return {"total_fans": 0, "active_24h": 0, "active_7d": 0,
+                "total_messages": 0, "heat_distribution": {}, "avg_response_ms": 0}
+
 MAX_DEDUP    = 500  # keep last N update IDs on disk
 
 def load_biz_id() -> str:
