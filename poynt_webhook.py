@@ -123,15 +123,13 @@ def fanvue_get_access_token():
         return at
     if not rt or not FANVUE_CLIENT_ID:
         print("[fanvue_auth] No refresh token or client_id configured"); return None
-    # Refresh — send all params in POST body (not Basic auth)
-    data = _up.urlencode({
-        "grant_type":    "refresh_token",
-        "refresh_token": rt,
-        "client_id":     FANVUE_CLIENT_ID,
-        "client_secret": FANVUE_CLIENT_SECRET,
-    }).encode()
+    # Refresh — client_secret_basic: credentials in Authorization header
+    import base64 as _b64a
+    creds = _b64a.b64encode(f"{FANVUE_CLIENT_ID}:{FANVUE_CLIENT_SECRET}".encode()).decode()
+    data = _up.urlencode({"grant_type": "refresh_token", "refresh_token": rt}).encode()
     req = urllib.request.Request("https://auth.fanvue.com/oauth2/token", data=data,
-          headers={"Content-Type":"application/x-www-form-urlencoded"})
+          headers={"Content-Type":"application/x-www-form-urlencoded",
+                   "Authorization": f"Basic {creds}"})
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
             tokens = json.loads(r.read())
@@ -1641,18 +1639,20 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
             redirect_uri     = "https://bella-poynt-webhook-production.up.railway.app/oauth/callback"
             pkce = load_json(os.path.join(DATA_DIR,"fanvue_pkce.json"), {})
             code_verifier = pkce.get("code_verifier","")
+            # client_secret_basic: credentials in Authorization header
+            import base64 as _b64cb
+            cb_creds = _b64cb.b64encode(f"{fv_client_id}:{fv_client_secret}".encode()).decode()
             token_params = {
-                "grant_type":    "authorization_code",
-                "code":           code,
-                "redirect_uri":   redirect_uri,
-                "client_id":      fv_client_id,
-                "client_secret":  fv_client_secret,
+                "grant_type":  "authorization_code",
+                "code":         code,
+                "redirect_uri": redirect_uri,
             }
             if code_verifier:
                 token_params["code_verifier"] = code_verifier
             token_data = _up.urlencode(token_params).encode()
             req = urllib.request.Request("https://auth.fanvue.com/oauth2/token", data=token_data,
-                  headers={"Content-Type":"application/x-www-form-urlencoded"})
+                  headers={"Content-Type":"application/x-www-form-urlencoded",
+                           "Authorization": f"Basic {cb_creds}"})
             try:
                 with urllib.request.urlopen(req, timeout=15) as r:
                     tokens = json.loads(r.read())
@@ -2007,18 +2007,20 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
             pkce = load_json(os.path.join(DATA_DIR,"fanvue_pkce.json"), {})
             code_verifier = pkce.get("code_verifier","")
             # Always send client_id + client_secret + code_verifier in POST body
+            # client_secret_basic: credentials in Authorization header
+            import base64 as _b64cb
+            cb_creds = _b64cb.b64encode(f"{fv_client_id}:{fv_client_secret}".encode()).decode()
             token_params = {
-                "grant_type":    "authorization_code",
-                "code":           code,
-                "redirect_uri":   redirect_uri,
-                "client_id":      fv_client_id,
-                "client_secret":  fv_client_secret,
+                "grant_type":  "authorization_code",
+                "code":         code,
+                "redirect_uri": redirect_uri,
             }
             if code_verifier:
                 token_params["code_verifier"] = code_verifier
             token_data = _up.urlencode(token_params).encode()
             req = urllib.request.Request("https://auth.fanvue.com/oauth2/token", data=token_data,
-                  headers={"Content-Type":"application/x-www-form-urlencoded"})
+                  headers={"Content-Type":"application/x-www-form-urlencoded",
+                           "Authorization": f"Basic {cb_creds}"})
             try:
                 with urllib.request.urlopen(req, timeout=15) as r:
                     tokens = json.loads(r.read())
