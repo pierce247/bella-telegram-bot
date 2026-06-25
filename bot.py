@@ -1264,6 +1264,25 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                             tg("sendMessage", {"chat_id": from_id, "text": f"❌ Failed: {_e2}"})
                     else:
                         tg("sendMessage", {"chat_id": from_id, "text": f"❌ Couldn't find UUID for '{_handle}'. They need to have messaged recently."})
+        elif _sub == "blast":
+            # /fanvue blast <message> — send mass message to all subscribers
+            _msg = text.strip()[len("/fanvue blast"):].strip()
+            if not _msg:
+                tg("sendMessage", {"chat_id": from_id, "text": "Usage: /fanvue blast <your message>\n\nThis sends to ALL Fanvue subscribers."})
+            else:
+                tg("sendMessage", {"chat_id": from_id, "text": f"📤 Sending blast to all subscribers...\n\n\"{_msg[:100]}\""})
+                try:
+                    _data = json.dumps({"token":"bella-admin-2024","message":_msg}).encode()
+                    _req3 = _ur2.Request("https://bella-poynt-webhook-production.up.railway.app/fanvue-blast",
+                        data=_data, headers={"Content-Type":"application/json"})
+                    with _ur2.urlopen(_req3, timeout=30) as _r3:
+                        _res = json.loads(_r3.read())
+                    if _res.get("ok"):
+                        tg("sendMessage", {"chat_id": from_id, "text": f"✅ Blast sent to {_res.get('recipients','?')} subscribers!"})
+                    else:
+                        tg("sendMessage", {"chat_id": from_id, "text": f"❌ Blast failed: {_res.get('error','unknown')}"})
+                except Exception as _be:
+                    tg("sendMessage", {"chat_id": from_id, "text": f"❌ Blast error: {_be}"})
         else:
             _paused = _os2.path.exists(_fv_flag)
             tg("sendMessage", {"chat_id": from_id, "text": (
@@ -1272,7 +1291,8 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                 f"/fanvue pause — stop auto-replies\n"
                 f"/fanvue resume — restart auto-replies\n"
                 f"/fanvue last 5 — see last 5 DMs\n"
-                f"/fanvue reply <name> <msg> — send manual reply\n\n"
+                f"/fanvue reply <name> <msg> — manual reply\n"
+                f"/fanvue blast <msg> — mass message all subs\n\n"
                 f"Auto-reply: {'⏸ PAUSED' if _paused else '▶️ ACTIVE'}")})
         return None, None
 
@@ -2281,7 +2301,7 @@ def register_commands():
         {"command": "photos",   "description": "📸 Generate photos link  e.g. /photos 35"},
         {"command": "videos",   "description": "🎥 Generate videos link  e.g. /videos 50"},
         {"command": "custom",   "description": "✨ Custom link  e.g. /custom 75 Spicy set"},
-        {"command": "fanvue",   "description": "🌸 Fanvue DM bot  pause/resume/last/reply"},
+        {"command": "fanvue",   "description": "🌸 Fanvue  pause/resume/last/reply/blast"},
     ]
     try:
         result = tg("setMyCommands", {"commands": commands})
