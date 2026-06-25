@@ -1980,30 +1980,28 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                     existing.insert(0, entry)
                     save_json(PAYMENTS_LOG, existing)
 
-                if etype == "message_received" and fan_uuid and msg_text:
+                # Fanvue canonical event names (from webhook API)
+                # also keep old names as fallback for any legacy events
+                if etype in ("message.received", "message_received") and fan_uuid and msg_text:
                     _fvt.Thread(target=handle_fanvue_message,
                                 args=(fan_uuid, fan_name, msg_text), daemon=True).start()
 
-                elif etype in ("new_subscriber", "subscription_started", "subscribe"):
+                elif etype in ("subscription.new", "new_subscriber", "subscription_started", "subscribe"):
                     _fvt.Thread(target=handle_fanvue_new_subscriber,
                                 args=(fan_uuid, fan_name), daemon=True).start()
                     msg = f"🆕 New Fanvue subscriber!\n👤 {fan_name}"
                     if amt_usd: msg += f"\n💵 {amt_usd}"
                     for oid in OWNER_CHAT_IDS: send_telegram(oid, msg)
                     if amt_cents: _log_fanvue_payment("subscription", "sub")
-
-                elif etype in ("subscription_renewed", "renewal", "rebill"):
-                    msg = f"🔄 Fanvue renewal!\n👤 {fan_name}"
-                    if amt_usd: msg += f"\n💵 {amt_usd}"
-                    for oid in OWNER_CHAT_IDS: send_telegram(oid, msg)
-                    if amt_cents: _log_fanvue_payment("renewal", "ren")
                     _fvt.Thread(target=fanvue_refresh_stats, daemon=True).start()
 
-                elif etype in ("subscription_cancelled", "unsubscribe", "cancel"):
+                elif etype in ("subscription.cancelled", "subscription.expired",
+                               "subscription_cancelled", "unsubscribe", "cancel"):
                     msg = f"❌ Fanvue cancellation\n👤 {fan_name}"
                     for oid in OWNER_CHAT_IDS: send_telegram(oid, msg)
+                    _fvt.Thread(target=fanvue_refresh_stats, daemon=True).start()
 
-                elif etype in ("tip_received", "tip", "tipped"):
+                elif etype in ("tip.new", "tip_received", "tip", "tipped"):
                     msg = f"💰 Fanvue tip!\n👤 {fan_name}\n💵 {amt_usd or '?'}"
                     note = event.get("message","") or event.get("note","")
                     if note: msg += f"\n💬 \"{note}\""
@@ -2011,7 +2009,7 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                     if amt_cents: _log_fanvue_payment("tip", "tip")
                     _fvt.Thread(target=fanvue_refresh_stats, daemon=True).start()
 
-                elif etype in ("ppv_unlocked", "post_unlocked", "purchase_received",
+                elif etype in ("purchase.new", "ppv_unlocked", "post_unlocked", "purchase_received",
                                "item_purchased", "content_purchased", "media_purchased"):
                     item = event.get("post",{}) or event.get("item",{}) or {}
                     item_name = item.get("title","") or item.get("name","") or "PPV"
