@@ -108,18 +108,44 @@ def notify_owners(name, amount_cents, email, delivered, fan_chat=None):
 FANVUE_CLIENT_ID     = os.environ.get("FANVUE_CLIENT_ID","")
 FANVUE_CLIENT_SECRET = os.environ.get("FANVUE_CLIENT_SECRET","")
 FANVUE_REFRESH_TOKEN = os.environ.get("FANVUE_REFRESH_TOKEN","")
+FANVUE_TOKEN_FILE    = os.path.join(DATA_DIR, "fanvue_tokens.json")
 
 def fanvue_get_access_token():
-    import urllib.parse as _up, base64 as _b64
-    rt = FANVUE_REFRESH_TOKEN
-    if not rt or not FANVUE_CLIENT_ID: return None
-    creds = _b64.b64encode(f"{FANVUE_CLIENT_ID}:{FANVUE_CLIENT_SECRET}".encode()).decode()
-    data = _up.urlencode({"grant_type":"refresh_token","refresh_token":rt}).encode()
+    """Get a valid Fanvue access token, refreshing if needed. Saves rotated refresh token."""
+    import urllib.parse as _up
+    # Load stored tokens (override env var with file-stored refresh token if newer)
+    stored = load_json(FANVUE_TOKEN_FILE, {})
+    rt = stored.get("refresh_token") or FANVUE_REFRESH_TOKEN
+    at = stored.get("access_token","")
+    exp = stored.get("expires_at", 0)
+    # Return cached access token if still valid (with 5 min buffer)
+    if at and exp and (time.time() + 300) < exp:
+        return at
+    if not rt or not FANVUE_CLIENT_ID:
+        print("[fanvue_auth] No refresh token or client_id configured"); return None
+    # Refresh — send all params in POST body (not Basic auth)
+    data = _up.urlencode({
+        "grant_type":    "refresh_token",
+        "refresh_token": rt,
+        "client_id":     FANVUE_CLIENT_ID,
+        "client_secret": FANVUE_CLIENT_SECRET,
+    }).encode()
     req = urllib.request.Request("https://auth.fanvue.com/oauth2/token", data=data,
-          headers={"Content-Type":"application/x-www-form-urlencoded","Authorization":f"Basic {creds}"})
+          headers={"Content-Type":"application/x-www-form-urlencoded"})
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
-            return json.loads(r.read()).get("access_token")
+            tokens = json.loads(r.read())
+        new_at = tokens.get("access_token","")
+        new_rt = tokens.get("refresh_token", rt)  # save rotated token
+        expires_in = tokens.get("expires_in", 3600)
+        save_json(FANVUE_TOKEN_FILE, {
+            "access_token":  new_at,
+            "refresh_token": new_rt,
+            "expires_at":    time.time() + expires_in,
+            "updated_at":    time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        })
+        print(f"[fanvue_auth] Token refreshed, expires in {expires_in}s")
+        return new_at
     except Exception as e:
         print(f"[fanvue_auth] {e}"); return None
 
@@ -1431,6 +1457,28 @@ class Handler(BaseHTTPRequestHandler):
         p = urlparse(self.path)
         if p.path == "/health":
             self.send_json(200,{"status":"ok","version":"v3"})
+
+        elif p.path == "/fanvue-auth-url":
+            # Generate a fresh Fanvue OAuth URL using Railway's actual FANVUE_CLIENT_ID
+            import secrets as _sec, hashlib as _hs, base64 as _b64u, urllib.parse as _up2
+            verifier  = _sec.token_urlsafe(64)
+            digest    = _hs.sha256(verifier.encode()).digest()
+            challenge = _b64u.urlsafe_b64encode(digest).rstrip(b"=").decode()
+            save_json(os.path.join(DATA_DIR,"fanvue_pkce.json"),{"code_verifier":verifier})
+            redirect  = "https://bella-poynt-webhook-production.up.railway.app/oauth/callback"
+            params    = {"response_type":"code","client_id":FANVUE_CLIENT_ID,
+                         "redirect_uri":redirect,"scope":"openid offline_access offline",
+                         "code_challenge":challenge,"code_challenge_method":"S256","state":"bella"}
+            url = "https://auth.fanvue.com/oauth2/auth?" + _up2.urlencode(params)
+            if not FANVUE_CLIENT_ID:
+                self.send_html(400,"<h2>FANVUE_CLIENT_ID not set in Railway env vars</h2>"); return
+            html = (f'<html><body style="font-family:sans-serif;background:#111;color:#f0f0f0;padding:30px">'
+                    f'<h2 style="color:#818cf8">Fanvue OAuth Authorization</h2>'
+                    f'<p>Click below while logged into Fanvue as @bellavistaxo:</p>'
+                    f'<a href="{url}" style="display:inline-block;background:#818cf8;color:#000;padding:14px 24px;border-radius:8px;text-decoration:none;font-weight:700;margin-top:10px">Authorize Fanvue ↗</a>'
+                    f'<p style="margin-top:20px;color:#555;font-size:12px">Client ID: {FANVUE_CLIENT_ID[:12]}...</p>'
+                    f'</body></html>')
+            self.send_html(200, html)
         elif p.path in ("/dashboard","/"):
             if self.require_admin(p) != ADMIN_TOKEN:
                 self.send_json(401,{"error":"unauthorized"}); return
@@ -1902,15 +1950,16 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
             # PKCE: code_verifier is stored in fanvue_pkce.json on the volume
             pkce = load_json(os.path.join(DATA_DIR,"fanvue_pkce.json"), {})
             code_verifier = pkce.get("code_verifier","")
+            # Always send client_id + client_secret + code_verifier in POST body
             token_params = {
-                "grant_type":"authorization_code","code":code,
-                "redirect_uri":redirect_uri,
-                "client_id":fv_client_id
+                "grant_type":    "authorization_code",
+                "code":           code,
+                "redirect_uri":   redirect_uri,
+                "client_id":      fv_client_id,
+                "client_secret":  fv_client_secret,
             }
             if code_verifier:
                 token_params["code_verifier"] = code_verifier
-            else:
-                token_params["client_secret"] = fv_client_secret
             token_data = _up.urlencode(token_params).encode()
             req = urllib.request.Request("https://auth.fanvue.com/oauth2/token", data=token_data,
                   headers={"Content-Type":"application/x-www-form-urlencoded"})
@@ -1919,11 +1968,13 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                     tokens = json.loads(r.read())
                 refresh_token = tokens.get("refresh_token","")
                 access_token  = tokens.get("access_token","")
-                expires_in    = tokens.get("expires_in",0)
-                # Save to fanvue_tokens.json on the volume
-                save_json(os.path.join(DATA_DIR,"fanvue_tokens.json"), {
-                    "refresh_token": refresh_token, "access_token": access_token,
-                    "expires_in": expires_in, "captured_at": time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime())
+                expires_in    = tokens.get("expires_in", 3600)
+                # Save in new format with absolute expires_at
+                save_json(FANVUE_TOKEN_FILE, {
+                    "refresh_token": refresh_token,
+                    "access_token":  access_token,
+                    "expires_at":    time.time() + expires_in,
+                    "updated_at":    time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                 })
                 print(f"[oauth] Fanvue tokens saved. Refresh token: {refresh_token[:20]}...")
                 html = (f"<h2>Connected!</h2>"
