@@ -1113,14 +1113,28 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         _out_chat_id = msg.get("chat", {}).get("id")
         _out_biz = msg.get("business_connection_id", "")
         _out_text = msg.get("text", "").strip()
-        if _out_chat_id and _out_chat_id != OWNER_CHAT_ID:
+        # Skip if the target chat is one of the owner's own accounts
+        _is_own_chat = _out_chat_id in OWNER_CHAT_IDS if _out_chat_id else True
+        if _out_chat_id and not _is_own_chat:
             # ── Gift shortcuts: Pierce types /coffee, !coffee, !rose etc. IN a fan's chat ──
             _gift_key = None
+            _msg_id = msg.get("message_id", 0)
             if _out_text.startswith("/") or _out_text.startswith("!"):
                 _gift_key = _out_text.lstrip("/!").split()[0].lower()
+
+            def _delete_command():
+                """Delete the !command message so the fan never sees it."""
+                if _msg_id and _out_biz:
+                    tg("deleteBusinessMessages", {
+                        "business_connection_id": _out_biz,
+                        "chat_id": _out_chat_id,
+                        "message_ids": [_msg_id]
+                    })
+
             # Check animated gifts first (!rose, !ring, !diamond etc.)
             if _gift_key and _gift_key in ANIMATED_GIFTS:
                 gift_name = ANIMATED_GIFTS[_gift_key]
+                _delete_command()  # delete the !rose text immediately
                 ok = send_animated_gift(_out_chat_id, gift_name)
                 log.info(f"Animated gift !{_gift_key} ({gift_name}) → {_out_chat_id}: {'✅' if ok else '❌'}")
                 if OWNER_CHAT_ID:
@@ -1128,14 +1142,14 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                         "text": f"{'✅' if ok else '❌'} Gift request: {gift_name} → chat {_out_chat_id}"})
                 return None, None
             if _gift_key and _gift_key in GIFT_CATALOG:
+                _delete_command()  # delete the /coffee text immediately
                 ok = send_gift_invoice(_out_chat_id, _gift_key, _out_biz)
                 amt, title, _, _ = GIFT_CATALOG[_gift_key]
                 log.info(f"Gift shortcut /{_gift_key} ({amt}⭐) → chat {_out_chat_id}: {'✅' if ok else '❌'}")
-                # Notify Pierce in bot DM
                 if OWNER_CHAT_ID:
                     tg("sendMessage", {"chat_id": OWNER_CHAT_ID,
                         "text": f"{'✅' if ok else '❌'} Gift {title} ({amt}⭐) sent to chat {_out_chat_id}"})
-                return None, None  # don't save /coffee as a chat message
+                return None, None  # don't save the command as a chat message
 
             # Register the fan
             _fans = load_fans()
