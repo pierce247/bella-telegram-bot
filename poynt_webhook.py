@@ -1466,9 +1466,10 @@ class Handler(BaseHTTPRequestHandler):
             challenge = _b64u.urlsafe_b64encode(digest).rstrip(b"=").decode()
             save_json(os.path.join(DATA_DIR,"fanvue_pkce.json"),{"code_verifier":verifier})
             redirect  = "https://bella-poynt-webhook-production.up.railway.app/oauth/callback"
+            state_val = _sec.token_hex(16)  # 32 hex chars — well above 8 minimum
             params    = {"response_type":"code","client_id":FANVUE_CLIENT_ID,
                          "redirect_uri":redirect,"scope":"openid offline_access offline",
-                         "code_challenge":challenge,"code_challenge_method":"S256","state":"bella"}
+                         "code_challenge":challenge,"code_challenge_method":"S256","state":state_val}
             url = "https://auth.fanvue.com/oauth2/auth?" + _up2.urlencode(params)
             if not FANVUE_CLIENT_ID:
                 self.send_html(400,"<h2>FANVUE_CLIENT_ID not set in Railway env vars</h2>"); return
