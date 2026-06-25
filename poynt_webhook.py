@@ -306,7 +306,8 @@ def clean_reply(text: str) -> str:
             continue
         lower = stripped.lower()
         # Only apply prefix filter to longer lines — short replies are usually fine
-        if len(stripped) > 60 and any(lower.startswith(prefix) for prefix in AI_LEAK_PREFIXES):
+        _leak_prefixes = ["fan said:", "reply as bella:", "user said:", "user:", "fan:", "as bella:", "bella:"]
+        if len(stripped) > 60 and any(lower.startswith(prefix) for prefix in _leak_prefixes):
             log.warning(f"Stripped AI leak: {stripped[:60]!r}")
             break
         good_lines.append(stripped)
@@ -408,10 +409,16 @@ def clean_reply(text: str) -> str:
 
 
 
+FV_API_VERSION = "2025-06-26"
+
+def fv_headers(at):
+    return {"Authorization": f"Bearer {at}", "X-Fanvue-API-Version": FV_API_VERSION,
+            "Content-Type": "application/json"}
+
 def fanvue_get_history(fan_uuid, at, limit=6):
     req = urllib.request.Request(
         f"https://api.fanvue.com/chats/{fan_uuid}/messages?limit={limit}&sortDirection=desc",
-        headers={"Authorization": f"Bearer {at}"}
+        headers=fv_headers(at)
     )
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
@@ -460,7 +467,7 @@ def fanvue_send_dm(fan_uuid, text, at):
     payload = json.dumps({"text":text}).encode()
     req = urllib.request.Request(
         f"https://api.fanvue.com/chats/{fan_uuid}/messages", data=payload,
-        headers={"Authorization":f"Bearer {at}","Content-Type":"application/json"}
+        headers=fv_headers(at)
     )
     try:
         with urllib.request.urlopen(req, timeout=15) as r: return json.loads(r.read())
@@ -1466,7 +1473,7 @@ class Handler(BaseHTTPRequestHandler):
             redirect  = "https://bella-poynt-webhook-production.up.railway.app/oauth/callback"
             state_val = _sec.token_hex(16)  # 32 hex chars — well above 8 minimum
             params    = {"response_type":"code","client_id":FANVUE_CLIENT_ID,
-                         "redirect_uri":redirect,"scope":"openid offline_access offline",
+                         "redirect_uri":redirect,"scope":"openid offline_access offline read:chat read:creator",
                          "code_challenge":challenge,"code_challenge_method":"S256","state":state_val}
             url = "https://auth.fanvue.com/oauth2/auth?" + _up2.urlencode(params)
             if not FANVUE_CLIENT_ID:
