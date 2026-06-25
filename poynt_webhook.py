@@ -466,7 +466,7 @@ def fanvue_send_dm(fan_uuid, text, at):
     time.sleep(1.5)
     payload = json.dumps({"text":text}).encode()
     req = urllib.request.Request(
-        f"https://api.fanvue.com/chats/{fan_uuid}/messages", data=payload,
+        f"https://api.fanvue.com/chats/{fan_uuid}/message", data=payload,
         headers=fv_headers(at)
     )
     try:
@@ -1473,7 +1473,7 @@ class Handler(BaseHTTPRequestHandler):
             redirect  = "https://bella-poynt-webhook-production.up.railway.app/oauth/callback"
             state_val = _sec.token_hex(16)  # 32 hex chars — well above 8 minimum
             params    = {"response_type":"code","client_id":FANVUE_CLIENT_ID,
-                         "redirect_uri":redirect,"scope":"openid offline_access offline read:chat read:creator",
+                         "redirect_uri":redirect,"scope":"openid offline_access offline read:chat write:chat read:creator",
                          "code_challenge":challenge,"code_challenge_method":"S256","state":state_val}
             url = "https://auth.fanvue.com/oauth2/auth?" + _up2.urlencode(params)
             if not FANVUE_CLIENT_ID:
