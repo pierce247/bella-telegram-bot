@@ -1185,6 +1185,43 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         return None, None
 
     # ── PAYMENT & DASHBOARD COMMANDS ──────────────────────────────────────
+    # /tip [amount] — generate a tip link
+    if text.strip().startswith("/tip") and from_id in OWNER_CHAT_IDS:
+        _parts = text.strip().split()
+        _amt = _parts[1] if len(_parts) > 1 else "x"
+        _url = f"https://pay.bellavista.lol/{_amt}"
+        tg("sendMessage", {"chat_id": from_id, "text": f"💰 Tip link (${_amt}):\n{_url}",
+            "reply_markup": json.dumps({"inline_keyboard": [[{"text": f"💰 Tip ${_amt}", "url": _url}]]})})
+        return None, None
+
+    # /photos [price] — generate a photos pay link
+    if text.strip().startswith("/photos") and from_id in OWNER_CHAT_IDS:
+        _parts = text.strip().split()
+        _amt = _parts[1] if len(_parts) > 1 else "25"
+        _url = f"https://pay.bellavista.lol/{_amt}"
+        tg("sendMessage", {"chat_id": from_id, "text": f"📸 Photos link (${_amt}):\n{_url}",
+            "reply_markup": json.dumps({"inline_keyboard": [[{"text": f"📸 Get Photos ${_amt}", "url": _url}]]})})
+        return None, None
+
+    # /videos [price] — generate a videos pay link
+    if text.strip().startswith("/videos") and from_id in OWNER_CHAT_IDS:
+        _parts = text.strip().split()
+        _amt = _parts[1] if len(_parts) > 1 else "50"
+        _url = f"https://pay.bellavista.lol/{_amt}"
+        tg("sendMessage", {"chat_id": from_id, "text": f"🎥 Videos link (${_amt}):\n{_url}",
+            "reply_markup": json.dumps({"inline_keyboard": [[{"text": f"🎥 Get Videos ${_amt}", "url": _url}]]})})
+        return None, None
+
+    # /custom <price> <label> — generate a custom pay link
+    if text.strip().startswith("/custom") and from_id in OWNER_CHAT_IDS:
+        _parts = text.strip().split(maxsplit=2)
+        _amt = _parts[1] if len(_parts) > 1 else "x"
+        _label = _parts[2] if len(_parts) > 2 else "Custom"
+        _url = f"https://pay.bellavista.lol/{_amt}"
+        tg("sendMessage", {"chat_id": from_id, "text": f"🔗 {_label} link (${_amt}):\n{_url}",
+            "reply_markup": json.dumps({"inline_keyboard": [[{"text": f"✨ {_label} ${_amt}", "url": _url}]]})})
+        return None, None
+
     # /payments — show last 10 transactions from webhook service
     if text.strip() == "/payments" and from_id in OWNER_CHAT_IDS:
         try:
@@ -1856,6 +1893,26 @@ class PoyntWebhookHandler(BaseHTTPRequestHandler):
                     self._json(200, {"count": len(orders) if isinstance(orders,list) else 0,
                                      "orders": orders if isinstance(orders,list) else [],
                                      "raw": data})
+            except Exception as e:
+                self._json(500, {"error": str(e)})
+        elif parsed.path.startswith("/api/conversation/"):
+            # Return chat transcript for a specific chat_id
+            if token != admin_t: self._json(401, {"error":"unauthorized"}); return
+            try:
+                chat_id_str = parsed.path.split("/api/conversation/")[1].split("?")[0]
+                cid = int(chat_id_str)
+                limit = int(qs.get("limit",["100"])[0])
+                conn = _get_db()
+                rows = conn.execute(
+                    "SELECT role, content, ts FROM messages WHERE chat_id=? ORDER BY ts ASC LIMIT ?",
+                    (cid, limit)).fetchall()
+                fan_row = conn.execute(
+                    "SELECT name, heat, biz_conn_id FROM fans WHERE chat_id=?", (cid,)).fetchone()
+                fan_info = {"name": fan_row[0] if fan_row else "Unknown",
+                            "heat": fan_row[1] if fan_row else 1,
+                            "chat_id": cid}
+                msgs = [{"role": r, "content": c, "ts": str(t)} for r,c,t in rows]
+                self._json(200, {"chat_id": cid, "fan": fan_info, "messages": msgs, "count": len(msgs)})
             except Exception as e:
                 self._json(500, {"error": str(e)})
         else:

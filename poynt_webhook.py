@@ -1342,7 +1342,7 @@ function openFanModal(chatId,name,msgs,heat,last){
   const tgUser=TG_USERS[(name||"").toLowerCase()]||"";
   const payments=PAYMENTS.filter(p=>p.chat_id==chatId&&p.status==="CAPTURED");
   const totalPaid=payments.reduce((s,p)=>s+p.amount_cents,0);
-  document.getElementById('fanModalBody').innerHTML=
+  const statsHtml=
     '<div class="pay-detail-row"><span class="pay-detail-lbl">Chat ID</span><span class="pay-detail-val">'+chatId+'</span></div>'
     +(tgUser?'<div class="pay-detail-row"><span class="pay-detail-lbl">Telegram</span><span class="pay-detail-val"><a href="https://t.me/'+tgUser.replace('@','')+'" target="_blank" style="color:#f472b6">'+tgUser+' ↗</a></span></div>':"")
     +'<div class="pay-detail-row"><span class="pay-detail-lbl">Messages</span><span class="pay-detail-val">'+msgs+'</span></div>'
@@ -1350,9 +1350,33 @@ function openFanModal(chatId,name,msgs,heat,last){
     +'<div class="pay-detail-row"><span class="pay-detail-lbl">Last Active</span><span class="pay-detail-val">'+last+'</span></div>'
     +(totalPaid?'<div class="pay-detail-row"><span class="pay-detail-lbl">Total Paid</span><span class="pay-detail-val" style="color:#f472b6;font-weight:700">$'+(totalPaid/100).toFixed(2)+'</span></div>':"")
     +(payments.length?'<div style="margin-top:14px"><div style="font-size:11px;color:#555;text-transform:uppercase;margin-bottom:8px">Payments</div>'
-      +payments.map(p=>'<div class="pay-detail-row"><span class="pay-detail-lbl">'+fmtDate(p.ts)+'</span><span class="pay-detail-val">'+p.amount_usd+'</span></div>').join("")+'</div>':"");
+      +payments.map(p=>'<div class="pay-detail-row"><span class="pay-detail-lbl">'+fmtDate(p.ts)+'</span><span class="pay-detail-val">'+p.amount_usd+'</span></div>').join("")+'</div>':"")
+    +'<button onclick="loadTranscript(\''+chatId+'\')" style="width:100%;margin-top:14px;background:#1a1a1a;border:1px solid #333;color:#888;padding:8px;border-radius:6px;font-size:12px;cursor:pointer">💬 Load chat transcript</button>'
+    +'<div id="transcript-'+chatId+'" style="margin-top:12px"></div>';
+  document.getElementById('fanModalBody').innerHTML=statsHtml;
   document.getElementById('fanModal').style.display='block';
   document.body.style.overflow='hidden';
+}
+function loadTranscript(chatId){
+  const el=document.getElementById('transcript-'+chatId);
+  el.innerHTML='<div style="color:#555;font-size:12px;text-align:center;padding:10px">Loading...</div>';
+  const statsUrl='""" + STATS_URL + """';
+  if(!statsUrl){el.innerHTML='<div style="color:#555;font-size:12px">STATS_URL not configured</div>';return;}
+  fetch(statsUrl+'/api/conversation/'+chatId+'?token=bella-admin-2024')
+    .then(r=>r.json()).then(d=>{
+      const msgs=d.messages||[];
+      if(!msgs.length){el.innerHTML='<div style="color:#555;font-size:12px;text-align:center">No messages found</div>';return;}
+      el.innerHTML='<div style="font-size:11px;color:#555;text-transform:uppercase;margin-bottom:8px">Chat transcript ('+msgs.length+' messages)</div>'
+        +'<div style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto">'
+        +msgs.slice(-40).map(m=>{
+          const isBella=m.role==="assistant"||m.role==="owner";
+          return '<div style="display:flex;flex-direction:column;align-items:'+(isBella?'flex-end':'flex-start')+'">'
+            +'<div style="background:'+(isBella?'#f472b620':'#1a1a1a')+';border:1px solid '+(isBella?'#f472b640':'#222')+';border-radius:10px;padding:7px 10px;max-width:85%;font-size:12px;color:#e0e0e0">'
+            +m.content+'</div>'
+            +'<div style="font-size:10px;color:#444;margin-top:2px">'+(isBella?'Bella':'Fan')+(m.ts?' · '+m.ts.slice(11,16):'')+'</div>'
+            +'</div>';
+        }).join('')+'</div>';
+    }).catch(()=>{el.innerHTML='<div style="color:#ef4444;font-size:12px">Failed to load transcript</div>';});
 }
 function closeFanModal(){
   document.getElementById('fanModal').style.display='none';
