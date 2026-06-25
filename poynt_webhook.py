@@ -694,6 +694,47 @@ async def _query_stars_balance():
         except: pass
     return result
 
+async def _fetch_gift_catalog():
+    """Fetch Telegram gift catalog via MTProto. Returns list of gift dicts."""
+    if not _client:
+        return {"error": "Telethon not connected", "gifts": []}
+    import asyncio as _ai
+    try:
+        from telethon.tl.functions.payments import GetStarGiftsRequest as _GSG
+    except ImportError:
+        return {"error": "GetStarGiftsRequest not available in this Telethon version", "gifts": []}
+    try:
+        result = await _ai.wait_for(_client(_GSG(hash=0)), timeout=15)
+        gifts = []
+        for g in result.gifts:
+            # Get emoji from sticker if available
+            emoji = "⭐"
+            try:
+                sticker = g.sticker
+                if hasattr(sticker, 'attributes'):
+                    for attr in sticker.attributes:
+                        e = getattr(attr, 'alt', None) or getattr(attr, 'emoticon', None)
+                        if e: emoji = e; break
+            except: pass
+            title = getattr(g, 'title', None) or emoji
+            gifts.append({
+                "id":          g.id,
+                "emoji":       emoji,
+                "title":       title,
+                "stars":       g.stars,
+                "convert_stars": getattr(g, 'convert_stars', 0),
+                "limited":     getattr(g, 'limited', False),
+                "sold_out":    getattr(g, 'sold_out', False),
+                "availability_remains": getattr(g, 'availability_remains', None),
+                "upgrade_stars": getattr(g, 'upgrade_stars', None),
+            })
+        gifts.sort(key=lambda x: x['stars'])
+        return {"gifts": gifts, "count": len(gifts),
+                "queried_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    except Exception as e:
+        return {"error": str(e), "gifts": []}
+
+
 async def run_telethon_authed():
     global _client
     try:
@@ -1660,6 +1701,26 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
             self.send_json(200,{"total":len(result),"payers":sum(1 for r in result if r.get("payer")),
                                 "subscribers":sum(1 for r in result if r.get("source")=="linktree"),
                                 "emails":result})
+
+        elif p.path == "/api/gifts":
+            # Return Telegram gift catalog via MTProto
+            if self.require_admin(p) != ADMIN_TOKEN:
+                self.send_json(401, {"error":"unauthorized"}); return
+            # Check cache first (refresh every 10 min)
+            cache_file = os.path.join(DATA_DIR, "gift_catalog_cache.json")
+            cached = load_json(cache_file, {})
+            if cached.get("queried_at") and (time.time() - time.mktime(
+                    time.strptime(cached["queried_at"], "%Y-%m-%dT%H:%M:%SZ"))) < 600:
+                self.send_json(200, cached); return
+            if not _client or not _STARS_LOOP.is_running():
+                self.send_json(503, {"error":"Telethon not running"}); return
+            try:
+                fut = asyncio.run_coroutine_threadsafe(_fetch_gift_catalog(), _STARS_LOOP)
+                result = fut.result(timeout=20)
+                if result.get("gifts"): save_json(cache_file, result)
+                self.send_json(200, result)
+            except Exception as e:
+                self.send_json(500, {"error": str(e)})
 
         elif p.path == "/api/subscribers":
             if self.require_admin(p) != ADMIN_TOKEN:
