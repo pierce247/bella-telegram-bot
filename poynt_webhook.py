@@ -850,7 +850,7 @@ def build_dashboard(payment_stats, conv_stats):
     # ── GoDaddy payment stats ───────────────────────────────────────────────
     gd_payments = len(cap)
     gd_delivered= sum(1 for p in cap if p.get("delivered"))
-    gd_unmatched= gd_payments - gd_delivered
+    gd_unmatched= sum(1 for p in cap if not p.get("chat_id") and not p.get("delivered"))
     pending_fans= ps.get("pending_fans",0)
 
     # ── Conversation stats ──────────────────────────────────────────────────
@@ -1273,7 +1273,7 @@ function filterPay(t,btn){
   if(q)visibleRows=visibleRows.filter(p=>(p.name||"").toLowerCase().includes(q)||(p.email||"").toLowerCase().includes(q));
   if(t==="captured")visibleRows=visibleRows.filter(p=>!((p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED"));
   else if(t==="declined")visibleRows=visibleRows.filter(p=>(p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED");
-  else if(t==="unmatched")visibleRows=visibleRows.filter(p=>!p.delivered&&!((p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED"));
+  else if(t==="unmatched")visibleRows=visibleRows.filter(p=>!p.chat_id&&!p.delivered&&!((p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED"));
   renderPayCards(visibleRows);
 }
 
@@ -1496,6 +1496,44 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
             fpath = os.path.join(DATA_DIR,"fanvue_stats.json")
             stats = load_json(fpath, {})
             self.send_json(200, stats)
+
+        elif p.path == "/api/master-emails":
+            if self.require_admin(p) != ADMIN_TOKEN:
+                self.send_json(401,{"error":"unauthorized"}); return
+            # Combined list: Linktree subscribers + GoDaddy payers (deduped)
+            subs = load_json(SUBSCRIBERS_FILE, [])
+            payments = load_json(PAYMENTS_LOG, [])
+            master = {}
+            # Start with Linktree subscribers
+            for s in subs:
+                if s.get("bounced"): continue
+                e = s.get("email","").lower()
+                if not e: continue
+                master[e] = {"email":e,"source":"linktree","followed_on":s.get("followed_on",""),
+                             "linktree_source":s.get("source",""),"converted":s.get("converted",False),
+                             "payer":False,"total_paid_cents":0}
+            # Layer in GoDaddy payers
+            from collections import defaultdict
+            payer_totals = defaultdict(int)
+            payer_names  = {}
+            for pay in payments:
+                e = (pay.get("email","") or "").lower()
+                if not e or pay.get("status") != "CAPTURED": continue
+                payer_totals[e] += pay.get("amount_cents",0)
+                payer_names[e]   = pay.get("name","")
+            for e, total in payer_totals.items():
+                if e in master:
+                    master[e]["payer"] = True
+                    master[e]["total_paid_cents"] = total
+                    master[e]["converted"] = True
+                else:
+                    master[e] = {"email":e,"source":"godaddy","payer":True,
+                                 "total_paid_cents":total,"name":payer_names.get(e,""),
+                                 "converted":True,"followed_on":""}
+            result = sorted(master.values(), key=lambda x:(-x.get("total_paid_cents",0),x["email"]))
+            self.send_json(200,{"total":len(result),"payers":sum(1 for r in result if r.get("payer")),
+                                "subscribers":sum(1 for r in result if r.get("source")=="linktree"),
+                                "emails":result})
 
         elif p.path == "/api/subscribers":
             if self.require_admin(p) != ADMIN_TOKEN:
