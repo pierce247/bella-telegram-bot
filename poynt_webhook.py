@@ -1618,8 +1618,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         p = urlparse(self.path)
+        qs = parse_qs(p.query)  # parse early for all handlers
         if p.path == "/health":
-            self.send_json(200,{"status":"ok","version":"v3"})
+            self.send_json(200,{"status":"ok","version":"v3.1"})
 
         elif p.path == "/fanvue-auth-url":
             # Generate a fresh Fanvue OAuth URL using Railway's actual FANVUE_CLIENT_ID
