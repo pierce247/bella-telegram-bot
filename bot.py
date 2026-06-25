@@ -995,9 +995,11 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         _out_biz = msg.get("business_connection_id", "")
         _out_text = msg.get("text", "").strip()
         if _out_chat_id and _out_chat_id != OWNER_CHAT_ID:
-            # ── Gift shortcut: Pierce types /coffee /wine etc. IN a fan's Business chat ──
-            # Intercept before saving as a regular message
-            _gift_key = _out_text.lstrip("/").lower() if _out_text.startswith("/") else None
+            # ── Gift shortcuts: Pierce types /coffee OR !coffee IN a fan's chat ──
+            # Both / and ! prefixes supported. Intercept before saving as a message.
+            _gift_key = None
+            if _out_text.startswith("/") or _out_text.startswith("!"):
+                _gift_key = _out_text.lstrip("/!").split()[0].lower()
             if _gift_key and _gift_key in GIFT_CATALOG:
                 ok = send_gift_invoice(_out_chat_id, _gift_key, _out_biz)
                 amt, title, _, _ = GIFT_CATALOG[_gift_key]
