@@ -30,7 +30,8 @@ STATS_URL        = os.environ.get("STATS_URL", "")  # bella-bot stats API URL (o
 DATA_DIR     = os.environ.get("DATA_DIR", "/data")
 PAYMENTS_LOG = os.path.join(DATA_DIR, "payments_log.json")
 PENDING_FILE = os.path.join(DATA_DIR, "pending_fans.json")
-TG_USERS_FILE= os.path.join(DATA_DIR, "tg_usernames.json")  # {name_key: "@username"}
+TG_USERS_FILE   = os.path.join(DATA_DIR, "tg_usernames.json")   # {name_key: "@username"}
+SUBSCRIBERS_FILE= os.path.join(DATA_DIR, "subscribers.json")    # Linktree email list
 os.makedirs(DATA_DIR, exist_ok=True)
 _lock = threading.Lock()
 
@@ -1111,6 +1112,14 @@ table{font-size:12px}th,td{padding:7px 10px!important}
   <button class="filter-btn" id="loadMoreBtn" onclick="loadMore()" style="padding:8px 24px">Load more ↓</button>
 </div>
 
+<h2>📧 Email Subscribers (Linktree)</h2>
+<div class="stats" id="subStats">
+  <div class="stat"><div class="val" id="subTotal">—</div><div class="lbl">Total Subscribers</div></div>
+  <div class="stat"><div class="val" id="subConverted" style="color:#22c55e">—</div><div class="lbl">Converted to Payers</div></div>
+  <div class="stat"><div class="val" id="subRate">—</div><div class="lbl">Conversion Rate</div></div>
+</div>
+<div id="subConvertedList" style="margin-bottom:16px"></div>
+
 <h2>💬 Conversations</h2>
 <div class="stats">
   <div class="stat"><div class="val">""" + str(total_fans) + """</div><div class="lbl">Total Fans</div></div>
@@ -1265,6 +1274,21 @@ function filterFans(){
   document.querySelectorAll('#fanBody tr').forEach(tr=>{tr.style.display=(!q||tr.textContent.toLowerCase().includes(q))?"":"none"});
 }
 filterPay('all',document.querySelector('.filter-btn.active'));
+
+/* Load subscriber stats */
+fetch('/api/subscribers?token=bella-admin-2024')
+  .then(r=>r.json()).then(d=>{
+    document.getElementById('subTotal').textContent=d.total||0;
+    document.getElementById('subConverted').textContent=d.converted||0;
+    const rate=d.total?Math.round((d.converted/d.total)*100):0;
+    document.getElementById('subRate').textContent=rate+'%';
+    const converted=(d.subscribers||[]).filter(s=>s.converted);
+    if(converted.length){
+      document.getElementById('subConvertedList').innerHTML=
+        '<div style="font-size:11px;color:#555;text-transform:uppercase;margin-bottom:8px">Converted subscribers</div>'
+        +converted.map(s=>'<div class="fv-row"><span class="fv-row-lbl">'+s.email+'</span><span class="fv-row-val" style="color:#22c55e">✅ '+s.conversion_date.slice(0,10)+'</span></div>').join('');
+    }
+  }).catch(()=>{});
 </script>
 </body></html>"""
 
@@ -1386,6 +1410,13 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
             fpath = os.path.join(DATA_DIR,"fanvue_stats.json")
             stats = load_json(fpath, {})
             self.send_json(200, stats)
+
+        elif p.path == "/api/subscribers":
+            if self.require_admin(p) != ADMIN_TOKEN:
+                self.send_json(401,{"error":"unauthorized"}); return
+            subs = load_json(SUBSCRIBERS_FILE, [])
+            converted = [s for s in subs if s.get("converted")]
+            self.send_json(200, {"total": len(subs), "converted": len(converted), "subscribers": subs})
 
         elif p.path == "/api/summary":
             if self.require_admin(p) != ADMIN_TOKEN:
@@ -1516,9 +1547,21 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                         "delivered": False,
                         "source": "gmail_realtime"
                     }
-                    existing.append(entry)
+                    existing.insert(0, entry)
                     save_json(PAYMENTS_LOG, existing)
                     print(f"[gmail] New payment: {customer_name} ${amount_str} (Order #{order_id})")
+                    # Mark subscriber as converted if email matches
+                    if customer_email:
+                        subs = load_json(SUBSCRIBERS_FILE, [])
+                        converted_any = False
+                        for sub in subs:
+                            if sub.get("email","") == customer_email.lower() and not sub.get("converted"):
+                                sub["converted"] = True
+                                sub["conversion_date"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                                converted_any = True
+                        if converted_any:
+                            save_json(SUBSCRIBERS_FILE, subs)
+                            print(f"[sub] Converted: {customer_email}")
                     # Notify owners instantly
                     msg = f"\U0001f4b0 New payment!\n\U0001f464 {customer_name}\n\U0001f4b5 ${amount_str}\n\U0001f4e7 {customer_email}\n\U0001f4e6 Order #{order_id} via GoDaddy"
                     for oid in OWNER_CHAT_IDS: send_telegram(oid, msg)
@@ -1570,6 +1613,33 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 self.send_json(200, {"ok":True, "enriched": enriched, "total": len(payments)})
             except Exception as e:
                 self.send_json(500, {"error": str(e)})
+
+        elif p.path == "/import-subscribers":
+            try:
+                data  = json.loads(body)
+                token = data.get("token","") or self.headers.get("X-Admin-Token","")
+                if token != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
+                new_subs = data.get("subscribers",[])
+                existing = load_json(SUBSCRIBERS_FILE, [])
+                existing_emails = {s["email"] for s in existing}
+                # Check conversions against existing payments
+                payments = load_json(PAYMENTS_LOG, [])
+                paid_emails = {p.get("email","").lower() for p in payments if p.get("status")=="CAPTURED" and p.get("email")}
+                added = 0
+                for s in new_subs:
+                    e = s.get("email","").lower()
+                    if not e or e in existing_emails: continue
+                    if e in paid_emails:
+                        s["converted"] = True
+                        s["conversion_date"] = time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime())
+                    existing.append(s)
+                    existing_emails.add(e)
+                    added += 1
+                save_json(SUBSCRIBERS_FILE, existing)
+                converted = sum(1 for s in existing if s.get("converted"))
+                print(f"[subs] Imported {added} new, {len(existing)} total, {converted} converted")
+                self.send_json(200, {"ok":True,"added":added,"total":len(existing),"converted":converted})
+            except Exception as e: self.send_json(500,{"error":str(e)})
 
         elif p.path == "/set-tg-username":
             # Save manual Telegram username for a payer: {token, name_key, username}
