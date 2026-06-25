@@ -1200,41 +1200,63 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 
     # ── PAYMENT & DASHBOARD COMMANDS ──────────────────────────────────────
 
-    # /gifts — browse the full Telegram gift catalog via MTProto
-    if text.strip() == "/gifts" and from_id in OWNER_CHAT_IDS:
+    # /gifts [all] — browse the Telegram gift catalog via MTProto
+    if (text.strip() == "/gifts" or text.strip() == "/gifts all") and from_id in OWNER_CHAT_IDS:
+        _show_all = "all" in text.strip().lower()
         try:
             import urllib.request as _ur3
             _req = _ur3.Request("https://bella-poynt-webhook-production.up.railway.app/api/gifts?token=bella-admin-2024")
             with _ur3.urlopen(_req, timeout=15) as _r:
                 _catalog = json.loads(_r.read())
-            _gifts = _catalog.get("gifts", [])
-            if not _gifts:
+            _gifts_all = _catalog.get("gifts", [])
+            if not _gifts_all:
                 tg("sendMessage", {"chat_id": from_id,
-                    "text": f"⚠️ Gift catalog unavailable: {_catalog.get('error','unknown')}\n\nMake sure Telethon is connected (/stars)."})
+                    "text": f"⚠️ Gift catalog unavailable: {_catalog.get('error','unknown')}"})
             else:
-                _lines = ["⭐ Telegram Gift Catalog\n"]
-                for _g in _gifts:
-                    _sold = " [SOLD OUT]" if _g.get("sold_out") else ""
-                    _ltd = f" (limited: {_g.get('availability_remains','?')} left)" if _g.get("limited") else ""
-                    _upg = f" | upgrade: {_g.get('upgrade_stars','?')}⭐" if _g.get("upgrade_stars") else ""
-                    _lines.append(f"{_g.get('emoji','⭐')} {_g.get('title','Gift')} — {_g['stars']}⭐{_sold}{_ltd}{_upg}")
-                _lines.append(f"\nTotal: {len(_gifts)} gifts")
-                _lines.append("\nRequest one: /gift_request CHAT_ID gift_title")
+                # Filter to available gifts by default
+                _available = [g for g in _gifts_all if not g.get("sold_out")]
+                _display = _gifts_all if _show_all else _available
+                _lines = [f"⭐ Telegram Gift Catalog ({'all' if _show_all else 'available only'})\n"]
+                for _g in _display[:40]:  # max 40 to avoid message too long
+                    _emoji = _g.get("emoji","⭐")
+                    _title = _g.get("title") or _emoji
+                    _stars = _g["stars"]
+                    _sold = " ❌" if _g.get("sold_out") else " ✅"
+                    _ltd = f" ({_g.get('availability_remains','?')} left)" if _g.get("limited") and not _g.get("sold_out") else ""
+                    _upg = f" [+{_g.get('upgrade_stars')}⭐→collectible]" if _g.get("upgrade_stars") and not _g.get("sold_out") else ""
+                    _lines.append(f"{_emoji} {_title} — {_stars}⭐{_sold}{_ltd}{_upg}")
+                _lines.append(f"\n✅ Available: {len(_available)} | Total: {len(_gifts_all)}")
+                if not _show_all: _lines.append("Show all (incl. sold out): /gifts all")
+                _lines.append("\nRequest in a fan chat: /gift_request <name>")
+                _lines.append("Or: /gift_request <fan_chat_id> <name>")
                 tg("sendMessage", {"chat_id": from_id, "text": "\n".join(_lines)})
         except Exception as _e:
             tg("sendMessage", {"chat_id": from_id, "text": f"❌ Error fetching catalog: {_e}"})
         return None, None
 
-    # /gift_request <chat_id> <gift_name_or_stars> — request a specific gift from a fan
+    # /gift_request [chat_id] <gift_name> — request a specific gift from a fan
+    # Can be used in a fan's chat directly (auto-detects chat_id) OR with explicit chat_id
     if text.strip().startswith("/gift_request") and from_id in OWNER_CHAT_IDS:
         _parts = text.strip().split(maxsplit=2)
-        if len(_parts) < 3:
-            tg("sendMessage", {"chat_id": from_id,
-                "text": "Usage: /gift_request CHAT_ID gift_name\nExample: /gift_request 7230207776 Rose\n\nSee catalog with /gifts"})
+        # Auto-detect: if used IN a fan's chat (chat_id != owner IDs), use that chat
+        _in_fan_chat = chat_id not in OWNER_CHAT_IDS
+        if _in_fan_chat:
+            # /gift_request rose — from within fan's chat
+            _cid = chat_id
+            _gift_query = " ".join(_parts[1:]).strip().lower() if len(_parts) > 1 else ""
+        else:
+            # /gift_request 7230207776 Rose — from owner's own chat
+            if len(_parts) < 3 or not _parts[1].lstrip('-').isdigit():
+                tg("sendMessage", {"chat_id": from_id,
+                    "text": "Usage:\n• In a fan's chat: /gift_request Rose\n• From your chat: /gift_request CHAT_ID Rose\n\nSee catalog: /gifts"})
+                return None, None
+            try: _cid = int(_parts[1])
+            except: _cid = 0
+            _gift_query = _parts[2].lower().strip() if len(_parts) > 2 else ""
+        if not _gift_query:
+            tg("sendMessage", {"chat_id": from_id, "text": "Which gift? See /gifts for the catalog."})
             return None, None
         try:
-            _cid = int(_parts[1])
-            _gift_query = _parts[2].lower().strip()
             # Fetch catalog to find the gift
             import urllib.request as _ur4
             _req4 = _ur4.Request("https://bella-poynt-webhook-production.up.railway.app/api/gifts?token=bella-admin-2024")
@@ -1255,12 +1277,13 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
             _title = _match.get("title", "Gift")
             _emoji = _match.get("emoji", "⭐")
             # Send Stars invoice to the fan for this specific gift amount
-            _fan = db_load_fans_by_id(_cid) if hasattr(__import__('__main__'), 'db_load_fans_by_id') else None
-            _biz = ""
-            try:
-                _biz_row = _get_db().execute("SELECT biz_conn_id FROM fans WHERE chat_id=?",(_cid,)).fetchone()
-                _biz = _biz_row[0] if _biz_row and _biz_row[0] else ""
-            except: pass
+            # If we're already IN the fan's chat, biz is available from the current message context
+            _biz = biz if _in_fan_chat else ""
+            if not _biz:
+                try:
+                    _biz_row = _get_db().execute("SELECT biz_conn_id FROM fans WHERE chat_id=?",(_cid,)).fetchone()
+                    _biz = _biz_row[0] if _biz_row and _biz_row[0] else ""
+                except: pass
             _invoice_args = {
                 "chat_id": _cid,
                 "title": f"{_emoji} {_title}",
