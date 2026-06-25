@@ -326,6 +326,20 @@ def send_stars_invoice(chat_id: int, biz: str = "") -> None:
     r = tg("sendInvoice", p)
     log.info(f"Stars invoice: {'ok' if r.get('ok') else r}")
 
+def _parse_blast_message(text: str):
+    """Parse blast message text, extracting optional [button:Label|URL] syntax.
+    Returns (message_text, reply_markup_dict_or_None)."""
+    import re as _re
+    m = _re.search(r'\[button:([^\|]+)\|([^\]]+)\]', text, _re.I)
+    if m:
+        label = m.group(1).strip()
+        url   = m.group(2).strip()
+        clean = text[:m.start()].strip() + text[m.end():].strip()
+        markup = {"inline_keyboard": [[{"text": label, "url": url}]]}
+        return clean.strip(), markup
+    return text, None
+
+
 def send_lucky_invoice(chat_id: int, biz: str = "") -> None:
     p = {"chat_id": chat_id, "title": "🍀 Feeling Lucky?",
          "description": "Unlock a special surprise 😘",
@@ -1185,6 +1199,63 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         return None, None
 
     # ── PAYMENT & DASHBOARD COMMANDS ──────────────────────────────────────
+
+    # /blast_preview — preview Telegram blast (count + message preview)
+    if text.strip().startswith("/blast_preview") and from_id in OWNER_CHAT_IDS:
+        _preview_text = text.strip()[len("/blast_preview"):].strip()
+        try:
+            conn = _get_db()
+            fans = conn.execute("SELECT DISTINCT chat_id, name FROM fans WHERE chat_id != 0 ORDER BY name").fetchall()
+            _count = len([f for f in fans if f[0] not in OWNER_CHAT_IDS])
+            if not _preview_text:
+                tg("sendMessage", {"chat_id": from_id, "text":
+                    f"📢 Blast preview:\n\n"
+                    f"Recipients: {_count} fans\n\n"
+                    f"Usage:\n/blast_preview Your message here\n/blast_preview Your message [button:Label|https://url.com]\n\n"
+                    f"Then send with:\n/blast Your message"})
+            else:
+                # Parse inline button if present
+                _msg_text, _markup = _parse_blast_message(_preview_text)
+                _preview = f"📢 Blast preview\n\nTo: {_count} fans\nMessage:\n\n{_msg_text}"
+                if _markup: _preview += f"\n\n[Button: {_markup['inline_keyboard'][0][0]['text']}]"
+                tg("sendMessage", {"chat_id": from_id, "text": _preview})
+                # Show how it will look
+                _send_args = {"chat_id": from_id, "text": f"Preview (how fans will see it):\n\n{_msg_text}"}
+                if _markup: _send_args["reply_markup"] = json.dumps(_markup)
+                tg("sendMessage", _send_args)
+        except Exception as _e:
+            tg("sendMessage", {"chat_id": from_id, "text": f"❌ Preview error: {_e}"})
+        return None, None
+
+    # /blast — send mass message to all fan chats
+    if text.strip().startswith("/blast") and not text.strip().startswith("/blast_preview") and from_id in OWNER_CHAT_IDS:
+        _blast_text = text.strip()[len("/blast"):].strip()
+        if not _blast_text:
+            tg("sendMessage", {"chat_id": from_id, "text":
+                "Usage:\n/blast Your message here\n\n"
+                "With button:\n/blast Message text [button:Label|https://url.com]\n\n"
+                "Preview first with /blast_preview"})
+            return None, None
+        try:
+            conn = _get_db()
+            fans = conn.execute("SELECT DISTINCT chat_id, name, biz_conn_id FROM fans WHERE chat_id != 0 ORDER BY name").fetchall()
+            _msg_text, _markup = _parse_blast_message(_blast_text)
+            sent = 0; failed = 0
+            for _cid, _cname, _biz in fans:
+                if _cid in OWNER_CHAT_IDS: continue
+                try:
+                    _args = {"chat_id": _cid, "text": _msg_text}
+                    if _biz: _args["business_connection_id"] = _biz
+                    if _markup: _args["reply_markup"] = json.dumps(_markup)
+                    tg("sendMessage", _args)
+                    sent += 1
+                except: failed += 1
+            tg("sendMessage", {"chat_id": from_id, "text":
+                f"📢 Blast complete!\n✅ Sent: {sent}\n❌ Failed: {failed}"})
+        except Exception as _e:
+            tg("sendMessage", {"chat_id": from_id, "text": f"❌ Blast error: {_e}"})
+        return None, None
+
     # /fanvue — Fanvue DM bot management
     if text.strip().lower().startswith("/fanvue") and from_id in OWNER_CHAT_IDS:
         import urllib.request as _ur2, os as _os2
@@ -2294,14 +2365,31 @@ def save_dedup(ids: set) -> None:
 def register_commands():
     """Register bot command menu with BotFather via setMyCommands."""
     commands = [
-        {"command": "stats",    "description": "📊 Earnings, Stars & conversation stats"},
-        {"command": "payments", "description": "💳 Last 10 GoDaddy payments"},
-        {"command": "dashboard","description": "🖥 Open ops dashboard"},
-        {"command": "tip",      "description": "💰 Generate tip link  e.g. /tip 25"},
-        {"command": "photos",   "description": "📸 Generate photos link  e.g. /photos 35"},
-        {"command": "videos",   "description": "🎥 Generate videos link  e.g. /videos 50"},
-        {"command": "custom",   "description": "✨ Custom link  e.g. /custom 75 Spicy set"},
-        {"command": "fanvue",   "description": "🌸 Fanvue  pause/resume/last/reply/blast"},
+        # Stats & Dashboard
+        {"command": "stats",          "description": "📊 Earnings, Stars & conversation stats"},
+        {"command": "payments",       "description": "💳 Last 10 GoDaddy payments"},
+        {"command": "dashboard",      "description": "🖥 Open ops dashboard"},
+        # Pay links
+        {"command": "tip",            "description": "💰 Tip link  e.g. /tip 25"},
+        {"command": "photos",         "description": "📸 Photos link  e.g. /photos 35"},
+        {"command": "videos",         "description": "🎥 Videos link  e.g. /videos 50"},
+        {"command": "custom",         "description": "✨ Custom link  e.g. /custom 75 Name"},
+        # Stars gift invoices
+        {"command": "gift",           "description": "⭐ Send Stars gift  /gift CHAT_ID coffee"},
+        {"command": "coffee",         "description": "☕ 150⭐ Buy Me a Coffee (shareable link)"},
+        {"command": "flowers",        "description": "🌸 300⭐ Send Me Flowers"},
+        {"command": "wine",           "description": "🍷 500⭐ Wine Night"},
+        {"command": "dinner",         "description": "🍽️ 750⭐ Take Me to Dinner"},
+        {"command": "spa",            "description": "💆 1000⭐ Spa Day"},
+        {"command": "designer",       "description": "👜 2000⭐ Designer Treat"},
+        {"command": "spoil",          "description": "💎 3333⭐ Spoil Me"},
+        {"command": "lucky",          "description": "🍀 777⭐ Feeling Lucky?"},
+        {"command": "wish",           "description": "🌙 1111⭐ Make a Wish"},
+        # Telegram blast
+        {"command": "blast_preview",  "description": "👁 Preview blast before sending"},
+        {"command": "blast",          "description": "📢 Send mass message to all fan chats"},
+        # Fanvue management
+        {"command": "fanvue",         "description": "🌸 Fanvue  pause/resume/last/reply/blast"},
     ]
     try:
         result = tg("setMyCommands", {"commands": commands})
