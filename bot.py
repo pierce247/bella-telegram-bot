@@ -1272,14 +1272,22 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                 _available = [g for g in _gifts_all if not g.get("sold_out")]
                 _display = _gifts_all if _show_all else _available
                 _lines = [f"⭐ Telegram Gift Catalog ({'all' if _show_all else 'available only'})\n"]
+                # Build reverse map: emoji → alias name
+                _EMOJI_NAMES = {v[0]: k for k, v in MTPROTO_GIFT_ALIASES.items()
+                                if not any(v2[0] == v[0] and k2 < k for k2,v2 in MTPROTO_GIFT_ALIASES.items())}
                 for _g in _display[:40]:  # max 40 to avoid message too long
                     _emoji = _g.get("emoji","⭐")
-                    _title = _g.get("title") or _emoji
+                    _raw_title = _g.get("title") or ""
+                    # Use alias name if title is just the emoji, else use real title
+                    if _raw_title == _emoji or not _raw_title or len(_raw_title) <= 3:
+                        _name = _EMOJI_NAMES.get(_emoji, "").capitalize() or "Gift"
+                    else:
+                        _name = _raw_title
                     _stars = _g["stars"]
                     _sold = " ❌" if _g.get("sold_out") else " ✅"
                     _ltd = f" ({_g.get('availability_remains','?')} left)" if _g.get("limited") and not _g.get("sold_out") else ""
-                    _upg = f" [+{_g.get('upgrade_stars')}⭐→collectible]" if _g.get("upgrade_stars") and not _g.get("sold_out") else ""
-                    _lines.append(f"{_emoji} {_title} — {_stars}⭐{_sold}{_ltd}{_upg}")
+                    _upg = f" [upgradeable]" if _g.get("upgrade_stars") and not _g.get("sold_out") else ""
+                    _lines.append(f"{_emoji} {_name} — {_stars}⭐{_sold}{_ltd}{_upg}")
                 _lines.append(f"\n✅ Available: {len(_available)} | Total: {len(_gifts_all)}")
                 if not _show_all: _lines.append("Show all (incl. sold out): /gifts all")
                 _lines.append("\n📌 Quick names you can use:")
