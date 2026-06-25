@@ -1623,6 +1623,61 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
             if self.require_admin(p) != ADMIN_TOKEN:
                 self.send_json(401,{"error":"unauthorized"}); return
             self.send_json(200,get_payment_stats())
+
+        elif p.path == "/oauth/callback":
+            # Fanvue OAuth 2.0 GET callback — receives code from Fanvue redirect
+            qs = parse_qs(p.query)
+            code = qs.get("code",[""])[0]
+            error = qs.get("error",[""])[0]
+            if error:
+                self.send_html(400, f"<h2 style='color:red'>OAuth Error: {error}</h2><p>{qs.get('error_description',[''])[0]}</p>")
+                return
+            if not code:
+                self.send_html(400, "<h2>No code received</h2>")
+                return
+            import urllib.parse as _up
+            fv_client_id     = os.environ.get("FANVUE_CLIENT_ID","")
+            fv_client_secret = os.environ.get("FANVUE_CLIENT_SECRET","")
+            redirect_uri     = "https://bella-poynt-webhook-production.up.railway.app/oauth/callback"
+            pkce = load_json(os.path.join(DATA_DIR,"fanvue_pkce.json"), {})
+            code_verifier = pkce.get("code_verifier","")
+            token_params = {
+                "grant_type":    "authorization_code",
+                "code":           code,
+                "redirect_uri":   redirect_uri,
+                "client_id":      fv_client_id,
+                "client_secret":  fv_client_secret,
+            }
+            if code_verifier:
+                token_params["code_verifier"] = code_verifier
+            token_data = _up.urlencode(token_params).encode()
+            req = urllib.request.Request("https://auth.fanvue.com/oauth2/token", data=token_data,
+                  headers={"Content-Type":"application/x-www-form-urlencoded"})
+            try:
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    tokens = json.loads(r.read())
+                refresh_token = tokens.get("refresh_token","")
+                access_token  = tokens.get("access_token","")
+                expires_in    = tokens.get("expires_in", 3600)
+                save_json(FANVUE_TOKEN_FILE, {
+                    "refresh_token": refresh_token,
+                    "access_token":  access_token,
+                    "expires_at":    time.time() + expires_in,
+                    "updated_at":    time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                })
+                print(f"[oauth] ✅ Fanvue tokens saved. RT: {refresh_token[:20]}...")
+                self.send_html(200,
+                    '<html><body style="font-family:sans-serif;background:#111;color:#f0f0f0;padding:30px">'
+                    '<h2 style="color:#22c55e">✅ Connected!</h2>'
+                    '<p>Fanvue DM bot is now active. Tokens saved — auto-refreshes every hour.</p>'
+                    '<p style="color:#555;margin-top:20px">You can close this tab.</p>'
+                    '</body></html>')
+            except urllib.error.HTTPError as e:
+                err = e.read().decode()
+                self.send_html(400, f"<h2 style='color:red'>Token exchange failed (HTTP {e.code})</h2><pre>{err}</pre>")
+            except Exception as e:
+                self.send_html(500, f"<h2>Error</h2><p>{e}</p>")
+
         else:
             self.send_json(404,{"error":"not found"})
 
