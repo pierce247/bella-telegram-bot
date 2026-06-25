@@ -1358,6 +1358,59 @@ class PoyntWebhookHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
 
+        elif p.path == "/api/subscribers":
+            if admin_tok != ADMIN:
+                self.send_response(401); self.end_headers(); return
+            ph = _ph()
+            rows = _exec("SELECT email, phone, source, followed_on, status, converted, conversion_date, bounced FROM subscribers ORDER BY followed_on DESC", fetchall=True) or []
+            subs = [{"email": r[0], "phone": r[1], "source": r[2], "followed_on": r[3],
+                     "status": r[4], "converted": r[5], "conversion_date": r[6], "bounced": r[7]} for r in rows]
+            body = json.dumps({"total": len(subs), "subscribers": subs}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", len(body))
+            self.end_headers()
+            self.wfile.write(body)
+
+        elif p.path == "/api/import-subscribers":
+            # Bulk import subscribers from POST body
+            if admin_tok != ADMIN:
+                self.send_response(401); self.end_headers(); return
+            content_len = int(self.headers.get("Content-Length", 0))
+            body_raw = self.rfile.read(content_len) if content_len else b""
+            try:
+                data = json.loads(body_raw)
+                subs = data if isinstance(data, list) else data.get("subscribers", [])
+                inserted = 0
+                ph = _ph()
+                for s in subs:
+                    try:
+                        _exec(f"""INSERT INTO subscribers (email,phone,source,followed_on,status,converted,conversion_date,bounced,created_at)
+                                  VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph},{ph})
+                                  ON CONFLICT(email) DO UPDATE SET
+                                    status=excluded.status, converted=excluded.converted,
+                                    conversion_date=excluded.conversion_date, bounced=excluded.bounced""",
+                              (s.get("email",""), s.get("phone",""), s.get("source",""),
+                               s.get("followed_on",""), s.get("status","active"),
+                               bool(s.get("converted", False)), s.get("conversion_date","") or "",
+                               bool(s.get("bounced", False)), time.time()),
+                              commit=True)
+                        inserted += 1
+                    except Exception as e:
+                        log.warning(f"Subscriber insert error: {e}")
+                body = json.dumps({"ok": True, "imported": inserted, "total": len(subs)}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", len(body))
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as e:
+                body = json.dumps({"error": str(e)}).encode()
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(body)
+
         elif p.path == "/api/stats" or p.path == "/api/pg-stats":
             if admin_tok != ADMIN:
                 self.send_response(401); self.end_headers(); return
@@ -1494,6 +1547,35 @@ def db_init():
         )""",
         "CREATE INDEX IF NOT EXISTS idx_messages_chat_ts ON messages(chat_id, ts)",
         "CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts)",
+        """CREATE TABLE IF NOT EXISTS subscribers (
+            id              SERIAL PRIMARY KEY,
+            email           TEXT    NOT NULL UNIQUE,
+            phone           TEXT    DEFAULT '',
+            source          TEXT    DEFAULT '',
+            followed_on     TEXT    DEFAULT '',
+            status          TEXT    DEFAULT 'active',
+            converted       BOOLEAN DEFAULT FALSE,
+            conversion_date TEXT    DEFAULT '',
+            bounced         BOOLEAN DEFAULT FALSE,
+            created_at      DOUBLE PRECISION DEFAULT 0
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_subscribers_email ON subscribers(email)",
+        """CREATE TABLE IF NOT EXISTS payments (
+            id              SERIAL PRIMARY KEY,
+            resource_id     TEXT    NOT NULL UNIQUE,
+            ts              TEXT    DEFAULT '',
+            event_type      TEXT    DEFAULT '',
+            name            TEXT    DEFAULT '',
+            email           TEXT    DEFAULT '',
+            amount_cents    INTEGER DEFAULT 0,
+            status          TEXT    DEFAULT '',
+            chat_id         BIGINT  DEFAULT NULL,
+            delivered       BOOLEAN DEFAULT FALSE,
+            fan_name        TEXT    DEFAULT '',
+            source          TEXT    DEFAULT 'poynt'
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_payments_resource ON payments(resource_id)",
+        "CREATE INDEX IF NOT EXISTS idx_payments_chat ON payments(chat_id)",
     ]
     for sql in tables:
         try:
