@@ -940,6 +940,20 @@ def handle_payment_event(event):
                 entry["delivered"]=True; delivered=True; fan_chat=cid
                 del pending[email.lower()]; save_json(PENDING_FILE, pending)
     log.append(entry); save_json(PAYMENTS_LOG, log)
+    # Auto-sync payer email to shared Postgres master email list
+    if email and status in ("CAPTURED","AUTHORIZED","COMPLETED",""):
+        try:
+            bot_url = STATS_URL or os.environ.get("BOT_STATS_URL","")
+            if bot_url:
+                sub_payload = json.dumps({"subscribers": [{"email": email.lower(), "phone": "",
+                    "source": "GoDaddy Payment", "followed_on": time.strftime("%b %Y"),
+                    "status": "active", "converted": True, "conversion_date": "", "bounced": False}]}).encode()
+                req = urllib.request.Request(f"{bot_url.rstrip('/')}/api/import-subscribers",
+                    data=sub_payload, headers={"Content-Type":"application/json","X-Admin-Token":ADMIN_TOKEN})
+                urllib.request.urlopen(req, timeout=5).close()
+                print(f"[pg] Auto-synced payer email {email} to Postgres")
+        except Exception as e:
+            print(f"[pg] Email sync failed (non-critical): {e}")
     if status in ("CAPTURED","AUTHORIZED","COMPLETED","") and name:
         notify_owners(name, amount, email, delivered, fan_chat)
 
