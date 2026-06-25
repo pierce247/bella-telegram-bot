@@ -1970,8 +1970,10 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 if not msg_text: self.send_json(400,{"error":"message required"}); return
                 at = fanvue_get_access_token()
                 if not at: self.send_json(503,{"error":"Fanvue auth unavailable"}); return
-                # Send to "active_subscribers" smart list
-                payload = json.dumps({"text": msg_text, "lists": ["active_subscribers"]}).encode()
+                # Send to every contact: active subs + followers + expired subs + free trials
+                payload = json.dumps({"text": msg_text, "lists": [
+                    "subscribers", "followers", "expired_subscribers", "free_trial_subscribers"
+                ]}).encode()
                 req = urllib.request.Request("https://api.fanvue.com/messages/mass",
                     data=payload, headers={**fv_headers(at)})
                 try:
