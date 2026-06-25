@@ -539,31 +539,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
         return random.choice(["just okay?? 😏", "that's all I get?", "you're funny 🩷"])
     if any(kw in t for kw in ["what", "huh", "??"]):
         return random.choice(["you heard me 😏", "you know what I mean", "don't play dumb 🩷"])
-    # Last resort — use Llama (always available, won't 429)
-    try:
-        payload = json.dumps({
-            "model": "meta-llama/llama-3.3-70b-instruct",
-            "max_tokens": 80,
-            "temperature": 0.9,
-            "messages": [
-                {"role": "system", "content": BELLA_SYSTEM},
-                {"role": "user", "content": f'Fan just said: {user_text}\n\nReply as Bella. Short, flirty, natural. No quotation marks around your response.'}
-            ]
-        }).encode()
-        req = urllib.request.Request(
-            "https://openrouter.ai/api/v1/chat/completions", data=payload,
-            headers={"Authorization": f"Bearer {OPENROUTER_KEY}", "Content-Type": "application/json",
-                     "HTTP-Referer": "https://bellavistaxo.com", "X-Title": "Bella DM Bot"}
-        )
-        with urllib.request.urlopen(req, timeout=15) as r:
-            data = json.loads(r.read())
-            if "choices" in data:
-                raw = data["choices"][0]["message"]["content"].strip()
-                if raw and len(raw) < 300:
-                    return clean_reply(raw) or raw[:150]
-    except Exception as e:
-        log.warning(f"Last resort failed: {e}")
-    # Absolute final fallback — never send empty
+    # Absolute final fallback — Euryale only, no other models (Llama breaks character)
     t = user_text.lower().strip()
     if any(kw in t for kw in ["pic", "boob", "ass", "nude", "show", "body", "tit"]):
         return random.choice(["tip me and find out 😈", "you gotta earn that babe 🩷 tap the button below"])
@@ -854,10 +830,9 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
             try:
                 cid_note = int(parts[0])
                 note_text = parts[1].strip()
-                conn = _get_db()
-                conn.execute("INSERT INTO fans (chat_id, notes) VALUES (?,?) ON CONFLICT(chat_id) DO UPDATE SET notes=excluded.notes",
-                             (cid_note, note_text))
-                conn.commit()
+                ph = _ph()
+                _exec(f"INSERT INTO fans (chat_id, notes) VALUES ({ph},{ph}) ON CONFLICT(chat_id) DO UPDATE SET notes=excluded.notes",
+                      (cid_note, note_text), commit=True)
                 tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"📝 Note saved for {cid_note}:\n{note_text}"})
             except ValueError:
                 tg("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": "Usage: /note CHAT_ID your note here"})
@@ -868,28 +843,22 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     # /stats — DB research insights
     if text.strip() == "/stats" and from_id in OWNER_CHAT_IDS:
         try:
-            conn = _get_db()
-            # Total fans + activity
-            total_fans = conn.execute("SELECT COUNT(*) FROM fans").fetchone()[0]
-            active_24h = conn.execute("SELECT COUNT(*) FROM fans WHERE last_seen > ?", (time.time()-86400,)).fetchone()[0]
-            active_7d  = conn.execute("SELECT COUNT(*) FROM fans WHERE last_seen > ?", (time.time()-604800,)).fetchone()[0]
-            total_msgs = conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
-            # Heat distribution
-            heat_rows = conn.execute("SELECT heat, COUNT(*) FROM fans GROUP BY heat ORDER BY heat").fetchall()
-            heat_str = "  ".join(f"h{h}:{c}" for h, c in heat_rows)
-            # Avg response time (assistant messages only, >0)
-            avg_ms_row = conn.execute("SELECT AVG(response_ms) FROM messages WHERE role='assistant' AND response_ms > 0").fetchone()
-            avg_ms = int(avg_ms_row[0]) if avg_ms_row[0] else 0
-            # Top 5 most active fans
-            top_fans = conn.execute(
-                "SELECT chat_id, name, msg_count, heat FROM fans ORDER BY msg_count DESC LIMIT 5").fetchall()
-            top_str = ""
+            ph = _ph()
+            total_fans = _exec("SELECT COUNT(*) FROM fans", fetchone=True)[0]
+            active_24h = _exec(f"SELECT COUNT(*) FROM fans WHERE last_seen > {ph}", (time.time()-86400,), fetchone=True)[0]
+            active_7d  = _exec(f"SELECT COUNT(*) FROM fans WHERE last_seen > {ph}", (time.time()-604800,), fetchone=True)[0]
+            total_msgs = _exec("SELECT COUNT(*) FROM messages", fetchone=True)[0]
+            heat_rows  = _exec("SELECT heat, COUNT(*) FROM fans GROUP BY heat ORDER BY heat", fetchall=True) or []
+            heat_str   = "  ".join(f"h{h}:{c}" for h, c in heat_rows)
+            avg_ms_row = _exec("SELECT AVG(response_ms) FROM messages WHERE role='assistant' AND response_ms > 0", fetchone=True)
+            avg_ms     = int(avg_ms_row[0]) if avg_ms_row and avg_ms_row[0] else 0
+            top_fans   = _exec("SELECT chat_id, name, msg_count, heat FROM fans ORDER BY msg_count DESC LIMIT 5", fetchall=True) or []
+            top_str    = ""
             for cid_t, name_t, cnt_t, heat_t in top_fans:
                 top_str += f"\n  {name_t or '?'} ({cid_t}) — {cnt_t} msgs, heat {heat_t}"
-            # Fallback rate (if column exists)
             try:
-                total_ai = conn.execute("SELECT COUNT(*) FROM messages WHERE role='assistant'").fetchone()[0]
-                total_ok = conn.execute("SELECT COUNT(*) FROM messages WHERE role='assistant' AND (is_fallback IS NULL OR is_fallback=0)").fetchone()[0]
+                total_ai = _exec("SELECT COUNT(*) FROM messages WHERE role='assistant'", fetchone=True)[0]
+                total_ok = _exec("SELECT COUNT(*) FROM messages WHERE role='assistant' AND (is_fallback IS NULL OR is_fallback=0)", fetchone=True)[0]
                 fallback_pct = round(100 * (total_ai - total_ok) / max(total_ai, 1))
             except Exception:
                 fallback_pct = 0
@@ -1387,49 +1356,108 @@ FANS_FILE    = "/data/bella_fans.json"
 DEDUP_FILE   = "/data/bella_dedup.txt"
 SEEN_FILE    = "/data/bella_seen.json"
 BIZ_FILE     = "/data/bella_biz_id.txt"
-DB_FILE      = "/data/bella.db"
+DB_FILE      = "/data/bella.db"  # kept for legacy path, not used for Postgres
 
-# ── SQLite persistent memory ───────────────────────────────────────────────────
+# ── Postgres persistent memory ────────────────────────────────────────────────
 
-import sqlite3 as _sqlite3
 import threading as _threading
 
-_db_local = _threading.local()  # thread-local connections (safe for threaded processing)
+_db_lock = _threading.Lock()
+_db_conn = None  # single shared connection (psycopg2 is thread-safe with lock)
 
 def _get_db():
-    """Get a thread-local SQLite connection."""
-    if not hasattr(_db_local, "conn"):
-        conn = _sqlite3.connect(DB_FILE, check_same_thread=False)
-        conn.execute("PRAGMA journal_mode=WAL")   # safe concurrent writes
-        conn.execute("PRAGMA synchronous=NORMAL")
-        _db_local.conn = conn
-    return _db_local.conn
+    """Get (or create) the shared Postgres connection. Falls back to SQLite if Postgres unavailable."""
+    global _db_conn
+    db_url = os.environ.get("DATABASE_PUBLIC_URL") or os.environ.get("DATABASE_URL")
+    if not db_url:
+        # No Postgres configured — fall back to SQLite
+        import sqlite3 as _sqlite3
+        if not hasattr(_get_db, "_sqlite_conn"):
+            conn = _sqlite3.connect(DB_FILE, check_same_thread=False)
+            conn.execute("PRAGMA journal_mode=WAL")
+            _get_db._sqlite_conn = conn
+            _get_db._is_postgres = False
+        return _get_db._sqlite_conn
+    if _db_conn is None or (hasattr(_db_conn, "closed") and _db_conn.closed):
+        try:
+            import psycopg2
+            import psycopg2.extras
+            _db_conn = psycopg2.connect(db_url, sslmode="require")
+            _db_conn.autocommit = False
+            _get_db._is_postgres = True
+            log.info("Connected to Postgres")
+        except Exception as e:
+            log.error(f"Postgres connection failed: {e} — falling back to SQLite")
+            import sqlite3 as _sqlite3
+            _db_conn = _sqlite3.connect(DB_FILE, check_same_thread=False)
+            _db_conn.execute("PRAGMA journal_mode=WAL")
+            _get_db._is_postgres = False
+    return _db_conn
+
+def _is_pg():
+    return getattr(_get_db, "_is_postgres", False)
+
+def _ph():
+    """Return the correct placeholder for the current DB: %s for Postgres, ? for SQLite."""
+    return "%s" if _is_pg() else "?"
+
+def _exec(sql, params=(), fetchone=False, fetchall=False, commit=False):
+    """Execute a SQL statement safely with DB-agnostic placeholder handling."""
+    with _db_lock:
+        conn = _get_db()
+        try:
+            cur = conn.cursor()
+            cur.execute(sql, params)
+            result = None
+            if fetchone:
+                result = cur.fetchone()
+            elif fetchall:
+                result = cur.fetchall()
+            if commit:
+                conn.commit()
+            return result
+        except Exception as e:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            raise e
 
 def db_init():
-    """Create tables if they don't exist, then run column migrations for schema updates."""
-    conn = _get_db()
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS fans (
-            chat_id     INTEGER PRIMARY KEY,
+    """Create tables if they don't exist."""
+    _get_db()  # ensure connection established
+    pg = _is_pg()
+    serial = "SERIAL" if pg else "INTEGER"
+    tables = [
+        f"""CREATE TABLE IF NOT EXISTS fans (
+            chat_id     BIGINT PRIMARY KEY,
             name        TEXT    DEFAULT '',
             biz         TEXT    DEFAULT '',
             heat        INTEGER DEFAULT 1,
-            first_seen  REAL    DEFAULT 0,
-            last_seen   REAL    DEFAULT 0,
+            first_seen  DOUBLE PRECISION DEFAULT 0,
+            last_seen   DOUBLE PRECISION DEFAULT 0,
             msg_count   INTEGER DEFAULT 0,
             notes       TEXT    DEFAULT ''
-        );
-        CREATE TABLE IF NOT EXISTS messages (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            chat_id       INTEGER NOT NULL,
-            role          TEXT    NOT NULL,
-            content       TEXT    NOT NULL,
-            ts            REAL    NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_messages_chat_ts ON messages(chat_id, ts);
-        CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts);
-    """)
-    # Schema migrations — safe to re-run (ALTER TABLE ignores errors if column exists)
+        )""",
+        f"""CREATE TABLE IF NOT EXISTS messages (
+            id            {serial} PRIMARY KEY,
+            chat_id       BIGINT NOT NULL,
+            role          TEXT   NOT NULL,
+            content       TEXT   NOT NULL,
+            ts            DOUBLE PRECISION NOT NULL,
+            heat          INTEGER DEFAULT 1,
+            is_fallback   INTEGER DEFAULT 0,
+            response_ms   INTEGER DEFAULT 0
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_messages_chat_ts ON messages(chat_id, ts)",
+        "CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts)",
+    ]
+    for sql in tables:
+        try:
+            _exec(sql, commit=True)
+        except Exception as e:
+            log.warning(f"db_init table error (may already exist): {e}")
+    # Add missing columns if they don't exist yet (safe to re-run)
     migrations = [
         "ALTER TABLE messages ADD COLUMN heat INTEGER DEFAULT 1",
         "ALTER TABLE messages ADD COLUMN is_fallback INTEGER DEFAULT 0",
@@ -1437,58 +1465,56 @@ def db_init():
     ]
     for sql in migrations:
         try:
-            conn.execute(sql)
+            _exec(sql, commit=True)
         except Exception:
-            pass  # column already exists — expected on subsequent startups
-    conn.commit()
-    log.info("DB initialized")
+            pass  # column already exists
+    log.info(f"DB initialized ({'Postgres' if pg else 'SQLite'})")
 
 def db_migrate_fans_json():
-    """One-time migration: import bella_fans.json into DB if fans table is empty."""
-    conn = _get_db()
-    count = conn.execute("SELECT COUNT(*) FROM fans").fetchone()[0]
-    if count > 0:
-        return  # already migrated
+    """One-time migration: import bella_fans.json into Postgres if fans table is empty."""
     try:
+        count = _exec("SELECT COUNT(*) FROM fans", fetchone=True)[0]
+        if count > 0:
+            return
         import json as _json
         with open(FANS_FILE) as f:
             fans = _json.load(f)
         now = time.time()
-        rows = [(int(cid), d.get("name",""), d.get("biz",""), 1,
-                 d.get("last_seen", now), d.get("last_seen", now), 0)
-                for cid, d in fans.items()]
-        conn.executemany(
-            "INSERT OR IGNORE INTO fans (chat_id,name,biz,heat,first_seen,last_seen,msg_count) VALUES (?,?,?,?,?,?,?)",
-            rows)
-        conn.commit()
-        log.info(f"Migrated {len(rows)} fans from bella_fans.json into DB")
+        ph = _ph()
+        for cid, d in fans.items():
+            try:
+                _exec(
+                    f"INSERT INTO fans (chat_id,name,biz,heat,first_seen,last_seen,msg_count) VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph}) ON CONFLICT(chat_id) DO NOTHING",
+                    (int(cid), d.get("name",""), d.get("biz",""), 1, d.get("last_seen",now), d.get("last_seen",now), 0),
+                    commit=True)
+            except Exception:
+                pass
+        log.info(f"Migrated {len(fans)} fans from bella_fans.json into DB")
     except Exception as e:
         log.warning(f"Fan migration skipped: {e}")
 
 def db_save_message(chat_id: int, role: str, content: str, heat: int = 1, response_ms: int = 0, is_fallback: int = 0):
-    """Persist a single message to the DB with optional research metadata."""
+    """Persist a single message to the DB."""
     try:
-        conn = _get_db()
-        conn.execute(
-            "INSERT INTO messages (chat_id,role,content,ts,heat,response_ms,is_fallback) VALUES (?,?,?,?,?,?,?)",
-            (chat_id, role, content, time.time(), heat, response_ms, is_fallback))
-        conn.commit()
+        ph = _ph()
+        _exec(
+            f"INSERT INTO messages (chat_id,role,content,ts,heat,response_ms,is_fallback) VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph})",
+            (chat_id, role, content, time.time(), heat, response_ms, is_fallback),
+            commit=True)
     except Exception as e:
         log.warning(f"db_save_message error: {e}")
 
 def db_load_history(chat_id: int, limit: int = 20) -> list:
-    """Load last `limit` messages for a chat as [{role,content}] list.
-    'owner' role is mapped to 'assistant' so the AI sees it as Bella's side."""
+    """Load last `limit` messages for a chat, deduped, roles mapped for AI context."""
     try:
-        conn = _get_db()
-        rows = conn.execute(
-            "SELECT role, content FROM messages WHERE chat_id=? ORDER BY ts DESC LIMIT ?",
-            (chat_id, limit)).fetchall()
+        ph = _ph()
+        rows = _exec(
+            f"SELECT role, content FROM messages WHERE chat_id={ph} ORDER BY ts DESC LIMIT {ph}",
+            (chat_id, limit), fetchall=True) or []
         result = []
         prev_content = None
         for role, content in reversed(rows):
             ai_role = "assistant" if role in ("assistant", "owner") else "user"
-            # Skip consecutive duplicate assistant messages (prevent repetition loops)
             if ai_role == "assistant" and content == prev_content:
                 continue
             result.append({"role": ai_role, "content": content})
@@ -1501,29 +1527,28 @@ def db_load_history(chat_id: int, limit: int = 20) -> list:
 def db_upsert_fan(chat_id: int, name: str = None, biz: str = None, heat: int = None):
     """Insert or update a fan record."""
     try:
-        conn = _get_db()
+        ph = _ph()
         now = time.time()
-        conn.execute("""
+        _exec(f"""
             INSERT INTO fans (chat_id, name, biz, heat, first_seen, last_seen, msg_count)
-            VALUES (?, ?, ?, ?, ?, ?, 1)
+            VALUES ({ph},{ph},{ph},{ph},{ph},{ph},1)
             ON CONFLICT(chat_id) DO UPDATE SET
                 name      = COALESCE(NULLIF(excluded.name,''), fans.name),
                 biz       = COALESCE(NULLIF(excluded.biz,''),  fans.biz),
                 heat      = COALESCE(excluded.heat, fans.heat),
                 last_seen = excluded.last_seen,
                 msg_count = fans.msg_count + 1
-        """, (chat_id, name or "", biz or "", heat or 1, now, now))
-        conn.commit()
+        """, (chat_id, name or "", biz or "", heat or 1, now, now), commit=True)
     except Exception as e:
         log.warning(f"db_upsert_fan error: {e}")
 
 def db_get_fan(chat_id: int) -> dict:
     """Return fan record as dict, or {} if not found."""
     try:
-        conn = _get_db()
-        row = conn.execute(
-            "SELECT name,biz,heat,first_seen,last_seen,msg_count,notes FROM fans WHERE chat_id=?",
-            (chat_id,)).fetchone()
+        ph = _ph()
+        row = _exec(
+            f"SELECT name,biz,heat,first_seen,last_seen,msg_count,notes FROM fans WHERE chat_id={ph}",
+            (chat_id,), fetchone=True)
         if row:
             return dict(zip(["name","biz","heat","first_seen","last_seen","msg_count","notes"], row))
     except Exception as e:
