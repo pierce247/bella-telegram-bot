@@ -1347,8 +1347,14 @@ table{font-size:12px}th,td{padding:7px 10px!important}
     <div style="text-align:center;margin:10px 0" id="subLoadWrap" style="display:none">
       <button class="filter-btn" onclick="subShowMore()" id="subLoadBtn">Load more ↓</button>
     </div>
-    <div style="margin-top:14px;padding-top:14px;border-top:1px solid #1a1a1a">
-      <button onclick="openEmailComposer()" style="width:100%;background:#f472b620;border:1px solid #f472b6;color:#f472b6;padding:10px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600">✉️ Compose email to active subscribers</button>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid #1a1a1a;display:flex;flex-direction:column;gap:8px">
+      <!-- Manual add email -->
+      <div style="display:flex;gap:8px">
+        <input id="addSubEmail" placeholder="email@example.com" style="flex:1;background:#1a1a1a;border:1px solid #333;color:#f0f0f0;padding:8px 12px;border-radius:8px;font-size:13px">
+        <input id="addSubName" placeholder="Name (optional)" style="width:120px;background:#1a1a1a;border:1px solid #333;color:#f0f0f0;padding:8px 12px;border-radius:8px;font-size:13px">
+        <button onclick="addManualSub()" style="background:#22c55e20;border:1px solid #22c55e;color:#22c55e;padding:8px 14px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;white-space:nowrap">+ Add</button>
+      </div>
+      <button onclick="openEmailComposer()" style="background:#f472b620;border:1px solid #f472b6;color:#f472b6;padding:10px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600">✉️ Compose email to active subscribers</button>
     </div>
   </div>
 </div>
@@ -1613,6 +1619,24 @@ function renderSubList(){
   } else { wrap.style.display='none'; }
 }
 function subShowMore(){ subShowCount+=20; renderSubList(); }
+async function addManualSub(){
+  const email=document.getElementById('addSubEmail').value.trim();
+  const name=document.getElementById('addSubName').value.trim();
+  if(!email||!email.includes('@')){alert('Enter a valid email'); return;}
+  try{
+    const r=await fetch('/add-subscriber',{method:'POST',headers:{'Content-Type':'application/json','X-Admin-Token':'""" + ADMIN_TOKEN + """'},
+      body:JSON.stringify({email,name,source:'Manual Entry'})});
+    const d=await r.json();
+    if(d.ok){
+      document.getElementById('addSubEmail').value='';
+      document.getElementById('addSubName').value='';
+      // Refresh list
+      ALL_SUBS.unshift({email,followed_on:'Now',source:'Manual Entry',converted:false,bounced:false,status:'active'});
+      renderSubList();
+      alert('✅ Added: '+email);
+    } else { alert('Error: '+(d.error||'unknown')); }
+  } catch(e){ alert('Failed: '+e); }
+}
 function openEmailComposer(){
   const active=ALL_SUBS.filter(s=>!s.bounced).map(s=>s.email);
   document.getElementById('bccField').value=active.join(', ');
@@ -2238,6 +2262,50 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                     save_json(PENDING_FILE, pending)
                 print(f"[link] Payment {resource_id} linked to fan {chat_id} ({fan_name})")
                 self.send_json(200, {"ok": True, "linked": resource_id, "chat_id": chat_id})
+            except Exception as e:
+                self.send_json(500, {"error": str(e)})
+
+        elif p.path == "/add-subscriber":
+            # Add a single email to the master list (webhook JSON + Postgres via bot API)
+            try:
+                data = json.loads(body)
+                token = data.get("token","") or self.headers.get("X-Admin-Token","")
+                if token != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
+                email = data.get("email","").lower().strip()
+                name  = data.get("name","").strip()
+                source= data.get("source","Manual Entry")
+                if not email or "@" not in email:
+                    self.send_json(400,{"error":"invalid email"}); return
+                # Add to webhook's subscriber list
+                subs = load_json(SUBSCRIBERS_FILE, []) if hasattr(self,'__class__') else []
+                try:
+                    SUBS_F = os.path.join(DATA_DIR, "subscribers.json")
+                    subs = load_json(SUBS_F, [])
+                    # Check if already exists
+                    existing = next((s for s in subs if s.get("email","").lower() == email), None)
+                    if not existing:
+                        subs.append({"email": email, "phone": "", "source": source,
+                                     "followed_on": time.strftime("%d %b %Y"),
+                                     "status": "active", "converted": False,
+                                     "conversion_date": None, "bounced": False})
+                        save_json(SUBS_F, subs)
+                except Exception as e:
+                    print(f"[add-sub] JSON save: {e}")
+                # Also push to Postgres via bot API
+                bot_url = STATS_URL or ""
+                if bot_url:
+                    try:
+                        payload = json.dumps({"subscribers": [{"email": email, "phone": "",
+                            "source": source, "followed_on": time.strftime("%b %Y"),
+                            "status": "active", "converted": False, "conversion_date": "",
+                            "bounced": False}]}).encode()
+                        req = urllib.request.Request(f"{bot_url.rstrip('/')}/api/import-subscribers",
+                            data=payload, headers={"Content-Type":"application/json","X-Admin-Token":ADMIN_TOKEN})
+                        urllib.request.urlopen(req, timeout=8).close()
+                    except Exception as e:
+                        print(f"[add-sub] Postgres sync: {e}")
+                print(f"[sub] Manually added: {email} ({name}) source={source}")
+                self.send_json(200, {"ok": True, "email": email})
             except Exception as e:
                 self.send_json(500, {"error": str(e)})
 
