@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Bella Poynt Payment Webhook Listener v3 — Unified Dashboard
+Bella Poynt Payment Webhook Listener v3.1 — Unified Dashboard + Postgres
 - /webhook: Poynt payment events → log + auto-deliver + owner notify
 - /import-payments: bulk backfill historical transactions
 - /register-fan: pre-register email→chat_id
