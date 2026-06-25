@@ -1341,9 +1341,38 @@ class PoyntWebhookHandler(BaseHTTPRequestHandler):
             log.error(f"Poynt webhook error: {e}")
 
     def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Bella Bot Webhook OK")
+        from urllib.parse import urlparse, parse_qs
+        p = urlparse(self.path)
+        qs = parse_qs(p.query)
+        admin_tok = qs.get("token", [""])[0] or self.headers.get("X-Admin-Token", "")
+        ADMIN = os.environ.get("ADMIN_TOKEN", "bella-admin-2024")
+
+        if p.path == "/api/fans":
+            if admin_tok != ADMIN:
+                self.send_response(401); self.end_headers(); return
+            fans = get_pg_fans()
+            body = json.dumps({"fans": fans, "count": len(fans)}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", len(body))
+            self.end_headers()
+            self.wfile.write(body)
+
+        elif p.path == "/api/stats" or p.path == "/api/pg-stats":
+            if admin_tok != ADMIN:
+                self.send_response(401); self.end_headers(); return
+            stats = get_pg_stats()
+            body = json.dumps(stats).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", len(body))
+            self.end_headers()
+            self.wfile.write(body)
+
+        else:
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'{"status":"ok","service":"bella-bot"}')
 
 def start_webhook_server():
     port = int(os.environ.get("PORT", 8080))
