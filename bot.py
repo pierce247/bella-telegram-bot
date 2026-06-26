@@ -2152,6 +2152,64 @@ def save_dedup(ids: set) -> None:
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
 
+def _migrate_tg_export():
+    """One-time background migration of Telegram chat export into Postgres.
+    Reads /app/tg_history.json.gz if present, imports messages, then renames file."""
+    import gzip as _gz, os as _os
+    export_path = "/app/tg_history.json.gz"
+    done_path   = "/app/tg_history.json.gz.done"
+    if not _os.path.exists(export_path) or _os.path.exists(done_path):
+        return  # already done or file not present
+    if not _is_pg():
+        return  # only import into Postgres
+    try:
+        log.info("📥 Starting Telegram export backfill...")
+        # Ensure dedup index exists
+        try:
+            _exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_dedup ON messages(chat_id, role, ts)", commit=True)
+        except Exception:
+            pass
+        with _gz.open(export_path, 'rt') as f:
+            msgs = json.load(f)
+        log.info(f"📥 Loaded {len(msgs):,} messages from export")
+        ph = _ph()
+        inserted = 0
+        fans_seen: dict = {}
+        for m in msgs:
+            try:
+                chat_id = int(m.get("chat_id", 0))
+                role    = m.get("role", "user")
+                content = (m.get("content") or "")[:4000]
+                ts      = float(m.get("ts", 0))
+                fan_name= m.get("fan_name","") or ""
+                if not chat_id or not content: continue
+                _exec(f"INSERT INTO messages (chat_id,role,content,ts) VALUES ({ph},{ph},{ph},{ph}) ON CONFLICT DO NOTHING",
+                      (chat_id, role, content, ts), commit=False)
+                inserted += 1
+                if fan_name and chat_id not in fans_seen:
+                    fans_seen[chat_id] = fan_name
+            except Exception:
+                pass
+        # Commit all at once
+        try:
+            with _db_lock:
+                _get_db().commit()
+        except Exception:
+            pass
+        # Upsert fan names
+        for chat_id, name in fans_seen.items():
+            try:
+                _exec(f"INSERT INTO fans (chat_id,name) VALUES ({ph},{ph}) ON CONFLICT(chat_id) DO UPDATE SET name=CASE WHEN EXCLUDED.name!='' THEN EXCLUDED.name ELSE fans.name END",
+                      (chat_id, name), commit=True)
+            except Exception:
+                pass
+        # Mark as done
+        with open(done_path, 'w') as f:
+            f.write(f"imported {inserted} messages from {len(fans_seen)} fans")
+        log.info(f"✅ Telegram export backfill complete: {inserted:,} messages, {len(fans_seen)} fans")
+    except Exception as e:
+        log.error(f"Telegram export migration failed: {e}")
+
 def main():
     # Start Poynt payment webhook server in background thread
     threading.Thread(target=start_webhook_server, daemon=True).start()
@@ -2196,6 +2254,8 @@ def main():
     db_migrate_fans_json()
     # Run SQLite migration in background so it doesn't block the poll loop heartbeat
     threading.Thread(target=db_migrate_from_sqlite, daemon=True, name="sqlite-migration").start()
+    # One-time Telegram export backfill (runs if tg_history.json.gz exists in /app)
+    threading.Thread(target=_migrate_tg_export, daemon=True, name="tg-export-migration").start()
     if global_biz_id:
         log.info(f"Loaded business_connection_id from disk: {global_biz_id[:12]}...")
 
