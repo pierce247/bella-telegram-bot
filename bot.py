@@ -2169,7 +2169,13 @@ def _migrate_tg_export():
             _exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_dedup ON messages(chat_id, role, ts)", commit=True)
         except Exception:
             pass
-        with _gz.open(export_path, 'rt') as f:
+        # GitHub API may have stored as base64 text — detect and decode
+        import io as _io, base64 as _b64
+        with open(export_path, 'rb') as _f:
+            raw = _f.read()
+        if raw[:4] == b'H4sI':  # base64 of gzip magic bytes \x1f\x8b
+            raw = _b64.b64decode(raw)
+        with _gz.open(_io.BytesIO(raw), 'rt') as f:
             msgs = json.load(f)
         log.info(f"📥 Loaded {len(msgs):,} messages from export")
         ph = _ph()
