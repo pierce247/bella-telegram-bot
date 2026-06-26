@@ -562,23 +562,119 @@ def bella_reply(user_name: str, user_text: str, history: list,
             log.error(f"OpenRouter error: {e}")
             break
 
-    # Context-aware fallbacks — respond to what they actually said
+    # Context-aware fallbacks — rich pool organized by scenario
     t = user_text.lower().strip()
-    if any(kw in t for kw in ["pic", "boob", "ass", "nude", "show", "body", "see you", "tit"]):
-        return random.choice(["tip me and see what happens 😈", "you're not ready for that yet 🌸 but there's a button below", "show me you're serious and I'll show you something worth it 💕"])
-    if any(kw in t for kw in ["busy", "work", "later", "talk later", "gotta go", "have to go"]):
-        return random.choice(["go handle your business, come find me after 🩷", "okay okay, go... but come back", "fine, but I want details later 😏"])
-    if t in ["ok", "okay", "k", "fine", "sure", "lol", "haha", "😂", "lmao"]:
-        return random.choice(["just okay?? 😏", "that's all I get?", "you're funny 🩷"])
-    if any(kw in t for kw in ["what", "huh", "??"]):
-        return random.choice(["you heard me 😏", "you know what I mean", "don't play dumb 🩷"])
-    # Absolute final fallback — Euryale only, no other models (Llama breaks character)
-    t = user_text.lower().strip()
-    if any(kw in t for kw in ["pic", "boob", "ass", "nude", "show", "body", "tit"]):
-        return random.choice(["tip me and find out 😈", "you gotta earn that babe 🩷 tap the button below"])
-    if any(kw in t for kw in ["busy", "work", "gotta go", "later"]):
-        return random.choice(["go handle it, come back to me 🩷", "okay go, but I want details later"])
-    return random.choice(["😏", "tell me more", "interesting 🩷"])
+
+    # Content/body requests
+    if any(kw in t for kw in ["pic", "photo", "boob", "ass", "nude", "show", "body", "tit", "naked", "see you"]):
+        return random.choice([
+            "tip me and see what happens 😈",
+            "show me you're serious and I'll show you something worth it 💕",
+            "you're not ready for that yet babe 🌸",
+            "that's what my page is for — earned, not given 😏",
+            "you want to see me? make it worth my while first 🔥",
+            "I don't just send that to anyone... but tap the button and let's see 😈",
+        ])
+
+    # Compliments / beautiful / gorgeous / sexy
+    if any(kw in t for kw in ["beautiful", "gorgeous", "sexy", "hot", "pretty", "stunning", "perfect", "amazing"]):
+        return random.choice([
+            "you say that like it surprises you 😏",
+            "I know 🩷 but I love hearing it from you",
+            "keep talking like that and see what happens 😈",
+            "that's definitely getting you somewhere 💕",
+            "you have no idea what you do to me when you say that 🔥",
+            "stop it... actually don't 🌸",
+        ])
+
+    # Questions / confusion
+    if any(kw in t for kw in ["what", "huh", "??", "really", "seriously", "wait"]):
+        return random.choice([
+            "you heard me 😏",
+            "don't play dumb it's cute but I see you 🩷",
+            "yes really. now what are you gonna do about it 😈",
+            "exactly what I said babe",
+            "I never say things I don't mean 🌸",
+        ])
+
+    # Leaving / busy / goodbye
+    if any(kw in t for kw in ["busy", "work", "later", "gotta go", "have to go", "bye", "goodbye", "heading out"]):
+        return random.choice([
+            "go handle your business, come back to me 🩷",
+            "fine... but you better come find me later 😏",
+            "okay go. but I want details when you're back 🔥",
+            "you're always leaving me wanting more 🌸",
+            "don't take too long, I get impatient 😈",
+        ])
+
+    # Love / feelings / I love you
+    if any(kw in t for kw in ["love you", "love u", "i love", "feelings", "heart", "miss you", "miss u"]):
+        return random.choice([
+            "that does something to me 🩷",
+            "careful babe, keep saying things like that 😏",
+            "I feel that 💕",
+            "you're making this very hard to resist 🔥",
+            "I like the way you say things 🌸",
+        ])
+
+    # One-word / minimal responses (ok, lol, sure, fine)
+    if t in ["ok", "okay", "k", "fine", "sure", "lol", "haha", "😂", "lmao", "lol 😂", "hahaha"]:
+        return random.choice([
+            "just okay?? 😏",
+            "that's all I get?",
+            "you're funny 🩷",
+            "you think this is a joke 😈",
+            "...is that your answer 🌸",
+            "I expected more from you 😏",
+        ])
+
+    # Explicit / heat 4-5 territory
+    if any(kw in t for kw in ["fuck", "sex", "cum", "wet", "hard", "inside", "touch", "feel"]):
+        return random.choice([
+            "you're bold... I respect it 🔥",
+            "keep going 😈",
+            "my type of energy 💕",
+            "you have no idea what you just started 🌸",
+            "I like where your head is at 😏",
+            "you saying that just made this more interesting 🔥",
+        ])
+
+    # Wanting to meet / calls
+    if any(kw in t for kw in ["meet", "call", "facetime", "video", "come over", "see you"]):
+        return random.choice([
+            "I wish I could but it just scares me 🥺",
+            "I'm not quite there yet babe 🌸",
+            "maybe someday... but not yet 💕",
+            "you're sweet for asking 😏 not yet though",
+        ])
+
+    # Generic catch-all — heat-aware based on heat param
+    _heat = heat if heat else 1
+    if _heat >= 4:
+        return random.choice([
+            "keep going 🔥",
+            "you're making me crazy rn 😈",
+            "I like the way your mind works 💕",
+            "don't stop 🌸",
+            "yes... exactly that 🔥",
+        ])
+    elif _heat >= 2:
+        return random.choice([
+            "I'm listening 😏",
+            "go on... 🩷",
+            "interesting babe 🌸",
+            "tell me more 💕",
+            "you have my attention now 😈",
+        ])
+    else:
+        return random.choice([
+            "😏",
+            "tell me more",
+            "interesting 🩷",
+            "you're something else 🌸",
+            "I'm here 💕",
+            "go on 😏",
+        ])
 
 
 # ── Heat scoring ──────────────────────────────────────────────────────────────
