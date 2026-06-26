@@ -2176,9 +2176,16 @@ def _migrate_tg_export():
         with _gz.open(_io.BytesIO(raw), 'rt') as f:
             msgs = json.load(f)
         log.info(f"📥 Loaded {len(msgs):,} messages from export")
-        ph = _ph()
+        # Use a SEPARATE connection so we don't block the main DB lock during migration
+        import psycopg2 as _pg
+        db_url = os.environ.get("DATABASE_PUBLIC_URL") or os.environ.get("DATABASE_URL","")
+        mig_conn = _pg.connect(db_url, sslmode="require")
+        mig_conn.autocommit = False
+        cur = mig_conn.cursor()
         inserted = 0
         fans_seen: dict = {}
+        batch = []
+        BATCH_SIZE = 500
         for m in msgs:
             try:
                 chat_id = int(m.get("chat_id", 0))
@@ -2187,26 +2194,29 @@ def _migrate_tg_export():
                 ts      = float(m.get("ts", 0))
                 fan_name= m.get("fan_name","") or ""
                 if not chat_id or not content: continue
-                _exec(f"INSERT INTO messages (chat_id,role,content,ts) VALUES ({ph},{ph},{ph},{ph}) ON CONFLICT DO NOTHING",
-                      (chat_id, role, content, ts), commit=False)
-                inserted += 1
+                batch.append((chat_id, role, content, ts))
                 if fan_name and chat_id not in fans_seen:
                     fans_seen[chat_id] = fan_name
+                if len(batch) >= BATCH_SIZE:
+                    cur.executemany("INSERT INTO messages (chat_id,role,content,ts) VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING", batch)
+                    mig_conn.commit()
+                    inserted += len(batch)
+                    batch = []
             except Exception:
                 pass
-        # Commit all at once
-        try:
-            with _db_lock:
-                _get_db().commit()
-        except Exception:
-            pass
+        if batch:
+            cur.executemany("INSERT INTO messages (chat_id,role,content,ts) VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING", batch)
+            mig_conn.commit()
+            inserted += len(batch)
         # Upsert fan names
         for chat_id, name in fans_seen.items():
             try:
-                _exec(f"INSERT INTO fans (chat_id,name) VALUES ({ph},{ph}) ON CONFLICT(chat_id) DO UPDATE SET name=CASE WHEN EXCLUDED.name!='' THEN EXCLUDED.name ELSE fans.name END",
-                      (chat_id, name), commit=True)
+                cur.execute("INSERT INTO fans (chat_id,name) VALUES (%s,%s) ON CONFLICT(chat_id) DO UPDATE SET name=CASE WHEN EXCLUDED.name!='' THEN EXCLUDED.name ELSE fans.name END",
+                            (chat_id, name))
             except Exception:
                 pass
+        mig_conn.commit()
+        mig_conn.close()
         # Mark as done
         with open(done_path, 'w') as f:
             f.write(f"imported {inserted} messages from {len(fans_seen)} fans")
