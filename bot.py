@@ -1486,6 +1486,59 @@ class PoyntWebhookHandler(BaseHTTPRequestHandler):
         ADMIN = os.environ.get("ADMIN_TOKEN", "bella-admin-2024")
         admin_tok = self.headers.get("X-Admin-Token", "")
 
+        # POST /api/import-messages — bulk import Telegram export messages into Postgres
+        if p.path == "/api/import-messages":
+            if admin_tok != ADMIN:
+                self.send_response(401); self.end_headers(); return
+            try:
+                data = json.loads(body.decode())
+                msgs = data if isinstance(data, list) else data.get("messages", [])
+                inserted = 0
+                ph = _ph()
+                # Ensure unique index exists
+                try:
+                    _exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_dedup ON messages(chat_id, role, ts)", commit=True)
+                except Exception:
+                    pass
+                for m in msgs:
+                    try:
+                        chat_id = int(m.get("chat_id", 0))
+                        role    = m.get("role", "user")
+                        content = (m.get("content","") or "")[:4000]
+                        ts      = float(m.get("ts", 0))
+                        if not chat_id or not content: continue
+                        _exec(f"INSERT INTO messages (chat_id,role,content,ts) VALUES ({ph},{ph},{ph},{ph}) ON CONFLICT DO NOTHING",
+                              (chat_id, role, content, ts), commit=True)
+                        inserted += 1
+                    except Exception:
+                        pass
+                # Also upsert fan name into fans table
+                fans_updated = set()
+                for m in msgs:
+                    cid = int(m.get("chat_id",0))
+                    name = m.get("fan_name","")
+                    if cid and name and cid not in fans_updated:
+                        try:
+                            _exec(f"INSERT INTO fans (chat_id,name) VALUES ({ph},{ph}) ON CONFLICT(chat_id) DO UPDATE SET name=CASE WHEN EXCLUDED.name!='' THEN EXCLUDED.name ELSE fans.name END",
+                                  (cid, name), commit=True)
+                            fans_updated.add(cid)
+                        except Exception:
+                            pass
+                resp = json.dumps({"ok": True, "imported": inserted, "total": len(msgs), "fans": len(fans_updated)}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", len(resp))
+                self.end_headers()
+                self.wfile.write(resp)
+                log.info(f"Imported {inserted} Telegram messages from export")
+            except Exception as e:
+                resp = json.dumps({"error": str(e)}).encode()
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(resp)
+            return
+
         # POST /api/import-subscribers — bulk import Linktree subscribers into Postgres
         if p.path == "/api/import-subscribers":
             if admin_tok != ADMIN:
