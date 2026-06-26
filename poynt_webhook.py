@@ -2036,10 +2036,22 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 email_body = data.get("body","")
                 email_date = data.get("date","")
                 self.send_json(200,{"ok":True})  # respond immediately
+                # Debug: log what the Apps Script sent so we can diagnose parsing issues
+                print(f"[gmail] Received body ({len(email_body)} chars): {email_body[:200]!r}")
                 # Parse payment details from email body
                 import re as _re
-                amount_match = _re.search(r'Total\$([\d.]+)', email_body)
-                order_match  = _re.search(r'Order #(\d+)', email_body)
+                # Multiple regex variants for different GoDaddy receipt formats
+                amount_match = (
+                    _re.search(r'Total\s*\$\s*([\d,]+\.[\d]{2})', email_body) or
+                    _re.search(r'Total\$([\d.]+)', email_body) or
+                    _re.search(r'Amount[:\s]+\$\s*([\d,]+\.[\d]{2})', email_body, _re.I) or
+                    _re.search(r'\$([\d]+\.[\d]{2})\s*(?:USD|total|paid)', email_body, _re.I)
+                )
+                order_match = (
+                    _re.search(r'Order\s*#\s*(\d+)', email_body, _re.I) or
+                    _re.search(r'Order\s+Number[:\s]+(\d+)', email_body, _re.I) or
+                    _re.search(r'Confirmation[:\s]+(\d+)', email_body, _re.I)
+                )
                 name_match   = _re.search(r'^([A-Z][a-z]+ [A-Z][a-z]+)\s*\*', email_body, _re.M)
                 email_match  = _re.search(r'[\w.+-]+@[\w-]+\.[\w.]+', email_body)
                 if amount_match and order_match:
