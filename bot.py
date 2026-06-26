@@ -1782,6 +1782,71 @@ def db_init():
             pass  # column already exists
     log.info(f"DB initialized ({'Postgres' if pg else 'SQLite'})")
 
+def db_migrate_from_sqlite():
+    """One-time migration: copy all fans + messages from SQLite /data/bella.db into Postgres.
+    Safe to re-run — uses ON CONFLICT DO NOTHING for messages, DO UPDATE for fans."""
+    if not _is_pg():
+        return  # Only meaningful when Postgres is active
+    sqlite_path = DB_FILE  # /data/bella.db
+    try:
+        import sqlite3 as _sq
+        if not os.path.exists(sqlite_path):
+            log.info("SQLite migration: no bella.db found, skipping")
+            return
+        sq = _sq.connect(sqlite_path, check_same_thread=False)
+
+        # Migrate fans
+        try:
+            sq_fans = sq.execute("SELECT chat_id, name, biz, heat, first_seen, last_seen, msg_count FROM fans").fetchall()
+            migrated_fans = 0
+            ph = _ph()
+            for row in sq_fans:
+                try:
+                    _exec(f"""INSERT INTO fans (chat_id,name,biz,heat,first_seen,last_seen,msg_count)
+                              VALUES ({ph},{ph},{ph},{ph},{ph},{ph},{ph})
+                              ON CONFLICT(chat_id) DO UPDATE SET
+                                name=CASE WHEN EXCLUDED.name!='' THEN EXCLUDED.name ELSE fans.name END,
+                                biz=CASE WHEN EXCLUDED.biz!='' THEN EXCLUDED.biz ELSE fans.biz END,
+                                heat=GREATEST(fans.heat, EXCLUDED.heat),
+                                first_seen=LEAST(fans.first_seen, EXCLUDED.first_seen),
+                                last_seen=GREATEST(fans.last_seen, EXCLUDED.last_seen),
+                                msg_count=GREATEST(fans.msg_count, EXCLUDED.msg_count)""",
+                          (row[0], row[1] or "", row[2] or "", row[3] or 1,
+                           row[4] or 0, row[5] or 0, row[6] or 0),
+                          commit=True)
+                    migrated_fans += 1
+                except Exception:
+                    pass
+            log.info(f"SQLite migration: {migrated_fans} fans migrated to Postgres")
+        except Exception as e:
+            log.warning(f"SQLite fan migration error: {e}")
+
+        # Migrate messages — add unique constraint first if missing, then bulk insert
+        try:
+            # Add dedup index if not exists
+            try:
+                _exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_dedup ON messages(chat_id, role, ts)", commit=True)
+            except Exception:
+                pass
+            sq_msgs = sq.execute("SELECT chat_id, role, content, ts FROM messages ORDER BY ts ASC").fetchall()
+            migrated_msgs = 0
+            ph = _ph()
+            for row in sq_msgs:
+                try:
+                    _exec(f"INSERT INTO messages (chat_id,role,content,ts) VALUES ({ph},{ph},{ph},{ph}) ON CONFLICT DO NOTHING",
+                          (row[0], row[1] or "user", row[2] or "", row[3] or 0),
+                          commit=True)
+                    migrated_msgs += 1
+                except Exception:
+                    pass
+            log.info(f"SQLite migration: {migrated_msgs} messages migrated to Postgres")
+        except Exception as e:
+            log.warning(f"SQLite message migration error: {e}")
+
+        sq.close()
+    except Exception as e:
+        log.warning(f"SQLite migration failed (non-critical): {e}")
+
 def db_migrate_fans_json():
     """One-time migration: import bella_fans.json into Postgres if fans table is empty."""
     try:
@@ -2011,6 +2076,7 @@ def main():
     # Init SQLite persistent memory
     db_init()
     db_migrate_fans_json()
+    db_migrate_from_sqlite()  # one-time backfill of SQLite history into Postgres
     if global_biz_id:
         log.info(f"Loaded business_connection_id from disk: {global_biz_id[:12]}...")
 
