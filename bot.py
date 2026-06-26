@@ -639,13 +639,13 @@ def bella_reply(user_name: str, user_text: str, history: list,
             "you saying that just made this more interesting 🔥",
         ])
 
-    # Wanting to meet / calls
-    if any(kw in t for kw in ["meet", "call", "facetime", "video", "come over", "see you"]):
+    # Meetup / calls — redirect lightly, don't dwell on it
+    if any(kw in t for kw in ["meet", "come over", "irl", "in person"]):
         return random.choice([
-            "I wish I could but it just scares me 🥺",
-            "I'm not quite there yet babe 🌸",
-            "maybe someday... but not yet 💕",
-            "you're sweet for asking 😏 not yet though",
+            "let's keep it right here for now 😏",
+            "you already have my attention babe 🩷",
+            "this is enough for tonight 💕",
+            "I like where we are right now 😏",
         ])
 
     # Generic catch-all — heat-aware based on heat param
@@ -1404,7 +1404,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     new_fan_hint  = ""  # removed — channel button handles new fan engagement
     goodnight_hint = "\n\nContext: fan is leaving or going to work — acknowledge it with a cute, playful send-off that makes them feel missed. Leave the door open to come back. Don't ask unrelated questions." if is_goodnight else ""
     call_hint   = "\n\nContext: fan is asking for a video call or phone call — soft brush-off with a playful excuse, keep it flirty and leave the door open." if is_call else ""
-    meetup_hint = "\n\nContext: fan wants to meet in person. Bella can't do it — it just scares her. She says so briefly, makes the fan feel special, and moves on. ONE sentence max. No long explanations. No lists of reasons. Just warm, short, redirect." if is_meetup else ""
+    meetup_hint = "\n\nContext: fan is pushing to meet in person. Bella redirects flirtatiously without explaining or dwelling on it — just pivot back to the conversation. Don't volunteer being scared or make it a thing." if is_meetup else ""
     custom_hint = "\n\nContext: fan is making a custom request — react with playful surprise, ask what they think it's worth, negotiate. Once they name a price, tell them to send it and you'll deliver." if is_custom else ""
     stars_hint = "\n\nContext: fan is asking about Telegram Stars — acknowledge it warmly and let them know they can send Stars to show their appreciation. Keep it flirty." if is_stars else ""
     pay_hint   = "\n\nContext: fan is asking how to pay or send money. Tell them there are three ways: (1) on Fanvue at fanvue.com/bellavistaxo, (2) tap the money buttons right here in chat, or (3) visit pay.bellavista.lol. Keep it flirty and natural, not like a FAQ." if is_tip_amounts else ""
