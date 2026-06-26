@@ -345,6 +345,9 @@ def clean_reply(text: str) -> str:
     # Strip speaker/role prefixes that models sometimes add at the start
     text = _rec.sub(r'^(?:Bella|bella|BELLA)\s*:\s*', '', text).strip()
     text = _rec.sub(r'^(?:Assistant|assistant|AI|User|user)\s*:\s*', '', text).strip()
+    # Detect heat-level variant structure (e.g. "1: ... 2-3: ... 4-5: ...") — discard whole response
+    if _rec.search(r'\b[1-5][-–][1-5]\s*:', text) or _rec.search(r'^\s*[1-5]\s*:', text):
+        return ""  # triggers fallback — model exposed internal structure
     # Strip "BELOW IS REWRITTEN:" and similar inline labels
     text = _rec.sub(r'(?:BELOW IS REWRITTEN|REWRITTEN|REVISED|REPHRASED)[:\s]*', '', text, flags=_rec.I).strip()
     text = _rec.sub(r'\b(?:BELOW IS REWRITTEN:|REWRITTEN:|REVISED:).*', '', text, flags=_rec.I).strip()
@@ -401,7 +404,11 @@ def clean_reply(text: str) -> str:
                   "sexual content involving", "minors is harmful",
                   "that is illegal", "that's illegal", "this is illegal",
                   "child safety", "exploitation", "protect minors",
-                  "underage", "under age", "under 18"]
+                  "underage", "under age", "under 18",
+                  # Heat level structure leaking as numbered variants
+                  "1: oh i'd", "1: i'd definitely", "2-3:", "4-5:",
+                  "heat level 1:", "heat level 2", "heat level 3", "heat level 4",
+                  "for heat 1", "for heat 2", "for heat 3", "for heat 4", "for heat 5"]
     if any(tell in result.lower() for tell in _bot_tells):
         log.warning(f"Full AI leak detected, discarding: {result[:60]!r}")
         return ""  # triggers fallback to next model
@@ -510,7 +517,7 @@ def bella_reply(user_name: str, user_text: str, history: list,
         messages.append(h)  # {role: user/assistant, content: raw text}
     messages.append({
         "role": "user",
-        "content": f'Fan says: {user_text}\n\nReply as Bella. ALWAYS respond directly to what they just said — stay contextually relevant. Don\'t pivot to a random question if they said something specific. Fresh, real, enticing. No quotation marks around your response.{extra}\n\nBE BRIEF. 1 sentence at heat 1-3. 2 short sentences MAX at heat 4-5.'
+        "content": f'Fan says: {user_text}\n\nReply as Bella. ONE single response only — never write multiple versions or label responses with numbers. ALWAYS respond directly to what they just said. Fresh, real, enticing. No quotation marks. Keep it short and punchy.{extra}'
     })
 
     # Single high-quality model — retry on 429, no fallback to worse models
