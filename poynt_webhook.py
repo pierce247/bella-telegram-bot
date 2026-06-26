@@ -2054,13 +2054,15 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                     _re.search(r'Order\s+Number[:\s]+(\d+)', full_body, _re.I) or
                     _re.search(r'Confirmation[:\s]+(\d+)', full_body, _re.I)
                 )
-                # Name: try multiple patterns across plain + HTML body
+                # Name: GoDaddy format is "First Last ****XXXX" (card holder + masked card)
                 name_match = (
+                    _re.search(r'([A-Z][a-zA-Z]+(?: [A-Z][a-zA-Z]+)+)\s+\*{4}\d{4}', full_body) or  # "Rodrigo Andrade Soto ****6259"
                     _re.search(r'^([A-Z][a-z]+ [A-Z][a-z]+)\s*\*', full_body, _re.M) or
-                    _re.search(r'(?:Name|Customer|Buyer|Billed to)[:\s]+([A-Z][a-z]+ [A-Z][a-z]+)', full_body, _re.I) or
-                    _re.search(r'(?:First Name|First)[:\s]+([A-Za-z]+).*?(?:Last Name|Last)[:\s]+([A-Za-z]+)', full_body, _re.I | _re.S) or
+                    _re.search(r'(?:Name|Customer|Buyer|Billed to)[:\s]+([A-Z][a-z]+(?: [A-Z][a-z]+)+)', full_body, _re.I) or
                     _re.search(r'cardholder[:\s]+([A-Z][a-z]+ [A-Z][a-z]+)', full_body, _re.I)
                 )
+                # Note from customer
+                note_match = _re.search(r'Note from customer\s*:?\s*["\']?([^"\'\n<]{2,100})["\']?', full_body, _re.I)
                 # Email: exclude GoDaddy's own emails, prefer customer emails
                 email_matches = _re.findall(r'[\w.+-]+@[\w-]+\.[\w.]+', full_body)
                 customer_email_str = next((e for e in email_matches if 'godaddy' not in e.lower() and 'noreply' not in e.lower()), email_matches[0] if email_matches else "")
@@ -2118,7 +2120,10 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                             save_json(SUBSCRIBERS_FILE, subs)
                             print(f"[sub] Converted: {customer_email}")
                     # Notify owners instantly
+                    customer_note = note_match.group(1).strip().strip('"\'') if note_match else ""
                     msg = f"\U0001f4b0 New payment!\n\U0001f464 {customer_name}\n\U0001f4b5 ${amount_str}\n\U0001f4e7 {customer_email}\n\U0001f4e6 Order #{order_id} via GoDaddy"
+                    if customer_note:
+                        msg += f"\n\U0001f4ac \"{customer_note}\""
                     for oid in OWNER_CHAT_IDS: send_telegram(oid, msg)
             except Exception as e:
                 print(f"[gmail] error: {e}")
