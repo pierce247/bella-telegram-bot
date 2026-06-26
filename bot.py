@@ -1305,11 +1305,16 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     custom_hint = "\n\nContext: fan is making a custom request — react with playful surprise, ask what they think it's worth, negotiate. Once they name a price, tell them to send it and you'll deliver." if is_custom else ""
     stars_hint = "\n\nContext: fan is asking about Telegram Stars — acknowledge it warmly and let them know they can send Stars to show their appreciation. Keep it flirty." if is_stars else ""
     pay_hint   = "\n\nContext: fan is asking how to pay or send money. Tell them there are three ways: (1) on Fanvue at fanvue.com/bellavistaxo, (2) tap the money buttons right here in chat, or (3) visit pay.bellavista.lol. Keep it flirty and natural, not like a FAQ." if is_tip_amounts else ""
-    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + meetup_hint + custom_hint + pay_hint
+    memory_hint = f"\n\n[MEMORY about this fan]: {_fan_note}" if _fan_note else ""
+    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + meetup_hint + custom_hint + pay_hint + memory_hint
 
     # 4. Get history for this chat — DB first (survives restarts), fall back to in-memory
     db_hist = db_load_history(chat_id, limit=20)
     history = db_hist if db_hist else list(chat_history[chat_id])
+
+    # Load persistent memory note for this fan (survives ALL restarts)
+    _fan_rec = db_get_fan(chat_id)
+    _fan_note = _fan_rec.get("notes", "") or ""
 
     # 5. Generate reply (track time for research)
     _reply_start = time.time()
@@ -1381,6 +1386,15 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         db_save_message(chat_id, "user", text, heat=_heat_now)
         db_save_message(chat_id, "assistant", reply, heat=_heat_now, response_ms=_reply_ms)
         db_upsert_fan(chat_id, name=user_name, biz=biz, heat=_heat_now)
+        # Background session summarization — fires after 5+ exchanges in a session
+        _session_len = len(chat_history.get(chat_id, []))
+        if _session_len >= 10:  # 10 = 5 user + 5 assistant turns
+            _summary_hist = list(chat_history[chat_id])
+            threading.Thread(
+                target=summarize_fan_session,
+                args=(chat_id, user_name, _summary_hist),
+                daemon=True, name=f"summary-{chat_id}"
+            ).start()
 
     # 9. Photo interjection when fan is begging and photos are available
     if is_begging and BELLA_PHOTO_IDS:
@@ -1931,6 +1945,57 @@ def db_get_fan(chat_id: int) -> dict:
     except Exception as e:
         log.warning(f"db_get_fan error: {e}")
     return {}
+_last_summarized: dict = {}   # chat_id → timestamp of last summary
+
+def summarize_fan_session(chat_id: int, fan_name: str, history: list):
+    """Generate a memory note from the current session and store in fan's Postgres record.
+    Called in background after 5+ exchanges — cheap single Euryale call."""
+    if len(history) < 8:
+        return  # not enough to summarize
+    now = time.time()
+    if now - _last_summarized.get(chat_id, 0) < 3600:
+        return  # already summarized within the last hour
+    _last_summarized[chat_id] = now
+
+    # Get existing notes to build on
+    existing = db_get_fan(chat_id).get("notes", "") or ""
+
+    # Build context from last 20 messages
+    convo = "\n".join(f"{m['role'].upper()}: {m['content'][:120]}" for m in history[-20:])
+
+    summary_prompt = (
+        f"Based on this Telegram DM conversation between Bella and a fan named {fan_name}, "
+        f"write a concise 3-5 sentence memory note that Bella can use next time they chat. "
+        f"Include: their name/nickname preference, interests they mentioned, emotional tone, "
+        f"anything personal they shared, and their current heat/relationship level with Bella. "
+        f"Write it as a note TO Bella, starting with 'Fan: {fan_name} —'. Be specific and useful.\n\n"
+        f"Previous note: {existing[:300] if existing else 'none'}\n\n"
+        f"Recent conversation:\n{convo}"
+    )
+
+    try:
+        payload = json.dumps({
+            "model": "sao10k/l3.3-euryale-70b",
+            "max_tokens": 200, "temperature": 0.4,
+            "messages": [
+                {"role": "system", "content": "You are summarizing fan conversations for an influencer's DM bot. Be factual and concise."},
+                {"role": "user", "content": summary_prompt}
+            ]
+        }).encode()
+        req = urllib.request.Request(
+            "https://openrouter.ai/api/v1/chat/completions", data=payload,
+            headers={"Authorization": f"Bearer {OPENROUTER_KEY}", "Content-Type": "application/json",
+                     "HTTP-Referer": "https://bellavistaxo.com", "X-Title": "Bella DM Bot"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            data = json.loads(r.read())
+            note = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+            if note and len(note) > 20:
+                ph = _ph()
+                _exec(f"UPDATE fans SET notes={ph} WHERE chat_id={ph}", (note, chat_id), commit=True)
+                log.info(f"📝 Session note saved for {fan_name} ({chat_id}): {note[:80]!r}")
+    except Exception as e:
+        log.warning(f"Session summarization failed for {chat_id}: {e}")
+
 def get_pg_fans():
     """Get all fans from Postgres for the stats API."""
     try:
