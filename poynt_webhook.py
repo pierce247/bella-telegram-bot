@@ -2034,31 +2034,50 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 token = data.get("token","") or self.headers.get("X-Admin-Token","")
                 if token != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
                 email_body = data.get("body","")
+                email_html = data.get("html","")  # HTML body (richer, includes name/email)
                 email_date = data.get("date","")
+                # Combine plain + HTML for extraction (HTML often has more detail)
+                full_body = email_body + "\n" + email_html
                 self.send_json(200,{"ok":True})  # respond immediately
-                # Debug: log what the Apps Script sent so we can diagnose parsing issues
-                print(f"[gmail] Received body ({len(email_body)} chars): {email_body[:200]!r}")
+                print(f"[gmail] Received body ({len(email_body)} chars plain, {len(email_html)} chars html)")
                 # Parse payment details from email body
                 import re as _re
                 # Multiple regex variants for different GoDaddy receipt formats
                 amount_match = (
-                    _re.search(r'Total\s*\$\s*([\d,]+\.[\d]{2})', email_body) or
-                    _re.search(r'Total\$([\d.]+)', email_body) or
-                    _re.search(r'Amount[:\s]+\$\s*([\d,]+\.[\d]{2})', email_body, _re.I) or
-                    _re.search(r'\$([\d]+\.[\d]{2})\s*(?:USD|total|paid)', email_body, _re.I)
+                    _re.search(r'Total\s*\$\s*([\d,]+\.[\d]{2})', full_body) or
+                    _re.search(r'Total\$([\d.]+)', full_body) or
+                    _re.search(r'Amount[:\s]+\$\s*([\d,]+\.[\d]{2})', full_body, _re.I) or
+                    _re.search(r'\$([\d]+\.[\d]{2})\s*(?:USD|total|paid)', full_body, _re.I)
                 )
                 order_match = (
-                    _re.search(r'Order\s*#\s*(\d+)', email_body, _re.I) or
-                    _re.search(r'Order\s+Number[:\s]+(\d+)', email_body, _re.I) or
-                    _re.search(r'Confirmation[:\s]+(\d+)', email_body, _re.I)
+                    _re.search(r'Order\s*#\s*(\d+)', full_body, _re.I) or
+                    _re.search(r'Order\s+Number[:\s]+(\d+)', full_body, _re.I) or
+                    _re.search(r'Confirmation[:\s]+(\d+)', full_body, _re.I)
                 )
-                name_match   = _re.search(r'^([A-Z][a-z]+ [A-Z][a-z]+)\s*\*', email_body, _re.M)
-                email_match  = _re.search(r'[\w.+-]+@[\w-]+\.[\w.]+', email_body)
+                # Name: try multiple patterns across plain + HTML body
+                name_match = (
+                    _re.search(r'^([A-Z][a-z]+ [A-Z][a-z]+)\s*\*', full_body, _re.M) or
+                    _re.search(r'(?:Name|Customer|Buyer|Billed to)[:\s]+([A-Z][a-z]+ [A-Z][a-z]+)', full_body, _re.I) or
+                    _re.search(r'(?:First Name|First)[:\s]+([A-Za-z]+).*?(?:Last Name|Last)[:\s]+([A-Za-z]+)', full_body, _re.I | _re.S) or
+                    _re.search(r'cardholder[:\s]+([A-Z][a-z]+ [A-Z][a-z]+)', full_body, _re.I)
+                )
+                # Email: exclude GoDaddy's own emails, prefer customer emails
+                email_matches = _re.findall(r'[\w.+-]+@[\w-]+\.[\w.]+', full_body)
+                customer_email_str = next((e for e in email_matches if 'godaddy' not in e.lower() and 'noreply' not in e.lower()), email_matches[0] if email_matches else "")
+                email_match = type('m', (), {'group': lambda self, n: customer_email_str})() if customer_email_str else None
                 if amount_match and order_match:
                     amount_str = amount_match.group(1)
                     amount_cents = int(float(amount_str) * 100)
                     order_id = order_match.group(1)
-                    customer_name = name_match.group(1).strip() if name_match else "Unknown"
+                    if name_match:
+                        try:
+                            # Handle both single-group and multi-group matches
+                            parts = [g for g in name_match.groups() if g]
+                            customer_name = " ".join(parts).strip() if parts else name_match.group(1).strip()
+                        except Exception:
+                            customer_name = name_match.group(1).strip() if name_match else "Unknown"
+                    else:
+                        customer_name = "Unknown"
                     customer_email = email_match.group(0) if email_match else ""
                     # Check if already imported
                     existing = load_json(PAYMENTS_LOG, [])
