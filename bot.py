@@ -2076,7 +2076,8 @@ def main():
     # Init SQLite persistent memory
     db_init()
     db_migrate_fans_json()
-    db_migrate_from_sqlite()  # one-time backfill of SQLite history into Postgres
+    # Run SQLite migration in background so it doesn't block the poll loop heartbeat
+    threading.Thread(target=db_migrate_from_sqlite, daemon=True, name="sqlite-migration").start()
     if global_biz_id:
         log.info(f"Loaded business_connection_id from disk: {global_biz_id[:12]}...")
 
