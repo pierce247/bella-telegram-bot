@@ -1305,16 +1305,14 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     custom_hint = "\n\nContext: fan is making a custom request — react with playful surprise, ask what they think it's worth, negotiate. Once they name a price, tell them to send it and you'll deliver." if is_custom else ""
     stars_hint = "\n\nContext: fan is asking about Telegram Stars — acknowledge it warmly and let them know they can send Stars to show their appreciation. Keep it flirty." if is_stars else ""
     pay_hint   = "\n\nContext: fan is asking how to pay or send money. Tell them there are three ways: (1) on Fanvue at fanvue.com/bellavistaxo, (2) tap the money buttons right here in chat, or (3) visit pay.bellavista.lol. Keep it flirty and natural, not like a FAQ." if is_tip_amounts else ""
-    memory_hint = f"\n\n[MEMORY about this fan]: {_fan_note}" if _fan_note else ""
-    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + meetup_hint + custom_hint + pay_hint + memory_hint
 
-    # 4. Get history for this chat — DB first (survives restarts), fall back to in-memory
+    # 4. Get history + memory note BEFORE building extra (note is used in memory_hint)
     db_hist = db_load_history(chat_id, limit=20)
     history = db_hist if db_hist else list(chat_history[chat_id])
-
-    # Load persistent memory note for this fan (survives ALL restarts)
     _fan_rec = db_get_fan(chat_id)
     _fan_note = _fan_rec.get("notes", "") or ""
+    memory_hint = f"\n\n[MEMORY about this fan]: {_fan_note}" if _fan_note else ""
+    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + meetup_hint + custom_hint + pay_hint + memory_hint
 
     # 5. Generate reply (track time for research)
     _reply_start = time.time()
