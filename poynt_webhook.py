@@ -116,6 +116,8 @@ PORT             = int(os.environ.get("PORT", 8080))
 STATS_URL        = os.environ.get("STATS_URL", "")  # bella-bot stats API URL (optional)
 
 DATA_DIR     = os.environ.get("DATA_DIR", "/data")
+TZ_OFFSET    = int(os.environ.get("TZ_OFFSET_HOURS", "-5"))  # CDT = -5, CST = -6 (Nov-Mar)
+TZ_NAME      = "CT"  # Central Time
 PAYMENTS_LOG = os.path.join(DATA_DIR, "payments_log.json")
 PENDING_FILE = os.path.join(DATA_DIR, "pending_fans.json")
 TG_USERS_FILE   = os.path.join(DATA_DIR, "tg_usernames.json")   # {name_key: "@username"}
@@ -967,14 +969,19 @@ def get_payment_stats():
     pending  = load_json(PENDING_FILE, {})
     # Daily revenue last 7 days
     daily = []
+    tz_sec = TZ_OFFSET * 3600  # seconds offset from UTC
+    ct_now = time.time() + tz_sec
+    ct_day_start = ct_now - (ct_now % 86400)  # CT midnight of today
     for i in range(6,-1,-1):
-        d_start = time.time()-(i+1)*86400; d_end=time.time()-i*86400
+        d_start = (ct_day_start - (i+1)*86400) - tz_sec   # convert back to UTC for comparison
+        d_end   = (ct_day_start - i*86400) - tz_sec
         d_rev=0; d_cnt=0
         for e in captured:
             try: ts=time.mktime(time.strptime(e["ts"][:19],"%Y-%m-%dT%H:%M:%S"))
             except: continue
             if d_start < ts <= d_end: d_rev+=e.get("amount_cents",0); d_cnt+=1
-        daily.append({"date":time.strftime("%m/%d",time.localtime(d_end)),"revenue_cents":d_rev,"count":d_cnt})
+        # Format date label in CT
+        daily.append({"date":time.strftime("%m/%d",time.localtime(d_end+tz_sec)),"revenue_cents":d_rev,"count":d_cnt})
     # Top payers
     from collections import defaultdict
     payer_totals = defaultdict(lambda: {"name":"","amount":0,"count":0,"email":""})
@@ -1011,7 +1018,7 @@ def get_conv_stats():
 def build_dashboard(payment_stats, conv_stats):
     ps  = payment_stats
     cs  = conv_stats or {}
-    now_str = time.strftime("%Y-%m-%d %H:%M UTC")
+    now_str = time.strftime("%Y-%m-%d %H:%M", time.localtime(time.time() + TZ_OFFSET*3600)) + f" {TZ_NAME}"
 
     # ── Revenue data ────────────────────────────────────────────────────────
     all_p = ps.get("recent", [])
@@ -1152,7 +1159,7 @@ def build_dashboard(payment_stats, conv_stats):
     for f in cs.get("top_fans",[])[:20] if conv_ok else []:
         last = f.get("last_seen","?")
         if isinstance(last,str) and "T" in last:
-            last = last[11:16] + " UTC"
+            last = last[11:16] + " CT"
         chat_id = f.get("chat_id","")
         name    = f.get("name","?")
         msgs    = f.get("msg_count","")
@@ -1261,7 +1268,7 @@ table{font-size:12px}th,td{padding:7px 10px!important}
   <div class="stat star-stat"><div class="val">""" + str(stars_total) + """⭐</div><div class="lbl">Telegram Stars</div><div class="sub2">≈$""" + str(stars_usd) + """ via bot invoices</div></div>
 </div>
 
-<h2>🌸 Fanvue <span class="fv-badge">updated """ + fv_upd + """ UTC</span> <button onclick="refreshFanvue(this)" style="background:#818cf820;border:1px solid #818cf8;color:#818cf8;padding:3px 10px;border-radius:6px;font-size:11px;cursor:pointer;margin-left:6px">↻ Refresh</button></h2>
+<h2>🌸 Fanvue <span class="fv-badge">updated """ + fv_upd + """ CT</span> <button onclick="refreshFanvue(this)" style="background:#818cf820;border:1px solid #818cf8;color:#818cf8;padding:3px 10px;border-radius:6px;font-size:11px;cursor:pointer;margin-left:6px">↻ Refresh</button></h2>
 <div class="stats">
   <div class="stat fv-stat"><div class="val">""" + fv_avail + """</div><div class="lbl">Available Balance</div></div>
   <div class="stat fv-stat"><div class="val">""" + str(fv_subs) + """</div><div class="lbl">Subscribers</div></div>
@@ -1449,7 +1456,7 @@ function buildCard(p,i){
     +'<div class="pay-detail" id="det-'+i+'">'
       +'<div class="pay-detail-row"><span class="pay-detail-lbl">Email</span><span class="pay-detail-val">'+(p.email||'—')+'</span></div>'
       +'<div class="pay-detail-row"><span class="pay-detail-lbl">Status</span><span class="pay-detail-val">'+(dec?"❌ Declined":"✅ Captured")+'</span></div>'
-      +'<div class="pay-detail-row"><span class="pay-detail-lbl">Date</span><span class="pay-detail-val">'+(p.ts||"").slice(0,16).replace("T"," ")+" UTC"+'</span></div>'
+      +'<div class="pay-detail-row"><span class="pay-detail-lbl">Date</span><span class="pay-detail-val">'+(p.ts ? new Date(new Date(p.ts).getTime()-5*3600000).toISOString().slice(0,16).replace("T"," ")+" CT" : "—")+'</span></div>'
       +(rid?'<div class="pay-detail-row"><span class="pay-detail-lbl">Ref</span><span class="pay-detail-val">'+rid+'</span></div>':"")
       +tgLink+setUser+note
     +'</div>'
