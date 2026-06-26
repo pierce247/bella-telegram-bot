@@ -2060,11 +2060,15 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                     order_id = order_match.group(1)
                     customer_name = name_match.group(1).strip() if name_match else "Unknown"
                     customer_email = email_match.group(0) if email_match else ""
-                    # Skip if already imported
+                    # Check if already imported
                     existing = load_json(PAYMENTS_LOG, [])
                     resource_id = f"gmail-order-{order_id}"
-                    if any(e.get("resource_id") == resource_id for e in existing):
-                        print(f"[gmail] Order {order_id} already imported")
+                    already_exists = any(e.get("resource_id") == resource_id for e in existing)
+                    if already_exists:
+                        # Still notify owner even if already logged — they may have missed it
+                        msg = f"💰 Payment reminder (already logged)\n👤 {customer_name}\n💵 ${amount_str}\n📧 {customer_email}\n📦 Order #{order_id} via GoDaddy"
+                        for oid in OWNER_CHAT_IDS: send_telegram(oid, msg)
+                        print(f"[gmail] Order {order_id} already imported, sent reminder notification")
                         return
                     entry = {
                         "ts": email_date or time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
