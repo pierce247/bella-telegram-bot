@@ -77,7 +77,8 @@ def tg(method: str, payload: dict = {}) -> dict:
         headers={"Content-Type": "application/json"}
     )
     try:
-        with urllib.request.urlopen(req, timeout=20) as r:
+        # timeout=35 > getUpdates long-poll timeout=30 so socket never fires first
+        with urllib.request.urlopen(req, timeout=35) as r:
             return json.loads(r.read())
     except urllib.error.HTTPError as e:
         body = e.read().decode()
