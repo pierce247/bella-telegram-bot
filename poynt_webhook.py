@@ -1420,9 +1420,12 @@ table{font-size:12px}th,td{padding:7px 10px!important}
 <div class="stats">
   <div class="stat"><div class="val">""" + str(total_fans) + """</div><div class="lbl">Total Fans</div></div>
   <div class="stat"><div class="val">""" + str(total_msgs) + """</div><div class="lbl">Total Messages</div></div>
+  <div class="stat"><div class="val">""" + str(pg_stats.get("messages_sent","—")) + """</div><div class="lbl">Bella Sent</div><div class="sub2">assistant msgs</div></div>
+  <div class="stat"><div class="val">""" + str(pg_stats.get("messages_received","—")) + """</div><div class="lbl">Fans Sent</div><div class="sub2">received msgs</div></div>
   <div class="stat"><div class="val">""" + str(active_today) + """</div><div class="lbl">Active 24h</div></div>
   <div class="stat"><div class="val">""" + str(active_7d) + """</div><div class="lbl">Active 7d</div></div>
   <div class="stat"><div class="val">""" + (str(avg_resp_ms)+"ms" if avg_resp_ms else "—") + """</div><div class="lbl">Avg Response</div></div>
+  <div class="stat"><div class="val">""" + str(pg_stats.get("fans_with_memory","—")) + """</div><div class="lbl">Have Memory</div><div class="sub2">notes saved</div></div>
 </div>
 <h2>👥 Active Fans</h2>
 <input class="search-input" id="fanSearch" oninput="filterFans()" placeholder="Search fans…" style="margin-bottom:10px">
