@@ -1155,9 +1155,38 @@ def build_dashboard(payment_stats, conv_stats):
     payer_data = json.dumps(top_payers, default=str)
     tg_users_data = json.dumps(tg_usernames)
 
+    # ── Fan table: prefer cs.top_fans, fall back to direct get_pg_fans() ───────
+    _fans_list = cs.get("top_fans", []) or (get_pg_fans() if conv_ok else [])
+    # Supplement missing daily/today stats from Postgres if not in cs
+    if conv_ok and not cs.get("messages_today"):
+        _now = time.time()
+        _midnight_ct = _now - ((_now + TZ_OFFSET*3600) % 86400)
+        _today_row = pg_query("SELECT COUNT(*) FROM messages WHERE ts > %s", (_midnight_ct,), fetchone=True)
+        if _today_row:
+            cs["messages_today"] = _today_row[0]
+    if conv_ok and not cs.get("daily_messages"):
+        _daily_rows = pg_query(
+            "SELECT date_trunc('day', to_timestamp(ts) AT TIME ZONE 'America/Chicago') AS d, COUNT(*) "
+            "FROM messages WHERE ts > %s GROUP BY d ORDER BY d",
+            (time.time() - 7*86400,), fetchall=True)
+        if _daily_rows:
+            cs["daily_messages"] = [{"date": str(r[0])[:10], "count": r[1]} for r in _daily_rows]
+
+    msgs_today = cs.get("messages_today", "—")
+    daily_conv = cs.get("daily_messages", [])
+    # Recompute conv_bars with fresh data
+    max_msg2 = max((d.get("count",0) for d in daily_conv), default=1) or 1
+    conv_bars = "".join(
+        '<div class="bar-wrap"><div class="bar conv-bar" style="height:{h}px"></div>'
+        '<div class="bar-lbl">{d}<br><small>{c}</small></div></div>'.format(
+            h=max(4,int(d.get("count",0)/max_msg2*80)),
+            d=d.get("date","")[-5:],c=d.get("count",0)
+        ) for d in daily_conv[-14:]
+    )
+
     fan_rows = ""
     import json as _fj
-    for f in cs.get("top_fans",[])[:20] if conv_ok else []:
+    for f in _fans_list[:20] if conv_ok else []:
         last = f.get("last_seen","?")
         if isinstance(last,str) and "T" in last:
             last = last[11:16] + " CT"
