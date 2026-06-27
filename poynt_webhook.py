@@ -271,15 +271,10 @@ def fanvue_refresh_stats():
         print(f"[fanvue_refresh] {e}")
 
 def start_fanvue_scheduler():
-    import threading as _t
-    def _loop():
-        fanvue_refresh_stats()  # run immediately on startup
-        while True:
-            _t.Event().wait(300)  # refresh every 5 min
-            fanvue_refresh_stats()
-    if FANVUE_REFRESH_TOKEN:
-        _t.Thread(target=_loop, daemon=True).start()
-        print("[fanvue] Auto-refresh scheduler started (every 5 min)")
+    # Direct Fanvue insights API returns 403 with OAuth tokens (restricted endpoint).
+    # Stats are kept fresh by the Fanvue MCP posting to /update-fanvue every ~10 min.
+    # Scheduler disabled to eliminate noisy 403 log spam.
+    print("[fanvue] Auto-refresh via MCP (direct API refresh disabled — 403 on insights endpoints)")
 
 # ── Fanvue DM Bot ────────────────────────────────────────────────────────────
 OPENROUTER_KEY    = os.environ.get("OPENROUTER_API_KEY","")
