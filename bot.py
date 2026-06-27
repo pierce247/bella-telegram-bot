@@ -2171,15 +2171,22 @@ def get_pg_stats():
         act_24h   = _exec(f"SELECT COUNT(*) FROM fans WHERE last_seen > {ph}", (now-86400,), fetchone=True)
         act_7d    = _exec(f"SELECT COUNT(*) FROM fans WHERE last_seen > {ph}", (now-604800,), fetchone=True)
         msgs      = _exec("SELECT COUNT(*) FROM messages", fetchone=True)
+        sent      = _exec("SELECT COUNT(*) FROM messages WHERE role='assistant'", fetchone=True)
+        recv      = _exec("SELECT COUNT(*) FROM messages WHERE role='user'", fetchone=True)
         heat_dist = _exec("SELECT heat, COUNT(*) FROM fans GROUP BY heat ORDER BY heat", fetchall=True) or []
         avg_resp  = _exec("SELECT AVG(response_ms) FROM messages WHERE role='assistant' AND response_ms > 0", fetchone=True)
+        # Fans with memory notes
+        fans_with_notes = _exec("SELECT COUNT(*) FROM fans WHERE notes IS NOT NULL AND notes != ''", fetchone=True)
         return {
             "total_fans": total[0] if total else 0,
             "active_24h": act_24h[0] if act_24h else 0,
             "active_7d": act_7d[0] if act_7d else 0,
             "total_messages": msgs[0] if msgs else 0,
+            "messages_sent": sent[0] if sent else 0,
+            "messages_received": recv[0] if recv else 0,
             "heat_distribution": {str(h): c for h, c in heat_dist},
             "avg_response_ms": int(avg_resp[0]) if avg_resp and avg_resp[0] else 0,
+            "fans_with_memory": fans_with_notes[0] if fans_with_notes else 0,
         }
     except Exception as e:
         log.warning(f"get_pg_stats error: {e}")
