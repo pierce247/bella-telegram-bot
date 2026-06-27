@@ -1188,7 +1188,11 @@ def build_dashboard(payment_stats, conv_stats):
     import json as _fj
     for f in _fans_list[:20] if conv_ok else []:
         last = f.get("last_seen","?")
-        if isinstance(last,str) and "T" in last:
+        if isinstance(last, (int, float)) and last > 1000000000:
+            # Unix timestamp → human-readable CT
+            _ts = last + TZ_OFFSET*3600
+            last = time.strftime("%m/%d %H:%M", time.gmtime(_ts)) + " CT"
+        elif isinstance(last, str) and "T" in last:
             last = last[11:16] + " CT"
         chat_id = f.get("chat_id","")
         name    = f.get("name","?")
