@@ -1897,6 +1897,59 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
             except Exception as e:
                 self.send_json(500, {"error": str(e)})
 
+        elif p.path == "/api/bulk-summarize":
+            if self.require_admin(p) != ADMIN_TOKEN:
+                self.send_json(401,{"error":"unauthorized"}); return
+            # One-shot: generate Euryale memory notes for top fans lacking notes
+            import urllib.request as _ur
+            _ok_api_key = os.environ.get("OPENROUTER_API_KEY","")
+            if not _ok_api_key:
+                self.send_json(500,{"error":"no openrouter key"}); return
+            # Get top fans without notes
+            _fans_rows = pg_query(
+                "SELECT chat_id, name FROM fans WHERE (notes IS NULL OR notes='') "
+                "ORDER BY msg_count DESC LIMIT 15", fetchall=True) or []
+            results = []
+            for _cid, _fname in _fans_rows:
+                try:
+                    # Load last 30 messages for this fan
+                    _msgs = pg_query(
+                        "SELECT role, content FROM messages WHERE chat_id=%s ORDER BY ts DESC LIMIT 30",
+                        (_cid,), fetchall=True) or []
+                    if len(_msgs) < 6:
+                        results.append({"chat_id":_cid,"name":_fname,"status":"skipped_too_few"})
+                        continue
+                    _msgs = list(reversed(_msgs))
+                    _convo = "\n".join(f"{r.upper()}: {c[:120]}" for r,c in _msgs)
+                    _prompt = (
+                        f"Based on this Telegram DM conversation between Bella (AI influencer) and a fan named {_fname or 'babe'}, "
+                        f"write a concise 3-5 sentence memory note Bella can use next time they chat. "
+                        f"Include: their name/nickname, interests mentioned, emotional tone, anything personal shared, "
+                        f"and their current heat/relationship level. Write as a note TO Bella, starting with 'Fan: {_fname or 'babe'} —'. Be specific.\n\n"
+                        f"Recent conversation:\n{_convo}"
+                    )
+                    _payload = json.dumps({
+                        "model":"sao10k/l3.3-euryale-70b","max_tokens":200,"temperature":0.4,
+                        "messages":[
+                            {"role":"system","content":"You summarize fan DM conversations for an influencer bot. Be factual and concise."},
+                            {"role":"user","content":_prompt}
+                        ]
+                    }).encode()
+                    _req = _ur.Request("https://openrouter.ai/api/v1/chat/completions",
+                        data=_payload, headers={"Authorization":f"Bearer {_ok_api_key}",
+                        "Content-Type":"application/json","HTTP-Referer":"https://bellavistaxo.com"})
+                    with _ur.urlopen(_req, timeout=25) as _r:
+                        _data = json.loads(_r.read())
+                    _note = _data.get("choices",[{}])[0].get("message",{}).get("content","").strip()
+                    if _note and len(_note) > 20:
+                        pg_query("UPDATE fans SET notes=%s WHERE chat_id=%s", (_note, _cid))
+                        results.append({"chat_id":_cid,"name":_fname,"status":"ok","note":_note[:120]})
+                    else:
+                        results.append({"chat_id":_cid,"name":_fname,"status":"empty_note"})
+                except Exception as _e:
+                    results.append({"chat_id":_cid,"name":_fname,"status":f"error:{_e}"})
+            self.send_json(200,{"ok":True,"processed":len(results),"results":results})
+
         elif p.path == "/api/subscribers":
             if self.require_admin(p) != ADMIN_TOKEN:
                 self.send_json(401,{"error":"unauthorized"}); return
