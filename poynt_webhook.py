@@ -12,6 +12,7 @@ Bella Poynt Payment Webhook Listener v3.1 — Unified Dashboard + Postgres
 import json, os, time, hmac, hashlib, base64, threading, asyncio
 import urllib.request, urllib.error
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
 from urllib.parse import urlparse, parse_qs
 
 # ── Postgres connection (shared with bella-bot) ───────────────────────────────
@@ -2908,4 +2909,6 @@ if __name__ == "__main__":
         print("[startup] Stars tracker session found — starting Telethon")
     else:
         print("[startup] Stars auth: /stars/status")
-    HTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+        daemon_threads = True
+    ThreadedHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
