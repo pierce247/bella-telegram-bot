@@ -1018,82 +1018,75 @@ def get_conv_stats():
 
 # ── Content360 Dashboard Page ───────────────────────────────────────────────────
 def build_c360_page():
+    c360_uuid = os.environ.get("CONTENT360_WORKSPACE_UUID","")
+    c360_tok  = os.environ.get("CONTENT360_ACCESS_TOKEN","")
     return """<!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>📅 Bella Content360</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',sans-serif;background:#0a0a0a;color:#f0f0f0;padding:20px}
+body{font-family:'Inter',sans-serif;background:#0a0a0a;color:#f0f0f0;padding:20px;max-width:1400px;margin:0 auto}
 .hdr{display:flex;align-items:center;gap:12px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #1a1a1a}
 .back{font-size:13px;color:#555;text-decoration:none;padding:5px 10px;border:1px solid #222;border-radius:6px}
 .back:hover{color:#aaa;border-color:#333}
-h1{font-size:20px;font-weight:700}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+h1{font-size:20px;font-weight:700;flex:1}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:28px}
 .stat{background:#111;border:1px solid #1a1a1a;border-radius:10px;padding:16px}
-.stat .val{font-size:28px;font-weight:700;letter-spacing:-1px}
+.stat .val{font-size:30px;font-weight:700;letter-spacing:-1px}
 .stat .lbl{font-size:11px;color:#555;margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
 .stat .sub{font-size:11px;color:#444;margin-top:3px}
-h2{font-size:13px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
-.cal{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:24px}
-.cday{background:#111;border:1px solid #1a1a1a;border-radius:10px;padding:10px}
-.cday .dn{font-size:10px;color:#555}
-.cday .dd{font-size:17px;font-weight:700;margin:2px 0 6px}
-.cpill{font-size:10px;padding:2px 5px;border-radius:4px;font-weight:600;display:inline-block;margin:1px}
+h2{font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;margin-top:24px}
+.cal{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:8px}
+.cday{background:#111;border:1px solid #1a1a1a;border-radius:8px;padding:10px}
+.cday .dn{font-size:10px;color:#444}
+.cday .dd{font-size:16px;font-weight:700;margin:2px 0 5px}
+.cpill{font-size:10px;padding:1px 5px;border-radius:4px;font-weight:600;display:inline-block;margin:1px}
 .cpill.photo{background:rgba(79,195,247,.15);color:#4fc3f7}
 .cpill.video{background:rgba(244,114,182,.15);color:#f472b6}
 .cpill.text{background:rgba(105,240,174,.15);color:#69f0ae}
-.uplist{display:flex;flex-direction:column;gap:6px;margin-bottom:24px}
-.upitem{background:#111;border:1px solid #1a1a1a;border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .15s}
+.uplist{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.upitem{background:#111;border:1px solid #1a1a1a;border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .15s}
 .upitem:hover{border-color:#333}
-.upitem img{width:36px;height:36px;border-radius:6px;object-fit:cover;flex-shrink:0;background:#1a1a1a}
+.upitem img{width:34px;height:34px;border-radius:5px;object-fit:cover;flex-shrink:0;background:#1a1a1a}
 .upitem .meta{flex:1;min-width:0}
-.upitem .cap{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.upitem .tm{font-size:11px;color:#555;margin-top:2px}
-.dtabs{display:flex;gap:4px;background:rgba(255,255,255,.04);border-radius:8px;padding:3px;width:fit-content;margin-bottom:12px}
-.dtab{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;color:#555;border:none;background:none}
+.upitem .cap{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.upitem .tm{font-size:10px;color:#555;margin-top:1px}
+.dtabs{display:flex;gap:3px;background:rgba(255,255,255,.04);border-radius:7px;padding:3px;width:fit-content;margin-bottom:10px}
+.dtab{padding:5px 12px;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer;color:#555;border:none;background:none}
 .dtab.active{background:#1a1a1a;color:#f0f0f0}
-.dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
-.dcard{background:#111;border:1px solid #1a1a1a;border-radius:10px;overflow:hidden;cursor:pointer;transition:transform .15s,border-color .15s}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
+.dcard{background:#111;border:1px solid #1a1a1a;border-radius:8px;overflow:hidden;cursor:pointer;transition:transform .15s,border-color .15s}
 .dcard:hover{transform:translateY(-2px);border-color:#f472b640}
 .dcard img{width:100%;aspect-ratio:9/16;object-fit:cover;display:block;background:#1a1a1a}
-.dcard .di{padding:7px 9px 9px}
-.dcard .dc{font-size:11px;color:#888;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-#loading{color:#555;font-size:13px;margin-bottom:16px}
-/* Modal */
-#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center}
+.dcard .di{padding:6px 8px 8px}
+.dcard .dc{font-size:10px;color:#888;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#loader{display:flex;align-items:center;gap:10px;color:#818cf8;font-size:13px;padding:20px 0}
+.spin{width:16px;height:16px;border:2px solid #818cf840;border-top-color:#818cf8;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;align-items:center;justify-content:center}
 #modal.open{display:flex}
-#mbox{background:#111;border:1px solid #2a2a2a;border-radius:14px;padding:24px;width:480px;max-width:95vw;max-height:90vh;overflow-y:auto}
-#mbox h3{font-size:15px;font-weight:700;margin-bottom:14px}
+#mbox{background:#111;border:1px solid #2a2a2a;border-radius:14px;padding:24px;width:460px;max-width:95vw;max-height:90vh;overflow-y:auto}
+#mbox h3{font-size:14px;font-weight:700;margin-bottom:14px}
 .mf{margin-bottom:12px}
 .mf label{display:block;font-size:11px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
-.mf textarea,.mf input{width:100%;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:7px 9px;color:#f0f0f0;font-size:13px;resize:vertical;font-family:inherit}
-.mactions{display:flex;gap:8px;margin-top:16px}
-.mbtn{padding:7px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none}
+.mf textarea,.mf input{width:100%;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:7px;padding:7px 9px;color:#f0f0f0;font-size:13px;resize:vertical;font-family:inherit}
+.mactions{display:flex;gap:8px;margin-top:14px}
+.mbtn{padding:7px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none}
 .mbtn.primary{background:#f472b6;color:#fff}.mbtn.danger{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.2)}
-.mbtn.cancel{background:#1a1a1a;color:#aaa}
-.mbtn:disabled{opacity:.5;cursor:default}
-#mmsg{font-size:12px;margin-top:8px;padding:5px 9px;border-radius:6px;display:none}
+.mbtn.cancel{background:#1a1a1a;color:#aaa}.mbtn:disabled{opacity:.5;cursor:default}
+#mmsg{font-size:11px;margin-top:8px;padding:5px 8px;border-radius:5px;display:none}
 #mmsg.ok{background:rgba(105,240,174,.1);color:#69f0ae;display:block}
 #mmsg.err{background:rgba(239,68,68,.1);color:#ef4444;display:block}
+.err-box{background:#1a0a0a;border:1px solid #3a1a1a;border-radius:8px;padding:16px;color:#ef4444;font-size:13px}
 </style></head><body>
 <div class="hdr">
   <a href="/dashboard?token=bella-admin-2024" class="back">← Back</a>
   <h1>📅 Content360</h1>
+  <span id="loadtime" style="font-size:11px;color:#444"></span>
 </div>
-<div id="loading" style="color:#818cf8;font-size:13px;display:flex;align-items:center;gap:8px;margin-bottom:20px"><div style="width:14px;height:14px;border:2px solid #818cf840;border-top-color:#818cf8;border-radius:50%;animation:spin .7s linear infinite"></div>Fetching from Content360... <span id="loadtime" style="color:#555;font-size:11px"></span></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>
-<div id="stats" class="stats" style="display:none"></div>
-<div id="calSec" style="display:none"><h2 style="margin-bottom:10px">📅 Scheduled Calendar</h2><div id="cal" class="cal"></div></div>
-<div id="upSec" style="display:none"><h2 style="margin-bottom:10px">⏰ Upcoming Posts <span style="font-size:11px;color:#444;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2><div id="up" class="uplist"></div></div>
-<div id="draftSec" style="display:none">
-  <h2 style="margin-bottom:10px">📦 Drafts <span style="font-size:11px;color:#444;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2>
-  <div class="dtabs">
-    <button class="dtab active" onclick="swTab('video',this)">🎬 Video</button>
-    <button class="dtab" onclick="swTab('photo',this)">📸 Photo</button>
-  </div>
-  <div id="dpvideo" class="dgrid"></div>
-  <div id="dpphoto" class="dgrid" style="display:none"></div>
-</div>
+<div id="loader"><div class="spin"></div>Fetching from Content360...</div>
+<div id="root" style="display:none"></div>
 <div id="modal" onclick="if(event.target===this)closeM()">
   <div id="mbox">
     <h3 id="mtitle">Edit Post</h3>
@@ -1108,52 +1101,170 @@ h2{font-size:13px;font-weight:600;color:#888;text-transform:uppercase;letter-spa
   </div>
 </div>
 <script>
-var _ep=null;
-var _t0=Date.now();
-fetch('/c360-data?token=bella-admin-2024').then(r=>r.json()).then(d=>{
-  document.getElementById('loadtime').textContent='Loaded in '+((Date.now()-_t0)/1000).toFixed(1)+'s';
-  document.getElementById('loading').style.display='none';
-  var s=d.stats||{};
-  var days=s.date_range&&s.date_range.length?Math.max(0,Math.ceil((new Date(s.date_range[1])-new Date())/86400000)):0;
-  var nxt=d.upcoming&&d.upcoming[0];
-  document.getElementById('stats').style.display='grid';
-  document.getElementById('stats').innerHTML=
-    '<div class="stat"><div class="val" style="color:#f472b6">'+(s.scheduled_total||0)+'</div><div class="lbl">Scheduled</div><div class="sub">'+(s.days_covered||0)+' days</div></div>'+
-    '<div class="stat"><div class="val" style="color:#818cf8">'+(s.draft_total||0)+'</div><div class="lbl">Drafts</div><div class="sub">'+((s.draft_by_type&&s.draft_by_type.video)||0)+' video</div></div>'+
-    '<div class="stat"><div class="val" style="color:#69f0ae">'+days+'d</div><div class="lbl">Coverage Left</div><div class="sub">Until '+(s.date_range&&s.date_range[1]||'--')+'</div></div>'+
-    '<div class="stat"><div class="val" style="color:#fbbf24;font-size:20px">'+(nxt?nxt.scheduled_at.split(' ')[1].slice(0,5):'--')+'</div><div class="lbl">Next Post</div><div class="sub">'+(nxt?nxt.scheduled_at.split(' ')[0]:'Nothing')+'</div></div>';
-  // Calendar
-  document.getElementById('calSec').style.display='block';
-  var today=new Date().toISOString().split('T')[0];
-  document.getElementById('cal').innerHTML=Object.entries(d.by_day||{}).map(function(e){
-    var day=e[0],posts=e[1];
-    var dt=new Date(day+'T00:00:00');
-    var cnt={};posts.forEach(function(p){cnt[p.media_type]=(cnt[p.media_type]||0)+1;});
-    var pills=Object.entries(cnt).map(function(x){return '<span class="cpill '+x[0]+'">'+x[1]+' '+x[0]+'</span>';}).join('');
-    return '<div class="cday">'+'<div class="dn">'+dt.toLocaleDateString('en-US',{weekday:'short'})+'</div>'+'<div class="dd" style="'+(day===today?'color:#f472b6':'')+'">'+dt.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'</div>'+pills+'<div style="font-size:10px;color:#444;margin-top:4px">'+posts.length+' posts</div></div>';
-  }).join('')||'<div style="color:#555;font-size:13px">No scheduled posts</div>';
-  // Upcoming
-  document.getElementById('upSec').style.display='block';
-  document.getElementById('up').innerHTML=(d.upcoming||[]).slice(0,15).map(function(p){
-    var dt=new Date(p.scheduled_at.replace(' ','T'));
-    var ds=dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+' '+dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
-    return '<div class="upitem" onclick='openM('+JSON.stringify(p).replace(/\\/g,"\\\\").replace(/'/g,"\\'")+')'>'+(p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'<div style="width:36px;height:36px;border-radius:6px;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">'+(p.media_type==='video'?'🎬':'📸')+'</div>')+'<div class="meta"><div class="cap">'+(p.caption||'--')+'</div><div class="tm">'+ds+'</div></div><span class="cpill '+p.media_type+'">'+p.media_type+'</span></div>';
-  }).join('')||'<div style="color:#555">No upcoming</div>';
-  // Drafts
-  document.getElementById('draftSec').style.display='block';
-  ['video','photo'].forEach(function(type){
-    var items=(d.drafts&&d.drafts[type]||[]).slice(0,40);
-    document.getElementById('dp'+type).innerHTML='<div style="font-size:11px;color:#555;margin-bottom:8px;grid-column:1/-1">Showing '+items.length+' of '+((s.draft_by_type&&s.draft_by_type[type])||items.length)+' — <a href="https://app.content360.io" target="_blank" rel="noopener" style="color:#818cf8">view all in Content360 →</a></div>'+items.map(function(p){
-      return '<div class="dcard" onclick='openM('+JSON.stringify(p).replace(/\\/g,"\\\\").replace(/'/g,"\\'")+')'>'+(p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'')+'<div class="di"><div class="dc">'+(p.caption||'--')+'</div></div></div>';
-    }).join('');
-  });
-}).catch(function(e){document.getElementById('loading').textContent='Failed to load: '+e.message;});
+var C360_UUID='""" + c360_uuid + """';
+var C360_TOK='""" + c360_tok + """';
+var C360_BASE='https://app.content360.io/os/api/'+C360_UUID;
+var ADMIN_TOKEN='bella-admin-2024';
+var _ep=null, _t0=Date.now();
 
-function swTab(t,btn){document.querySelectorAll('.dtab').forEach(b=>b.classList.remove('active'));document.getElementById('dpvideo').style.display=t==='video'?'grid':'none';document.getElementById('dpphoto').style.display=t==='photo'?'grid':'none';btn.classList.add('active');}
-function openM(p){_ep=p;document.getElementById('mtitle').textContent=p.status==='draft'?'Edit Draft':'Edit Scheduled Post';document.getElementById('mcap').value=p.caption||'';var sr=document.getElementById('mschedrow');var si=document.getElementById('msched');if(p.scheduled_at){sr.style.display='block';si.value=p.scheduled_at.replace(' ','T').slice(0,16);}else{sr.style.display='none';si.value='';}document.getElementById('mmsg').className='';document.getElementById('mmsg').textContent='';document.getElementById('modal').classList.add('open');}
+function c360get(path){
+  return fetch(C360_BASE+path,{headers:{'Authorization':'Bearer '+C360_TOK,'Accept':'application/json'}}).then(r=>{
+    if(!r.ok) throw new Error('C360 API error: '+r.status);
+    return r.json();
+  });
+}
+
+function fmtDate(s){
+  var d=new Date(s.replace(' ','T'));
+  return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
+}
+
+function pill(t,n){ return '<span class="cpill '+t+'">'+n+' '+t+'</span>'; }
+
+var _sched_raw=[], _draft_raw=[];
+
+Promise.all([
+  c360get('/posts?status=scheduled&limit=50&page=1'),
+  c360get('/posts?status=draft&limit=50&page=1')
+]).then(([sr, dr])=>{
+  var total_sched=sr.meta&&sr.meta.total||sr.data.length;
+  var total_draft=dr.meta&&dr.meta.total||dr.data.length;
+  _sched_raw=sr.data||[];
+  _draft_raw=dr.data||[];
+  
+  // Also fetch page 2+ if needed (up to 4 pages scheduled, 2 pages draft)
+  var more=[];
+  if(sr.meta&&sr.meta.last_page>1){ for(var p=2;p<=Math.min(sr.meta.last_page,4);p++) more.push(c360get('/posts?status=scheduled&limit=50&page='+p).then(r=>{_sched_raw=_sched_raw.concat(r.data||[]);})); }
+  if(dr.meta&&dr.meta.last_page>1){ for(var p=2;p<=Math.min(dr.meta.last_page,2);p++) more.push(c360get('/posts?status=draft&limit=50&page='+p).then(r=>{_draft_raw=_draft_raw.concat(r.data||[]);})); }
+  return Promise.all(more).then(()=>render(total_sched, total_draft));
+}).catch(err=>{
+  document.getElementById('loader').style.display='none';
+  document.getElementById('root').innerHTML='<div class="err-box">⚠️ '+err.message+'<br><small style="color:#888;margin-top:6px;display:block">Check CONTENT360_ACCESS_TOKEN in Railway env vars.</small></div>';
+  document.getElementById('root').style.display='block';
+});
+
+function parsePost(p){
+  var tags=(p.tags||[]).map(t=>typeof t==='object'?t.id:t);
+  var tmap={4037:'photo',4038:'video',4039:'text'};
+  var mt=tmap[tags[0]]||'unknown';
+  var body='';
+  try{ body=(p.versions[0].content[0].body||'').replace(/<[^>]+>/g,'').trim().slice(0,80); }catch(e){}
+  var thumb=null;
+  try{ thumb=p.versions[0].content[0].media[0].thumb_url; }catch(e){}
+  return {id:p.id,uuid:p.uuid,status:p.status,scheduled_at:p.scheduled_at,media_type:mt,caption:body,thumb:thumb};
+}
+
+function render(total_sched, total_draft){
+  document.getElementById('loader').style.display='none';
+  document.getElementById('loadtime').textContent='Loaded in '+((Date.now()-_t0)/1000).toFixed(1)+'s';
+
+  var sched=_sched_raw.map(parsePost).sort((a,b)=>(a.scheduled_at||'').localeCompare(b.scheduled_at||''));
+  var drafts=_draft_raw.map(parsePost);
+  var today=new Date().toISOString().split('T')[0];
+  var upcoming=sched.filter(p=>(p.scheduled_at||'')>=today);
+
+  // By-day calendar
+  var byDay={};
+  sched.forEach(p=>{ if(p.scheduled_at){ var d=p.scheduled_at.slice(0,10); if(!byDay[d])byDay[d]=[]; byDay[d].push(p); }});
+  var dates=Object.keys(byDay).sort();
+  var minDate=dates[0]||today, maxDate=dates[dates.length-1]||today;
+  var daysLeft=Math.max(0,Math.ceil((new Date(maxDate)-new Date())/86400000));
+
+  // Stats
+  var draftByType={video:0,photo:0,text:0};
+  drafts.forEach(p=>{if(draftByType[p.media_type]!==undefined)draftByType[p.media_type]++;});
+  var nxt=upcoming[0];
+
+  var html='<div class="stats">'
+    +'<div class="stat"><div class="val" style="color:#f472b6">'+total_sched+'</div><div class="lbl">Scheduled</div><div class="sub">'+Object.keys(byDay).length+' days covered</div></div>'
+    +'<div class="stat"><div class="val" style="color:#818cf8">'+total_draft+'</div><div class="lbl">Drafts</div><div class="sub">'+(draftByType.video||0)+' video · '+(draftByType.photo||0)+' photo</div></div>'
+    +'<div class="stat"><div class="val" style="color:#69f0ae">'+daysLeft+'d</div><div class="lbl">Coverage Left</div><div class="sub">Until '+maxDate+'</div></div>'
+    +'<div class="stat"><div class="val" style="color:#fbbf24;font-size:20px">'+(nxt?nxt.scheduled_at.slice(11,16):'--')+'</div><div class="lbl">Next Post</div><div class="sub">'+(nxt?nxt.scheduled_at.slice(0,10):'Nothing scheduled')+'</div></div>'
+    +'</div>';
+
+  // Calendar
+  html+='<h2>📅 Scheduled Calendar</h2><div class="cal">';
+  dates.forEach(function(day){
+    var posts=byDay[day];
+    var dt=new Date(day+'T00:00:00');
+    var cnt={};posts.forEach(p=>{cnt[p.media_type]=(cnt[p.media_type]||0)+1;});
+    var pills=Object.entries(cnt).map(([t,n])=>pill(t,n)).join('');
+    html+='<div class="cday"><div class="dn">'+dt.toLocaleDateString('en-US',{weekday:'short'})+'</div>'
+      +'<div class="dd" style="'+(day===today?'color:#f472b6':'')+'">'+dt.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'</div>'
+      +pills+'<div style="font-size:9px;color:#444;margin-top:3px">'+posts.length+' posts</div></div>';
+  });
+  html+='</div>';
+
+  // Upcoming
+  html+='<h2>⏰ Upcoming Posts <span style="font-size:10px;color:#444;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2><div class="uplist">';
+  upcoming.slice(0,20).forEach(function(p){
+    var img=p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'<div style="width:34px;height:34px;border-radius:5px;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">'+(p.media_type==='video'?'🎬':'📸')+'</div>';
+    html+='<div class="upitem" onclick='openM('+JSON.stringify(p).replace(/'/g,"\'")+')'>'
+      +img+'<div class="meta"><div class="cap">'+(p.caption||'—')+'</div><div class="tm">'+fmtDate(p.scheduled_at)+'</div></div>'
+      +'<span class="cpill '+p.media_type+'">'+p.media_type+'</span></div>';
+  });
+  html+='</div>';
+
+  // Drafts
+  var vids=drafts.filter(p=>p.media_type==='video').slice(0,30);
+  var photos=drafts.filter(p=>p.media_type==='photo').slice(0,30);
+  html+='<h2>📦 Drafts <span style="font-size:10px;color:#444;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2>'
+    +'<div class="dtabs"><button class="dtab active" onclick="swTab('video',this)" id="dtvid">🎬 Videos ('+(draftByType.video||total_draft)+')</button>'
+    +'<button class="dtab" onclick="swTab('photo',this)" id="dtphoto">📸 Photos ('+(draftByType.photo||0)+')</button></div>'
+    +'<div id="dpvideo" class="dgrid">'
+    +vids.map(p=>'<div class="dcard" onclick='openM('+JSON.stringify(p).replace(/'/g,"\'")+')'>'+(p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'')+'<div class="di"><div class="dc">'+(p.caption||'—')+'</div></div></div>').join('')
+    +'</div><div id="dpphoto" class="dgrid" style="display:none">'
+    +photos.map(p=>'<div class="dcard" onclick='openM('+JSON.stringify(p).replace(/'/g,"\'")+')'>'+(p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'')+'<div class="di"><div class="dc">'+(p.caption||'—')+'</div></div></div>').join('')
+    +'</div>';
+
+  document.getElementById('root').innerHTML=html;
+  document.getElementById('root').style.display='block';
+}
+
+function swTab(t,btn){
+  document.querySelectorAll('.dtab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('dpvideo').style.display=t==='video'?'grid':'none';
+  document.getElementById('dpphoto').style.display=t==='photo'?'grid':'none';
+  btn.classList.add('active');
+}
+
+function openM(p){
+  _ep=p;
+  document.getElementById('mtitle').textContent=p.status==='draft'?'Edit Draft':'Edit Scheduled Post';
+  document.getElementById('mcap').value=p.caption||'';
+  var sr=document.getElementById('mschedrow');
+  var si=document.getElementById('msched');
+  if(p.scheduled_at){sr.style.display='block';si.value=p.scheduled_at.replace(' ','T').slice(0,16);}
+  else{sr.style.display='none';si.value='';}
+  document.getElementById('mmsg').className='';
+  document.getElementById('modal').classList.add('open');
+}
 function closeM(){document.getElementById('modal').classList.remove('open');}
-function saveP(){if(!_ep)return;var b=document.getElementById('msave');b.disabled=true;b.textContent='Saving...';var cap=document.getElementById('mcap').value.trim();var sc=document.getElementById('msched').value;fetch('/c360-action?token=bella-admin-2024',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'edit',post_uuid:_ep.uuid,caption:cap,scheduled_at:sc?sc.replace('T',' '):null})}).then(r=>r.json()).then(d=>{b.disabled=false;b.textContent='Save';if(d.ok){setMsg('ok','Saved!');setTimeout(()=>location.reload(),900);}else{setMsg('err','Error: '+(d.error||'?'));}}).catch(()=>{b.disabled=false;b.textContent='Save';setMsg('err','Network error');});}
-function delP(){if(!_ep||!confirm('Delete this post?'))return;var b=document.getElementById('mdel');b.disabled=true;b.textContent='Deleting...';fetch('/c360-action?token=bella-admin-2024',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',post_uuid:_ep.uuid})}).then(r=>r.json()).then(d=>{b.disabled=false;b.textContent='Delete';if(d.ok){setMsg('ok','Deleted!');setTimeout(()=>{closeM();location.reload();},900);}else{setMsg('err','Error: '+(d.error||'?'));}}).catch(()=>{b.disabled=false;b.textContent='Delete';setMsg('err','Network error');});}
+
+function saveP(){
+  if(!_ep)return;
+  var b=document.getElementById('msave');b.disabled=true;b.textContent='Saving...';
+  var cap=document.getElementById('mcap').value.trim();
+  var sc=document.getElementById('msched').value;
+  fetch('/c360-action?token='+ADMIN_TOKEN,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'edit',post_uuid:_ep.uuid,caption:cap,scheduled_at:sc?sc.replace('T',' '):null})
+  }).then(r=>r.json()).then(d=>{
+    b.disabled=false;b.textContent='Save';
+    if(d.ok){setMsg('ok','Saved! Reloading...');setTimeout(()=>location.reload(),1000);}
+    else setMsg('err','Error: '+(d.error||'?'));
+  }).catch(()=>{b.disabled=false;b.textContent='Save';setMsg('err','Network error');});
+}
+function delP(){
+  if(!_ep||!confirm('Delete this post?'))return;
+  var b=document.getElementById('mdel');b.disabled=true;b.textContent='Deleting...';
+  fetch('/c360-action?token='+ADMIN_TOKEN,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'delete',post_uuid:_ep.uuid})
+  }).then(r=>r.json()).then(d=>{
+    b.disabled=false;b.textContent='Delete';
+    if(d.ok){setMsg('ok','Deleted!');setTimeout(()=>{closeM();location.reload();},800);}
+    else setMsg('err','Error: '+(d.error||'?'));
+  }).catch(()=>{b.disabled=false;b.textContent='Delete';setMsg('err','Network error');});
+}
 function setMsg(t,m){var el=document.getElementById('mmsg');el.className=t;el.textContent=m;}
 </script></body></html>"""
 
@@ -1979,10 +2090,9 @@ class Handler(BaseHTTPRequestHandler):
                 "drafts": {"video":[px for px in draft_parsed_c360 if px["media_type"]=="video"][:30],
                            "photo":[px for px in draft_parsed_c360 if px["media_type"]=="photo"][:30]},
             }
-            # Only cache if we got real data (don't cache empty/failed responses)
-            if result_c360.get('stats', {}).get('scheduled_total', 0) > 0 or                result_c360.get('stats', {}).get('draft_total', 0) > 0:
-                Handler._c360_cache = result_c360
-                Handler._c360_cache_ts = time.time()
+            # Cache result
+            Handler._c360_cache = result_c360
+            Handler._c360_cache_ts = time.time()
             self.send_json(200, result_c360)
 
         elif p.path == "/c360-action":
