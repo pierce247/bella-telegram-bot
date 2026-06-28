@@ -76,11 +76,14 @@ def get_pg_fans():
     return [{"chat_id": r[0], "name": r[1], "biz": r[2], "heat": r[3],
              "first_seen": r[4], "last_seen": r[5], "msg_count": r[6]} for r in rows]
 
+_pg_stats_cache = {}
 def get_pg_stats():
     """Get aggregate fan/chat stats from bella-bot API or direct Postgres."""
+    _c = _pg_stats_cache
+    if _c.get("ts") and time.time()-_c["ts"]<60: return _c["data"]
     data = _call_bot_api("/api/pg-stats")
     if data and "total_fans" in data:
-        return data
+        _c["data"] = data; _c["ts"] = time.time(); return data
     now = time.time()
     total = pg_query("SELECT COUNT(*) FROM fans", fetchone=True)
     active_24h = pg_query("SELECT COUNT(*) FROM fans WHERE last_seen > %s", (now - 86400,), fetchone=True)
@@ -88,7 +91,7 @@ def get_pg_stats():
     total_msgs = pg_query("SELECT COUNT(*) FROM messages", fetchone=True)
     heat_dist  = pg_query("SELECT heat, COUNT(*) FROM fans GROUP BY heat ORDER BY heat", fetchall=True)
     avg_resp   = pg_query("SELECT AVG(response_ms) FROM messages WHERE role='assistant' AND response_ms > 0", fetchone=True)
-    return {
+    _r = {
         "total_fans": total[0] if total else 0,
         "active_24h": active_24h[0] if active_24h else 0,
         "active_7d": active_7d[0] if active_7d else 0,
@@ -96,7 +99,8 @@ def get_pg_stats():
         "heat_distribution": {str(h): c for h, c in (heat_dist or [])},
         "avg_response_ms": int(avg_resp[0]) if avg_resp and avg_resp[0] else 0,
     }
-
+    _c["data"] = _r; _c["ts"] = time.time()
+    return _r
 def link_payment_to_fan(resource_id, chat_id, fan_name=""):
     """Link a Poynt payment to a Telegram fan by resource_id."""
     mark_delivered(resource_id, chat_id, fan_name)
@@ -989,8 +993,11 @@ def get_payment_stats():
             "delivered":delivered,"unmatched":len(captured)-delivered,"pending_fans":len(pending),
             "daily":daily,"top_payers":top_payers,"recent":list(reversed(log))[:50]}
 
+_conv_stats_cache = {}
 def get_conv_stats():
     """Fetch conversation stats from bella-bot stats API + inject Fanvue + Stars balance."""
+    _c = _conv_stats_cache
+    if _c.get("ts") and time.time()-_c["ts"]<60: return _c["data"]
     result = {}
     if STATS_URL:
         try:
@@ -1000,13 +1007,12 @@ def get_conv_stats():
         except: pass
     # Inject latest Fanvue stats
     result["_fanvue"] = load_json(os.path.join(DATA_DIR,"fanvue_stats.json"), {})
-    # Stars balance — always read from cache (updated by /api/stars/balance calls)
-    # Fanvue stats also contain stars_balance from last update
     fv_stars = result.get("_fanvue",{}).get("stars_balance",{})
     if fv_stars:
         result["_stars_balance"] = fv_stars
     else:
         result["_stars_balance"] = load_json(os.path.join(DATA_DIR,"stars_balance_cache.json"), {})
+    _conv_stats_cache["data"] = result; _conv_stats_cache["ts"] = time.time()
     return result
 
 
@@ -1891,7 +1897,18 @@ class Handler(BaseHTTPRequestHandler):
         elif p.path in ("/dashboard","/"):
             if self.require_admin(p) != ADMIN_TOKEN:
                 self.send_json(401,{"error":"unauthorized"}); return
-            ps = get_payment_stats(); cs = get_conv_stats()
+            # Parallel-warm all stats so build_dashboard hits cache
+            from concurrent.futures import ThreadPoolExecutor as _TPEDASH
+            with _TPEDASH(max_workers=4) as _ex:
+                _fp = _ex.submit(get_payment_stats)
+                _fc = _ex.submit(get_conv_stats)
+                _fg = _ex.submit(get_pg_stats)
+                _ff = _ex.submit(get_pg_fans)
+                ps = _fp.result(); cs = _fc.result()
+                try: _fg.result()
+                except: pass
+                try: _ff.result()
+                except: pass
             self.send_html(200, build_dashboard(ps, cs))
         elif p.path == "/c360-data":
             if self.require_admin(p) != ADMIN_TOKEN:
