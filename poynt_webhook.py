@@ -1979,9 +1979,10 @@ class Handler(BaseHTTPRequestHandler):
                 "drafts": {"video":[px for px in draft_parsed_c360 if px["media_type"]=="video"][:30],
                            "photo":[px for px in draft_parsed_c360 if px["media_type"]=="photo"][:30]},
             }
-            # Cache result
-            Handler._c360_cache = result_c360
-            Handler._c360_cache_ts = time.time()
+            # Only cache if we got real data (don't cache empty/failed responses)
+            if result_c360.get('stats', {}).get('scheduled_total', 0) > 0 or                result_c360.get('stats', {}).get('draft_total', 0) > 0:
+                Handler._c360_cache = result_c360
+                Handler._c360_cache_ts = time.time()
             self.send_json(200, result_c360)
 
         elif p.path == "/c360-action":
