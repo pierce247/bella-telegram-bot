@@ -1288,9 +1288,69 @@ h1{font-size:18px}h2{font-size:12px}
 .fv-grid{grid-template-columns:1fr}
 table{font-size:12px}th,td{padding:7px 10px!important}
 }
+/* ── Content360 Tab ── */
+.tab-nav{display:flex;gap:0;background:#111;border-bottom:1px solid #1a1a1a;margin-bottom:0;position:sticky;top:0;z-index:100}
+.tab-btn{padding:13px 20px;font-size:13px;font-weight:600;cursor:pointer;color:#555;background:none;border:none;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap}
+.tab-btn:hover{color:#aaa;background:rgba(255,255,255,.03)}
+.tab-btn.active{color:#f472b6;border-bottom:2px solid #f472b6;background:rgba(244,114,182,.05)}
+.tab-panel{display:none}.tab-panel.active{display:block}
+.c360-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+.c360-stat{background:#111;border:1px solid #1a1a1a;border-radius:10px;padding:16px}
+.c360-stat .val{font-size:28px;font-weight:700;letter-spacing:-1px}
+.c360-stat .lbl{font-size:11px;color:#555;margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
+.c360-stat .sub{font-size:11px;color:#444;margin-top:3px}
+.cal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:24px}
+.cal-day{background:#111;border:1px solid #1a1a1a;border-radius:10px;padding:12px;cursor:default}
+.cal-day:hover{border-color:#333}
+.cal-day .cal-date{font-size:18px;font-weight:700;margin-bottom:6px}
+.cal-day .cal-pills{display:flex;flex-wrap:wrap;gap:3px}
+.cpill{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600}
+.cpill.photo{background:rgba(79,195,247,.15);color:#4fc3f7}
+.cpill.video{background:rgba(244,114,182,.15);color:#f472b6}
+.cpill.text{background:rgba(105,240,174,.15);color:#69f0ae}
+.draft-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.draft-card{background:#111;border:1px solid #1a1a1a;border-radius:10px;overflow:hidden;cursor:pointer;transition:transform .15s,border-color .15s}
+.draft-card:hover{transform:translateY(-2px);border-color:#f472b640}
+.draft-card img{width:100%;aspect-ratio:9/16;object-fit:cover;display:block;background:#1a1a1a}
+.draft-card .dc-info{padding:8px 10px 10px}
+.draft-card .dc-cap{font-size:11px;color:#888;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.up-list{display:flex;flex-direction:column;gap:6px;margin-bottom:24px}
+.up-item{background:#111;border:1px solid #1a1a1a;border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:border-color .15s}
+.up-item:hover{border-color:#333}
+.up-item img{width:38px;height:38px;border-radius:6px;object-fit:cover;flex-shrink:0;background:#1a1a1a}
+.up-item .up-meta{flex:1;min-width:0}
+.up-item .up-cap{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.up-item .up-time{font-size:11px;color:#555;margin-top:2px}
+.c360-section-hdr{font-size:13px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.c360-tabs{display:flex;gap:3px;background:rgba(255,255,255,.04);border-radius:8px;padding:3px;width:fit-content;margin-bottom:14px}
+.c360-tab{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;color:#555;border:none;background:none;transition:all .15s}
+.c360-tab.active{background:#1a1a1a;color:#f0f0f0}
+.c360-tab-panel{display:none}.c360-tab-panel.active{display:block}
+#c360Modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center}
+#c360Modal.open{display:flex}
+#c360ModalBox{background:#111;border:1px solid #2a2a2a;border-radius:14px;padding:24px;width:500px;max-width:95vw;max-height:90vh;overflow-y:auto}
+#c360ModalBox h3{font-size:16px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.c360-field{margin-bottom:14px}
+.c360-field label{display:block;font-size:11px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.c360-field textarea,.c360-field input{width:100%;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:8px 10px;color:#f0f0f0;font-size:13px;resize:vertical;font-family:inherit}
+.c360-field textarea:focus,.c360-field input:focus{outline:none;border-color:#f472b640}
+.c360-actions{display:flex;gap:8px;margin-top:18px}
+.c360-btn{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+.c360-btn.primary{background:#f472b6;color:#fff}.c360-btn.primary:hover{background:#ec4899}
+.c360-btn.danger{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.2)}.c360-btn.danger:hover{background:rgba(239,68,68,.25)}
+.c360-btn.cancel{background:#1a1a1a;color:#aaa}.c360-btn.cancel:hover{background:#222}
+.c360-btn:disabled{opacity:.5;cursor:default}
+.c360-msg{font-size:12px;margin-top:8px;padding:6px 10px;border-radius:6px;display:none}
+.c360-msg.ok{background:rgba(105,240,174,.1);color:#69f0ae;display:block}
+.c360-msg.err{background:rgba(239,68,68,.1);color:#ef4444;display:block}
 </style>
 <script>setTimeout(()=>location.reload(),60000)</script>
 </head><body>
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="showTab('ops',this)">🩷 Revenue &amp; Fans</button>
+  <button class="tab-btn" onclick="showTab('c360',this)">📅 Content360</button>
+</div>
+<div id="panel-ops" class="tab-panel active">
 <h1>🩷 Bella Ops Dashboard</h1>
 <p class="sub">bellavistaxo · """ + now_str + """ · auto-refreshes 60s</p>
 
@@ -1693,6 +1753,63 @@ function copyBCC(){
   el.select(); document.execCommand('copy');
   alert('BCC list copied! Paste it into Gmail BCC field.');
 }
+</div><!-- /panel-ops -->
+
+<div id="panel-c360" class="tab-panel">
+  <div style="padding:20px 16px">
+    <div id="c360Loading" style="color:#555;font-size:13px;margin-bottom:16px">Loading Content360 data...</div>
+    <div class="c360-grid">
+      <div class="c360-stat" id="c360StatSched"></div>
+      <div class="c360-stat" id="c360StatDraft"></div>
+      <div class="c360-stat" id="c360StatDays"></div>
+      <div class="c360-stat" id="c360StatNext"></div>
+    </div>
+    <div class="c360-section-hdr">📅 Scheduled Calendar</div>
+    <div class="cal-grid" id="c360Cal"></div>
+    <div class="c360-section-hdr">⏰ Upcoming Posts <span style="font-size:11px;color:#444;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></div>
+    <div class="up-list" id="c360Up"></div>
+    <div class="c360-section-hdr">📦 Draft Library <span style="font-size:11px;color:#444;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></div>
+    <div class="c360-tabs">
+      <button class="c360-tab active" onclick="switchC360Tab('video',this)">🎬 Videos</button>
+      <button class="c360-tab" onclick="switchC360Tab('photo',this)">📸 Photos</button>
+    </div>
+    <div id="c360Drafts_panel_video" class="c360-tab-panel active"><div id="c360Drafts_video"></div></div>
+    <div id="c360Drafts_panel_photo" class="c360-tab-panel"><div id="c360Drafts_photo"></div></div>
+  </div>
+</div><!-- /panel-c360 -->
+
+<div id="c360Modal" onclick="if(event.target===this)closeC360Modal()">
+  <div id="c360ModalBox">
+    <h3 id="c360ModalTitle">Edit Post</h3>
+    <div class="c360-field">
+      <label>Caption</label>
+      <textarea id="c360Caption" rows="3"></textarea>
+    </div>
+    <div class="c360-field" id="c360SchedRow">
+      <label>Scheduled At (UTC)</label>
+      <input type="datetime-local" id="c360SchedAt">
+    </div>
+    <div id="c360Msg" class="c360-msg"></div>
+    <div class="c360-actions">
+      <button class="c360-btn primary" id="c360SaveBtn" onclick="saveC360Post()">Save</button>
+      <button class="c360-btn danger" id="c360DelBtn" onclick="deleteC360Post()">Delete</button>
+      <button class="c360-btn cancel" onclick="closeC360Modal()">Cancel</button>
+    </div>
+  </div>
+</div>
+function showTab(name,btn){document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));btn.classList.add('active');document.getElementById('panel-'+name).classList.add('active');if(name==='c360'&&!window._c360loaded){window._c360loaded=true;loadC360();}}
+function loadC360(){document.getElementById('c360Loading').style.display='block';fetch('/c360-data?token=bella-admin-2024').then(r=>r.json()).then(d=>{document.getElementById('c360Loading').style.display='none';renderC360Stats(d);renderC360Cal(d.by_day||{});renderC360Up(d.upcoming||[]);renderC360Drafts(d.drafts||{});window._c360data=d;}).catch(e=>{document.getElementById('c360Loading').innerHTML='Failed to load: '+e.message;});}
+function renderC360Stats(d){var s=d.stats||{};document.getElementById('c360StatSched').innerHTML='<div class="val" style="color:#f472b6">'+(s.scheduled_total||0)+'</div><div class="lbl">Scheduled</div><div class="sub">'+(s.days_covered||0)+' days covered</div>';document.getElementById('c360StatDraft').innerHTML='<div class="val" style="color:#818cf8">'+(s.draft_total||0)+'</div><div class="lbl">Drafts Ready</div><div class="sub">'+((s.draft_by_type&&s.draft_by_type.video)||0)+' video</div>';var days=s.date_range&&s.date_range.length?Math.max(0,Math.ceil((new Date(s.date_range[1])-new Date())/86400000)):0;document.getElementById('c360StatDays').innerHTML='<div class="val" style="color:#69f0ae">'+days+'d</div><div class="lbl">Coverage Left</div><div class="sub">Until '+(s.date_range&&s.date_range[1]||'--')+'</div>';var nxt=d.upcoming&&d.upcoming[0];document.getElementById('c360StatNext').innerHTML='<div class="val" style="color:#fbbf24;font-size:20px">'+(nxt?nxt.scheduled_at.split(' ')[1].slice(0,5):'--')+'</div><div class="lbl">Next Post</div><div class="sub">'+(nxt?nxt.scheduled_at.split(' ')[0]:'Nothing scheduled')+'</div>';}
+function renderC360Cal(byDay){var el=document.getElementById('c360Cal');var today=new Date().toISOString().split('T')[0];el.innerHTML=Object.entries(byDay).map(function(e){var day=e[0],posts=e[1];var dt=new Date(day+'T00:00:00');var dn=dt.toLocaleDateString('en-US',{weekday:'short'});var dm=dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});var cnt={};posts.forEach(function(p){if(!cnt[p.media_type])cnt[p.media_type]=0;cnt[p.media_type]++;});var pills=Object.entries(cnt).map(function(x){return '<span class="cpill '+x[0]+'">'+x[1]+' '+x[0]+'</span>';}).join('');var isT=day===today;return '<div class="cal-day" style="'+(isT?'border-color:#f472b640':'')+'"><div style="font-size:11px;color:#555;margin-bottom:2px">'+dn+'</div><div class="cal-date" style="'+(isT?'color:#f472b6':'')+'">'+dm+'</div><div class="cal-pills">'+pills+'</div><div style="font-size:10px;color:#444;margin-top:4px">'+posts.length+' posts</div></div>';}).join('')||'<div style="color:#555;font-size:13px">No scheduled posts</div>';}
+function renderC360Up(upcoming){document.getElementById('c360Up').innerHTML=upcoming.slice(0,15).map(function(p){var dt=new Date(p.scheduled_at.replace(' ','T'));var ds=dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+' - '+dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});var img=p.thumb?'<img src="'+p.thumb+'" loading="lazy" style="width:38px;height:38px;border-radius:6px;object-fit:cover;flex-shrink:0">':'<div style="width:38px;height:38px;border-radius:6px;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">'+(p.media_type==='video'?'🎬':'📸')+'</div>';return '<div class="up-item" onclick=\'openC360Modal('+JSON.stringify(p).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+')\'> '+img+' <div class="up-meta"><div class="up-cap">'+(p.caption||'--')+'</div><div class="up-time">'+ds+'</div></div><span class="cpill '+p.media_type+'">'+p.media_type+'</span></div>';}).join('')||'<div style="color:#555;font-size:13px">No upcoming posts</div>';}
+function renderC360Drafts(drafts){['video','photo'].forEach(function(type){var items=(drafts[type]||[]).slice(0,40);document.getElementById('c360Drafts_'+type).innerHTML='<div style="font-size:12px;color:#555;margin-bottom:10px">Showing '+items.length+' drafts</div><div class="draft-grid">'+items.map(function(p){var img=p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'';return '<div class="draft-card" onclick=\'openC360Modal('+JSON.stringify(p).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+')\'> '+img+' <div class="dc-info"><div class="dc-cap">'+(p.caption||'--')+'</div></div></div>';}).join('')+'</div>';});}
+function switchC360Tab(type,btn){document.querySelectorAll('.c360-tab').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.c360-tab-panel').forEach(p=>p.classList.remove('active'));btn.classList.add('active');document.getElementById('c360Drafts_panel_'+type).classList.add('active');}
+var _editPost=null;
+function openC360Modal(post){_editPost=post;document.getElementById('c360ModalTitle').textContent=(post.status==='draft'?'Edit Draft':'Edit Scheduled Post');document.getElementById('c360Caption').value=post.caption||'';var sr=document.getElementById('c360SchedRow');var si=document.getElementById('c360SchedAt');if(post.scheduled_at){sr.style.display='block';si.value=post.scheduled_at.replace(' ','T').slice(0,16);}else{sr.style.display='none';si.value='';}document.getElementById('c360Msg').className='c360-msg';document.getElementById('c360Msg').textContent='';document.getElementById('c360Modal').classList.add('open');document.body.style.overflow='hidden';}
+function closeC360Modal(){document.getElementById('c360Modal').classList.remove('open');document.body.style.overflow='';}
+function saveC360Post(){if(!_editPost)return;var btn=document.getElementById('c360SaveBtn');btn.disabled=true;btn.textContent='Saving...';var caption=document.getElementById('c360Caption').value.trim();var schedAt=document.getElementById('c360SchedAt').value;fetch('/c360-action?token=bella-admin-2024',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'edit',post_uuid:_editPost.uuid,caption:caption,scheduled_at:schedAt?schedAt.replace('T',' '):null})}).then(function(r){return r.json();}).then(function(d){btn.disabled=false;btn.textContent='Save';if(d.ok){showC360Msg('ok','Saved!');setTimeout(function(){closeC360Modal();loadC360();},800);}else{showC360Msg('err','Error: '+(d.error||'unknown'));}}).catch(function(e){btn.disabled=false;btn.textContent='Save';showC360Msg('err','Network error');});}
+function deleteC360Post(){if(!_editPost||!confirm('Delete this post?'))return;var btn=document.getElementById('c360DelBtn');btn.disabled=true;btn.textContent='Deleting...';fetch('/c360-action?token=bella-admin-2024',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',post_uuid:_editPost.uuid})}).then(function(r){return r.json();}).then(function(d){btn.disabled=false;btn.textContent='Delete';if(d.ok){showC360Msg('ok','Deleted!');setTimeout(function(){closeC360Modal();loadC360();},800);}else{showC360Msg('err','Error: '+(d.error||'unknown'));}}).catch(function(e){btn.disabled=false;btn.textContent='Delete';showC360Msg('err','Network error');});}
+function showC360Msg(type,msg){var el=document.getElementById('c360Msg');el.className='c360-msg '+type;el.textContent=msg;}
 </script>
 </body></html>"""
 
@@ -1750,6 +1867,104 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(401,{"error":"unauthorized"}); return
             ps = get_payment_stats(); cs = get_conv_stats()
             self.send_html(200, build_dashboard(ps, cs))
+        elif p.path == "/c360-data":
+            if self.require_admin(p) != ADMIN_TOKEN:
+                self.send_json(401,{"error":"unauthorized"}); return
+            import urllib.request as _ureq_c360, re as _re_c360
+            c360_uuid = os.environ.get("CONTENT360_WORKSPACE_UUID","")
+            c360_tok  = os.environ.get("CONTENT360_ACCESS_TOKEN","")
+            if not c360_uuid or not c360_tok:
+                self.send_json(200,{"error":"env vars not set","stats":{},"by_day":{},"upcoming":[],"drafts":{}}); return
+            def _c360_get(path_c360):
+                url_c360 = "https://app.content360.io/os/api/" + c360_uuid + path_c360
+                req_c360 = _ureq_c360.Request(url_c360, headers={"Authorization":"Bearer "+c360_tok,"Accept":"application/json"})
+                with _ureq_c360.urlopen(req_c360, timeout=15) as r_c360:
+                    return json.loads(r_c360.read())
+            TAG_MAP_C360={4037:"photo",4038:"video",4039:"text"}
+            def _parse_post_c360(px):
+                tags=[t.get("id") if isinstance(t,dict) else t for t in px.get("tags",[])]
+                mt=TAG_MAP_C360.get(tags[0],"unknown") if tags else "unknown"
+                try:
+                    body=_re_c360.sub(r"<[^>]+>","",px["versions"][0]["content"][0].get("body","")).strip()[:80]
+                except Exception:
+                    body=""
+                try:
+                    media=px["versions"][0]["content"][0].get("media",[])
+                    thumb=media[0].get("thumb_url") if media else None
+                except Exception:
+                    thumb=None
+                return {"id":px.get("id"),"uuid":px.get("uuid"),"status":px.get("status"),"scheduled_at":px.get("scheduled_at"),"media_type":mt,"caption":body,"thumb":thumb}
+            from collections import Counter as _Counter_c360, defaultdict as _DD_c360
+            sched_posts_c360=[]
+            for pg_c360 in range(1,6):
+                r2_c360=_c360_get("/posts?status=scheduled&limit=50&page="+str(pg_c360))
+                data2_c360=r2_c360.get("data",[])
+                sched_posts_c360.extend(data2_c360)
+                if pg_c360>=r2_c360.get("meta",{}).get("last_page",1) or not data2_c360: break
+            draft_posts_c360=[]
+            for pg_c360 in range(1,4):
+                r2_c360=_c360_get("/posts?status=draft&limit=50&page="+str(pg_c360))
+                data2_c360=r2_c360.get("data",[])
+                draft_posts_c360.extend(data2_c360)
+                if pg_c360>=r2_c360.get("meta",{}).get("last_page",1) or not data2_c360: break
+            sched_parsed_c360=sorted([_parse_post_c360(px) for px in sched_posts_c360],key=lambda x:x["scheduled_at"] or "")
+            draft_parsed_c360=[_parse_post_c360(px) for px in draft_posts_c360]
+            by_day_c360=_DD_c360(list)
+            for px in sched_parsed_c360:
+                if px["scheduled_at"]: by_day_c360[px["scheduled_at"][:10]].append(px)
+            today_c360=time.strftime("%Y-%m-%d",time.localtime(time.time()+TZ_OFFSET*3600))
+            upcoming_c360=[px for px in sched_parsed_c360 if (px["scheduled_at"] or "")>=today_c360]
+            total_sched_c360=_c360_get("/posts?status=scheduled&limit=1").get("meta",{}).get("total",len(sched_posts_c360))
+            total_draft_c360=_c360_get("/posts?status=draft&limit=1").get("meta",{}).get("total",len(draft_posts_c360))
+            draft_by_type_c360={t:sum(1 for px in draft_parsed_c360 if px["media_type"]==t) for t in ["video","photo","text"]}
+            dates_c360=[px["scheduled_at"][:10] for px in sched_parsed_c360 if px["scheduled_at"]]
+            result_c360={
+                "stats":{"scheduled_total":total_sched_c360,"draft_total":total_draft_c360,"days_covered":len(by_day_c360),"draft_by_type":draft_by_type_c360,"date_range":[min(dates_c360),max(dates_c360)] if dates_c360 else []},
+                "by_day":{k:v for k,v in sorted(by_day_c360.items())},
+                "upcoming":upcoming_c360,
+                "drafts":{"video":[px for px in draft_parsed_c360 if px["media_type"]=="video"][:40],"photo":[px for px in draft_parsed_c360 if px["media_type"]=="photo"][:40]},
+            }
+            self.send_json(200,result_c360)
+
+        elif p.path == "/c360-action":
+            if self.require_admin(p) != ADMIN_TOKEN:
+                self.send_json(401,{"error":"unauthorized"}); return
+            import urllib.request as _ureq_c360a
+            length_c360=int(self.headers.get("Content-Length","0") or 0)
+            body_c360=json.loads(self.rfile.read(length_c360)) if length_c360 else {}
+            c360_uuid_a=os.environ.get("CONTENT360_WORKSPACE_UUID","")
+            c360_tok_a=os.environ.get("CONTENT360_ACCESS_TOKEN","")
+            if not c360_uuid_a or not c360_tok_a:
+                self.send_json(500,{"ok":False,"error":"C360 env vars not set"}); return
+            post_uuid_c360=body_c360.get("post_uuid","")
+            action_c360=body_c360.get("action","")
+            if action_c360=="delete":
+                url_del=("https://app.content360.io/os/api/"+c360_uuid_a+"/posts/"+post_uuid_c360)
+                req_del=_ureq_c360a.Request(url_del,method="DELETE",headers={"Authorization":"Bearer "+c360_tok_a,"Accept":"application/json"})
+                try:
+                    with _ureq_c360a.urlopen(req_del,timeout=15): pass
+                    self.send_json(200,{"ok":True})
+                except Exception as exc_c360: self.send_json(500,{"ok":False,"error":str(exc_c360)})
+            elif action_c360=="edit":
+                caption_c360=body_c360.get("caption","")
+                sched_at_c360=body_c360.get("scheduled_at")
+                get_url_c360=("https://app.content360.io/os/api/"+c360_uuid_a+"/posts/"+post_uuid_c360)
+                req_get_c360=_ureq_c360a.Request(get_url_c360,headers={"Authorization":"Bearer "+c360_tok_a,"Accept":"application/json"})
+                with _ureq_c360a.urlopen(req_get_c360,timeout=15) as r_get_c360: cur_c360=json.loads(r_get_c360.read())
+                v_c360=cur_c360.get("versions",[{}])[0]
+                content_c360=v_c360.get("content",[{}])
+                if content_c360: content_c360[0]["body"]=caption_c360
+                payload_c360={"accounts":[a["id"] for a in cur_c360.get("accounts",[])],"tags":[t["id"] if isinstance(t,dict) else t for t in cur_c360.get("tags",[])],"versions":[dict(v_c360,content=content_c360)],"status":cur_c360.get("status","draft")}
+                if sched_at_c360: payload_c360["scheduled_at"]=sched_at_c360
+                put_url_c360=("https://app.content360.io/os/api/"+c360_uuid_a+"/posts/"+post_uuid_c360)
+                req_put_c360=_ureq_c360a.Request(put_url_c360,data=json.dumps(payload_c360).encode(),method="PUT",headers={"Authorization":"Bearer "+c360_tok_a,"Accept":"application/json","Content-Type":"application/json"})
+                try:
+                    with _ureq_c360a.urlopen(req_put_c360,timeout=15): pass
+                    self.send_json(200,{"ok":True})
+                except Exception as exc_c360: self.send_json(500,{"ok":False,"error":str(exc_c360)})
+            else:
+                self.send_json(400,{"ok":False,"error":"unknown action"})
+
         elif p.path == "/payments":
             if self.require_admin(p) != ADMIN_TOKEN:
                 self.send_json(401,{"error":"unauthorized"}); return
