@@ -1315,15 +1315,27 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                     f"Answer Pierce's question or request directly and concisely. No fluff."
                 )
                 try:
-                    import anthropic as _ac
-                    _aclient = _ac.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY",""))
-                    _arm = _aclient.messages.create(
-                        model="claude-haiku-4-5",
-                        max_tokens=300,
-                        system=_bot_context,
-                        messages=[{"role":"user","content":_out_text}]
+                    import urllib.request as _ureq_or
+                    _or_payload = json.dumps({
+                        "model": "anthropic/claude-haiku-4-5",
+                        "max_tokens": 300,
+                        "messages": [
+                            {"role": "system", "content": _bot_context},
+                            {"role": "user", "content": _out_text}
+                        ]
+                    }).encode()
+                    _or_req = _ureq_or.Request(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        data=_or_payload,
+                        headers={
+                            "Authorization": f"Bearer {os.environ.get('OPENROUTER_API_KEY','')}",
+                            "Content-Type": "application/json",
+                            "HTTP-Referer": "https://bella-poynt-webhook-production.up.railway.app",
+                        }
                     )
-                    _areply = _arm.content[0].text.strip()
+                    with _ureq_or.urlopen(_or_req, timeout=15) as _or_resp:
+                        _or_data = json.loads(_or_resp.read())
+                    _areply = _or_data["choices"][0]["message"]["content"].strip()
                 except Exception as _ae:
                     _areply = f"Commands: /status /dashboard /payments /blast /stats\n\n(AI error: {_ae})"
                 tg("sendMessage", {"chat_id": from_id, "text": _areply})
