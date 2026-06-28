@@ -1511,12 +1511,26 @@ table{font-size:12px}th,td{padding:7px 10px!important}
 <h1>🩷 Bella Ops Dashboard <a href="/content360?token=bella-admin-2024" style="font-size:13px;font-weight:600;background:#818cf820;color:#818cf8;border:1px solid #818cf840;padding:5px 12px;border-radius:8px;text-decoration:none;margin-left:10px;vertical-align:middle">📅 Content360 →</a></h1>
 <p class="sub">bellavistaxo · """ + now_str + """ · auto-refreshes 60s</p>
 
+<div style="background:linear-gradient(135deg,#111,#161620);border:1px solid #1a1a1a;border-radius:12px;padding:12px 16px;margin-bottom:20px;display:flex;flex-wrap:wrap;gap:16px;align-items:center">
+  <div style="font-size:11px;color:#555;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-right:4px">Today</div>
+  <div style="font-size:13px;color:#f0f0f0"><span style="color:#69f0ae;font-weight:700">""" + str(active_today) + """</span> <span style="color:#555">active fans</span></div>
+  <div style="color:#2a2a2a">|</div>
+  <div style="font-size:13px;color:#f0f0f0"><span style="color:#f472b6;font-weight:700">""" + str(fv_subs) + """</span> <span style="color:#555">Fanvue subs</span></div>
+  <div style="color:#2a2a2a">|</div>
+  <div style="font-size:13px;color:#f0f0f0"><span style="color:#818cf8;font-weight:700">""" + str(total_fans) + """</span> <span style="color:#555">total fans</span></div>
+  <div style="color:#2a2a2a">|</div>
+  <div style="font-size:13px;color:#f0f0f0"><span style="color:#fbbf24;font-weight:700">$""" + f"{gd_rev_cents/100:.2f}" + """</span> <span style="color:#555">GoDaddy rev</span></div>
+  <div style="color:#2a2a2a">|</div>
+  <div style="font-size:13px;color:#f0f0f0"><span style="color:#f59e0b;font-weight:700">""" + str(int(avg_resp_ms/1000)) + """s</span> <span style="color:#555">avg response</span></div>
+</div>
+
 <h2>💰 Combined Revenue</h2>
 <div class="stats">
   <div class="stat combined"><div class="val">""" + combined_str + """</div><div class="lbl">Total All-Time</div><div class="sub2">GoDaddy + Fanvue + Stars</div></div>
   <div class="stat fv-stat"><div class="val">""" + fv_str + """</div><div class="lbl">Fanvue Gross</div><div class="sub2">""" + fv_net + """ net</div></div>
-  <div class="stat"><div class="val">""" + gd_str + """</div><div class="lbl">GoDaddy Payments</div><div class="sub2">""" + str(gd_payments) + """ transactions</div></div>
+  <div class="stat" style="cursor:pointer" onclick="document.getElementById('allTransactions').scrollIntoView({behavior:'smooth'})"><div class="val">""" + gd_str + """</div><div class="lbl">GoDaddy Payments</div><div class="sub2">""" + str(gd_payments) + """ transactions</div></div>
   <div class="stat star-stat"><div class="val">""" + str(stars_total) + """⭐</div><div class="lbl">Telegram Stars</div><div class="sub2">≈$""" + str(stars_usd) + """ via bot invoices</div></div>
+  <div class="stat" style="cursor:pointer" onclick="document.getElementById('allTransactions').scrollIntoView({behavior:'smooth'})"><div class="val" style="color:#94a3b8">$""" + (f"{gd_rev_cents/100/gd_payments:.0f}" if gd_payments else "0") + """</div><div class="lbl">Avg Order</div><div class="sub2">""" + str(gd_payments) + """ GD payments</div></div>
 </div>
 
 <h2>🌸 Fanvue <span class="fv-badge">updated """ + fv_upd + """ CT</span> <button onclick="refreshFanvue(this)" style="background:#818cf820;border:1px solid #818cf8;color:#818cf8;padding:3px 10px;border-radius:6px;font-size:11px;cursor:pointer;margin-left:6px">↻ Refresh</button></h2>
@@ -1524,6 +1538,11 @@ table{font-size:12px}th,td{padding:7px 10px!important}
   <div class="stat fv-stat"><div class="val">""" + fv_avail + """</div><div class="lbl">Available Balance</div></div>
   <div class="stat fv-stat"><div class="val">""" + str(fv_subs) + """</div><div class="lbl">Subscribers</div></div>
   <div class="stat fv-stat"><div class="val">""" + str(fv_foll) + """</div><div class="lbl">Followers</div></div>
+</div>
+<div class="stats" style="margin-top:8px">
+  <div class="stat fv-stat"><div class="val">""" + (f"${fv_subs * 9.99:.0f}" if fv_subs else "$0") + """</div><div class="lbl">Est. MRR</div><div class="sub2">@ ~$9.99/mo avg</div></div>
+  <div class="stat fv-stat"><div class="val">""" + (f"{round(len([s for s in fv.get('recent_ppv',[]) if s.get('unlocked')])/max(1,len(fv.get('recent_ppv',[])))*100)}%" if fv.get('recent_ppv') else "—") + """</div><div class="lbl">PPV Unlock Rate</div><div class="sub2">recent unlocks</div></div>
+  <div class="stat fv-stat" style="cursor:pointer" onclick="document.getElementById('fanTable').scrollIntoView({behavior:'smooth'})"><div class="val">""" + str(active_7d) + """</div><div class="lbl">Active 7d</div><div class="sub2">click → fan table</div></div>
 </div>
 <!-- Fanvue accordion sections -->
 <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
@@ -1561,13 +1580,13 @@ table{font-size:12px}th,td{padding:7px 10px!important}
   <div class="stat"><div class="val">""" + gd_str + """</div><div class="lbl">Total Revenue</div></div>
   <div class="stat"><div class="val">""" + str(gd_payments) + """</div><div class="lbl">Captured</div></div>
   <div class="stat"><div class="val">""" + str(gd_delivered) + """</div><div class="lbl">Delivered</div></div>
-  <div class="stat"><div class="val">""" + str(gd_unmatched) + """</div><div class="lbl">Unmatched</div></div>
+  <div class="stat" style="cursor:pointer" id="unmatchedStat" onclick="document.querySelector('[onclick*=\'unmatched\']')?filterPay('unmatched',document.querySelector('[onclick*=\\'unmatched\\']')):(filterPay('unmatched',null),document.getElementById('allTransactions').scrollIntoView({behavior:'smooth'}))"><div class="val">""" + str(gd_unmatched) + """</div><div class="lbl">Unmatched</div></div>
   <div class="stat"><div class="val">""" + str(pending_fans) + """</div><div class="lbl">Pending Fans</div></div>
 </div>
 <h2>🌟 Top Payers (GoDaddy)</h2>
 <div class="pay-list">""" + payer_rows + """</div>
 
-<h2>📋 All Transactions</h2>
+<h2 id="allTransactions">📋 All Transactions</h2>
 <div class="filters">
   <button class="filter-btn active" onclick="filterPay('all',this)">All (""" + str(len(all_p)) + """)</button>
   <button class="filter-btn" onclick="filterPay('captured',this)">✅ Captured (""" + str(len(cap)) + """)</button>
@@ -1644,7 +1663,18 @@ table{font-size:12px}th,td{padding:7px 10px!important}
   <div class="stat"><div class="val">""" + (str(avg_resp_ms)+"ms" if avg_resp_ms else "—") + """</div><div class="lbl">Avg Response</div></div>
   <div class="stat"><div class="val">""" + str(pg_stats.get("fans_with_memory","—")) + """</div><div class="lbl">Have Memory</div><div class="sub2">notes saved</div></div>
 </div>
-<h2>👥 Active Fans</h2>
+<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;padding:10px 14px;background:#0f0f0f;border-radius:8px;border:1px solid #1a1a1a">
+  <div style="font-size:11px;color:#555;font-weight:600;text-transform:uppercase;letter-spacing:.5px;align-self:center">Heat Dist</div>
+  <div style="font-size:13px">🔥 <span style="color:#f0f0f0;font-weight:600">""" + str(pg_stats.get("heat_distribution",{}).get("1",0)) + """</span></div>
+  <div style="font-size:13px">🔥🔥 <span style="color:#f0f0f0;font-weight:600">""" + str(pg_stats.get("heat_distribution",{}).get("2",0)) + """</span></div>
+  <div style="font-size:13px">🔥🔥🔥 <span style="color:#f0f0f0;font-weight:600">""" + str(pg_stats.get("heat_distribution",{}).get("3",0)) + """</span></div>
+  <div style="font-size:13px">🔥🔥🔥🔥 <span style="color:#f0f0f0;font-weight:600">""" + str(pg_stats.get("heat_distribution",{}).get("4",0)) + """</span></div>
+  <div style="font-size:13px">🔥🔥🔥🔥🔥 <span style="color:#f0f0f0;font-weight:600">""" + str(pg_stats.get("heat_distribution",{}).get("5",0)) + """</span></div>
+  <div style="color:#2a2a2a;margin:0 4px">|</div>
+  <div style="font-size:11px;color:#555;font-weight:600;text-transform:uppercase;letter-spacing:.5px;align-self:center">Memory</div>
+  <div style="font-size:13px;color:#f0f0f0"><span style="color:#a78bfa;font-weight:700">""" + str(pg_stats.get("fans_with_memory","—")) + """</span> <span style="color:#555">fans / </span><span style="color:#a78bfa;font-weight:700">""" + (f"{round(pg_stats.get('fans_with_memory',0)/max(1,int(total_fans or 1))*100)}%" if total_fans and str(total_fans).isdigit() else "—") + """</span> <span style="color:#555">coverage</span></div>
+</div>
+<h2 id="activeFans">👥 Active Fans</h2>
 <input class="search-input" id="fanSearch" oninput="filterFans()" placeholder="Search fans…" style="margin-bottom:10px">
 <table class="fan-table" id="fanTable"><thead><tr><th>Name</th><th>Msgs</th><th>Heat</th><th>Last Active</th></tr></thead>
 <tbody id="fanBody">""" + fan_rows + """</tbody></table>
@@ -1910,6 +1940,20 @@ function copyBCC(){
   el.select(); document.execCommand('copy');
   alert('BCC list copied! Paste it into Gmail BCC field.');
 }
+
+// Bar chart tooltips
+document.querySelectorAll('.bar-wrap').forEach(function(w){
+  var lbl=w.querySelector('.bar-lbl');
+  var bar=w.querySelector('.bar');
+  if(!bar||!lbl)return;
+  w.style.position='relative';
+  var tip=document.createElement('div');
+  tip.style.cssText='display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#222;color:#f0f0f0;font-size:10px;padding:3px 7px;border-radius:4px;white-space:nowrap;pointer-events:none;z-index:10;border:1px solid #333';
+  tip.textContent=lbl.textContent.replace(/\n/g,' ');
+  w.appendChild(tip);
+  w.addEventListener('mouseenter',function(){tip.style.display='block';});
+  w.addEventListener('mouseleave',function(){tip.style.display='none';});
+});
 
 </body></html>"""
 
