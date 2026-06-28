@@ -1075,7 +1075,7 @@ h2{font-size:13px;font-weight:600;color:#888;text-transform:uppercase;letter-spa
   <a href="/dashboard?token=bella-admin-2024" class="back">← Back</a>
   <h1>📅 Content360</h1>
 </div>
-<div id="loading">Loading data from Content360...</div>
+<div id="loading" style="color:#818cf8;font-size:13px;display:flex;align-items:center;gap:8px;margin-bottom:20px"><div style="width:14px;height:14px;border:2px solid #818cf840;border-top-color:#818cf8;border-radius:50%;animation:spin .7s linear infinite"></div>Fetching from Content360... <span id="loadtime" style="color:#555;font-size:11px"></span></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 <div id="stats" class="stats" style="display:none"></div>
 <div id="calSec" style="display:none"><h2 style="margin-bottom:10px">📅 Scheduled Calendar</h2><div id="cal" class="cal"></div></div>
 <div id="upSec" style="display:none"><h2 style="margin-bottom:10px">⏰ Upcoming Posts <span style="font-size:11px;color:#444;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2><div id="up" class="uplist"></div></div>
@@ -1103,7 +1103,9 @@ h2{font-size:13px;font-weight:600;color:#888;text-transform:uppercase;letter-spa
 </div>
 <script>
 var _ep=null;
+var _t0=Date.now();
 fetch('/c360-data?token=bella-admin-2024').then(r=>r.json()).then(d=>{
+  document.getElementById('loadtime').textContent='Loaded in '+((Date.now()-_t0)/1000).toFixed(1)+'s';
   document.getElementById('loading').style.display='none';
   var s=d.stats||{};
   var days=s.date_range&&s.date_range.length?Math.max(0,Math.ceil((new Date(s.date_range[1])-new Date())/86400000)):0;
@@ -1135,7 +1137,7 @@ fetch('/c360-data?token=bella-admin-2024').then(r=>r.json()).then(d=>{
   document.getElementById('draftSec').style.display='block';
   ['video','photo'].forEach(function(type){
     var items=(d.drafts&&d.drafts[type]||[]).slice(0,40);
-    document.getElementById('dp'+type).innerHTML='<div style="font-size:11px;color:#555;margin-bottom:8px;grid-column:1/-1">Showing '+items.length+' of '+((s.draft_by_type&&s.draft_by_type[type])||items.length)+'</div>'+items.map(function(p){
+    document.getElementById('dp'+type).innerHTML='<div style="font-size:11px;color:#555;margin-bottom:8px;grid-column:1/-1">Showing '+items.length+' of '+((s.draft_by_type&&s.draft_by_type[type])||items.length)+' — <a href="https://app.content360.io" target="_blank" rel="noopener" style="color:#818cf8">view all in Content360 →</a></div>'+items.map(function(p){
       return '<div class="dcard" onclick='openM('+JSON.stringify(p).replace(/\\/g,"\\\\").replace(/'/g,"\\'")+')'>'+(p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'')+'<div class="di"><div class="dc">'+(p.caption||'--')+'</div></div></div>';
     }).join('');
   });
@@ -1894,7 +1896,14 @@ class Handler(BaseHTTPRequestHandler):
         elif p.path == "/c360-data":
             if self.require_admin(p) != ADMIN_TOKEN:
                 self.send_json(401,{"error":"unauthorized"}); return
+            # ── Cache: serve stale data if < 120s old ──────────────────────
+            _c360_cache = getattr(Handler, '_c360_cache', None)
+            _c360_cache_ts = getattr(Handler, '_c360_cache_ts', 0)
+            if _c360_cache and (time.time() - _c360_cache_ts) < 120:
+                self.send_json(200, _c360_cache); return
+            # ── Fetch ───────────────────────────────────────────────────────
             import urllib.request as _ureq_c360, re as _re_c360
+            from concurrent.futures import ThreadPoolExecutor as _TPE, as_completed as _ac
             c360_uuid = os.environ.get("CONTENT360_WORKSPACE_UUID","")
             c360_tok  = os.environ.get("CONTENT360_ACCESS_TOKEN","")
             if not c360_uuid or not c360_tok:
@@ -1902,53 +1911,61 @@ class Handler(BaseHTTPRequestHandler):
             def _c360_get(path_c360):
                 url_c360 = "https://app.content360.io/os/api/" + c360_uuid + path_c360
                 req_c360 = _ureq_c360.Request(url_c360, headers={"Authorization":"Bearer "+c360_tok,"Accept":"application/json"})
-                with _ureq_c360.urlopen(req_c360, timeout=15) as r_c360:
+                with _ureq_c360.urlopen(req_c360, timeout=12) as r_c360:
                     return json.loads(r_c360.read())
             TAG_MAP_C360={4037:"photo",4038:"video",4039:"text"}
             def _parse_post_c360(px):
                 tags=[t.get("id") if isinstance(t,dict) else t for t in px.get("tags",[])]
                 mt=TAG_MAP_C360.get(tags[0],"unknown") if tags else "unknown"
-                try:
-                    body=_re_c360.sub(r"<[^>]+>","",px["versions"][0]["content"][0].get("body","")).strip()[:80]
-                except Exception:
-                    body=""
+                try: body=_re_c360.sub(r"<[^>]+>","",px["versions"][0]["content"][0].get("body","")).strip()[:80]
+                except Exception: body=""
                 try:
                     media=px["versions"][0]["content"][0].get("media",[])
                     thumb=media[0].get("thumb_url") if media else None
-                except Exception:
-                    thumb=None
+                except Exception: thumb=None
                 return {"id":px.get("id"),"uuid":px.get("uuid"),"status":px.get("status"),"scheduled_at":px.get("scheduled_at"),"media_type":mt,"caption":body,"thumb":thumb}
-            from collections import Counter as _Counter_c360, defaultdict as _DD_c360
-            sched_posts_c360=[]
-            for pg_c360 in range(1,6):
-                r2_c360=_c360_get("/posts?status=scheduled&limit=50&page="+str(pg_c360))
-                data2_c360=r2_c360.get("data",[])
-                sched_posts_c360.extend(data2_c360)
-                if pg_c360>=r2_c360.get("meta",{}).get("last_page",1) or not data2_c360: break
-            draft_posts_c360=[]
-            for pg_c360 in range(1,4):
-                r2_c360=_c360_get("/posts?status=draft&limit=50&page="+str(pg_c360))
-                data2_c360=r2_c360.get("data",[])
-                draft_posts_c360.extend(data2_c360)
-                if pg_c360>=r2_c360.get("meta",{}).get("last_page",1) or not data2_c360: break
-            sched_parsed_c360=sorted([_parse_post_c360(px) for px in sched_posts_c360],key=lambda x:x["scheduled_at"] or "")
-            draft_parsed_c360=[_parse_post_c360(px) for px in draft_posts_c360]
-            by_day_c360=_DD_c360(list)
+            # ── Parallel: fetch first page of scheduled + first page of drafts simultaneously ──
+            from collections import defaultdict as _DD_c360
+            def _fetch_all(status, max_pages=3, limit=50):
+                results=[]; total=None
+                for pg in range(1, max_pages+1):
+                    try:
+                        r=_c360_get(f"/posts?status={status}&limit={limit}&page={pg}")
+                    except Exception: break
+                    data=r.get("data",[])
+                    results.extend(data)
+                    meta=r.get("meta",{})
+                    if total is None: total=meta.get("total", len(data))
+                    if pg>=meta.get("last_page",1) or not data: break
+                return results, total or len(results)
+            with _TPE(max_workers=2) as _ex:
+                _f_sched = _ex.submit(_fetch_all, "scheduled", 4, 50)
+                _f_draft = _ex.submit(_fetch_all, "draft", 2, 50)
+                sched_raw, total_sched_c360 = _f_sched.result()
+                draft_raw, total_draft_c360 = _f_draft.result()
+            sched_parsed_c360 = sorted([_parse_post_c360(px) for px in sched_raw], key=lambda x: x["scheduled_at"] or "")
+            draft_parsed_c360 = [_parse_post_c360(px) for px in draft_raw]
+            by_day_c360 = _DD_c360(list)
+            today_c360 = time.strftime("%Y-%m-%d", time.localtime(time.time()+TZ_OFFSET*3600))
             for px in sched_parsed_c360:
                 if px["scheduled_at"]: by_day_c360[px["scheduled_at"][:10]].append(px)
-            today_c360=time.strftime("%Y-%m-%d",time.localtime(time.time()+TZ_OFFSET*3600))
-            upcoming_c360=[px for px in sched_parsed_c360 if (px["scheduled_at"] or "")>=today_c360]
-            total_sched_c360=_c360_get("/posts?status=scheduled&limit=1").get("meta",{}).get("total",len(sched_posts_c360))
-            total_draft_c360=_c360_get("/posts?status=draft&limit=1").get("meta",{}).get("total",len(draft_posts_c360))
-            draft_by_type_c360={t:sum(1 for px in draft_parsed_c360 if px["media_type"]==t) for t in ["video","photo","text"]}
-            dates_c360=[px["scheduled_at"][:10] for px in sched_parsed_c360 if px["scheduled_at"]]
-            result_c360={
-                "stats":{"scheduled_total":total_sched_c360,"draft_total":total_draft_c360,"days_covered":len(by_day_c360),"draft_by_type":draft_by_type_c360,"date_range":[min(dates_c360),max(dates_c360)] if dates_c360 else []},
-                "by_day":{k:v for k,v in sorted(by_day_c360.items())},
-                "upcoming":upcoming_c360,
-                "drafts":{"video":[px for px in draft_parsed_c360 if px["media_type"]=="video"][:40],"photo":[px for px in draft_parsed_c360 if px["media_type"]=="photo"][:40]},
+            upcoming_c360 = [px for px in sched_parsed_c360 if (px["scheduled_at"] or "") >= today_c360]
+            dates_c360 = [px["scheduled_at"][:10] for px in sched_parsed_c360 if px["scheduled_at"]]
+            draft_by_type_c360 = {t: sum(1 for px in draft_parsed_c360 if px["media_type"]==t) for t in ["video","photo","text"]}
+            result_c360 = {
+                "stats": {"scheduled_total":total_sched_c360,"draft_total":total_draft_c360,
+                          "days_covered":len(by_day_c360),
+                          "draft_by_type":draft_by_type_c360,
+                          "date_range":[min(dates_c360),max(dates_c360)] if dates_c360 else []},
+                "by_day": {k:v for k,v in sorted(by_day_c360.items())},
+                "upcoming": upcoming_c360,
+                "drafts": {"video":[px for px in draft_parsed_c360 if px["media_type"]=="video"][:30],
+                           "photo":[px for px in draft_parsed_c360 if px["media_type"]=="photo"][:30]},
             }
-            self.send_json(200,result_c360)
+            # Cache result
+            Handler._c360_cache = result_c360
+            Handler._c360_cache_ts = time.time()
+            self.send_json(200, result_c360)
 
         elif p.path == "/c360-action":
             if self.require_admin(p) != ADMIN_TOKEN:
