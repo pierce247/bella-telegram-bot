@@ -1023,74 +1023,163 @@ def get_conv_stats():
 
 # ── Content360 Dashboard Page ───────────────────────────────────────────────────
 def build_c360_page():
-    return """<!DOCTYPE html><html lang="en"><head>
+    """Server-side rendered Content360 dashboard - no client-side fetch needed."""
+    import time as _time
+    _cache = load_json(os.path.join(DATA_DIR, "c360_data_cache.json"), {})
+    _d = _cache.get("data", {})
+    _ts = _cache.get("ts", 0)
+    _age = int(_time.time() - _ts) if _ts else -1
+    _stats = _d.get("stats", {})
+    _byDay = _d.get("by_day", {})
+    _upcoming = _d.get("upcoming", [])
+    _drafts = _d.get("drafts", {})
+    _dvt = _stats.get("draft_by_type", {})
+    _dates = sorted(_byDay.keys())
+    _maxDate = _dates[-1] if _dates else ""
+    _daysLeft = max(0, int((_maxDate and (
+        __import__('datetime').datetime.strptime(_maxDate, "%Y-%m-%d") -
+        __import__('datetime').datetime.now()).days) or 0))
+    _nxt = _upcoming[0] if _upcoming else None
+    _age_str = (str(_age) + "s ago") if _age >= 0 else "never"
+
+    def _pill(t, n):
+        return f'<span class="cpill {t}">{n} {t}</span>'
+
+    def _cal_html():
+        h = ""
+        today = __import__('datetime').date.today().isoformat()
+        for day in _dates:
+            posts = _byDay[day]
+            cnt = {}
+            for p in posts:
+                cnt[p.get("media_type","unknown")] = cnt.get(p.get("media_type","unknown"),0)+1
+            pills = "".join(_pill(t,n) for t,n in cnt.items())
+            try:
+                import datetime as _dt
+                dt = _dt.datetime.strptime(day, "%Y-%m-%d")
+                dn = dt.strftime("%a")
+                dm = dt.strftime("%b %-d")
+            except:
+                dn = day[:3]; dm = day[5:]
+            style = 'color:#f472b6' if day == today else ''
+            h += f'<div class="cday"><div class="dn">{dn}</div><div class="dd" style="{style}">{dm}</div>{pills}<div style="font-size:9px;color:#444;margin-top:3px">{len(posts)} posts</div></div>'
+        return h or '<div style="color:#555;font-size:13px">No scheduled posts</div>'
+
+    def _fmt_date(s):
+        if not s: return ""
+        try:
+            import datetime as _dt
+            d = _dt.datetime.strptime(s[:16], "%Y-%m-%d %H:%M")
+            return d.strftime("%a %b %-d · %I:%M %p")
+        except:
+            return s[:16]
+
+    def _post_json(p):
+        import json as _j
+        return _j.dumps(p).replace('"', '&quot;')
+
+    def _up_items():
+        h = ""
+        for p in _upcoming[:20]:
+            img = f'<img src="{p.get("thumb","")}" loading="lazy">' if p.get("thumb") else '<div style="width:34px;height:34px;border-radius:5px;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">📸</div>'
+            cap = p.get("caption","—")[:60] or "—"
+            mt = p.get("media_type","?")
+            tm = _fmt_date(p.get("scheduled_at",""))
+            pj = _post_json(p)
+            h += f'<div class="upitem" onclick="openM({pj})">{img}<div class="meta"><div class="cap">{cap}</div><div class="tm">{tm}</div></div><span class="cpill {mt}">{mt}</span></div>'
+        return h or '<div style="color:#555">No upcoming posts</div>'
+
+    def _draft_grid(posts):
+        h = ""
+        for p in posts[:30]:
+            img = f'<img src="{p.get("thumb","")}" loading="lazy">' if p.get("thumb") else ""
+            cap = (p.get("caption","") or "—")[:50]
+            pj = _post_json(p)
+            h += f'<div class="dcard" onclick="openM({pj})">{img}<div class="di"><div class="dc">{cap}</div></div></div>'
+        return h
+
+    _vids = _draft_grid(_drafts.get("video",[]))
+    _photos = _draft_grid(_drafts.get("photo",[]))
+
+    _no_data = not _stats.get("scheduled_total") and not _stats.get("draft_total")
+    _status_msg = (f'<div style="background:#1a0a0a;border:1px solid #2a1a1a;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:#ef4444">⚠️ No Content360 data cached yet. This refreshes automatically via Bella Manager.</div>' if _no_data else
+                   f'<div style="font-size:11px;color:#444;margin-bottom:16px">Last updated: {_age_str} &nbsp;·&nbsp; <a href="/content360?token=bella-admin-2024" style="color:#818cf8">↻ Reload</a></div>')
+
+    return f"""<!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>📅 Bella Content360</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',sans-serif;background:#0a0a0a;color:#f0f0f0;padding:20px;max-width:1400px;margin:0 auto}
-.hdr{display:flex;align-items:center;gap:12px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #1a1a1a}
-.back{font-size:13px;color:#555;text-decoration:none;padding:5px 10px;border:1px solid #222;border-radius:6px}
-.back:hover{color:#aaa;border-color:#333}
-h1{font-size:20px;font-weight:700;flex:1}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:28px}
-.stat{background:#111;border:1px solid #1a1a1a;border-radius:10px;padding:16px}
-.stat .val{font-size:30px;font-weight:700;letter-spacing:-1px}
-.stat .lbl{font-size:11px;color:#555;margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
-.stat .sub{font-size:11px;color:#444;margin-top:3px}
-h2{font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;margin-top:24px}
-.cal{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:8px}
-.cday{background:#111;border:1px solid #1a1a1a;border-radius:8px;padding:10px}
-.cday .dn{font-size:10px;color:#444}
-.cday .dd{font-size:16px;font-weight:700;margin:2px 0 5px}
-.cpill{font-size:10px;padding:1px 5px;border-radius:4px;font-weight:600;display:inline-block;margin:1px}
-.cpill.photo{background:rgba(79,195,247,.15);color:#4fc3f7}
-.cpill.video{background:rgba(244,114,182,.15);color:#f472b6}
-.cpill.text{background:rgba(105,240,174,.15);color:#69f0ae}
-.uplist{display:flex;flex-direction:column;gap:6px}
-.upitem{background:#111;border:1px solid #1a1a1a;border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .15s}
-.upitem:hover{border-color:#333}
-.upitem img{width:34px;height:34px;border-radius:5px;object-fit:cover;flex-shrink:0;background:#1a1a1a}
-.upitem .meta{flex:1;min-width:0}
-.upitem .cap{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.upitem .tm{font-size:10px;color:#555;margin-top:1px}
-.dtabs{display:flex;gap:3px;background:rgba(255,255,255,.04);border-radius:7px;padding:3px;width:fit-content;margin-bottom:10px}
-.dtab{padding:5px 12px;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer;color:#555;border:none;background:none}
-.dtab.active{background:#1a1a1a;color:#f0f0f0}
-.dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
-.dcard{background:#111;border:1px solid #1a1a1a;border-radius:8px;overflow:hidden;cursor:pointer;transition:transform .15s,border-color .15s}
-.dcard:hover{transform:translateY(-2px);border-color:#f472b640}
-.dcard img{width:100%;aspect-ratio:9/16;object-fit:cover;display:block;background:#1a1a1a}
-.dcard .di{padding:6px 8px 8px}
-.dcard .dc{font-size:10px;color:#888;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-#loader{display:flex;align-items:center;gap:10px;color:#818cf8;font-size:13px;padding:20px 0}
-.spin{width:16px;height:16px;border:2px solid #818cf840;border-top-color:#818cf8;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
-@keyframes spin{to{transform:rotate(360deg)}}
-.err-box{background:#1a0a0a;border:1px solid #3a1a1a;border-radius:8px;padding:16px;color:#ef4444;font-size:13px;line-height:1.6}
-#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;align-items:center;justify-content:center}
-#modal.open{display:flex}
-#mbox{background:#111;border:1px solid #2a2a2a;border-radius:14px;padding:24px;width:460px;max-width:95vw;max-height:90vh;overflow-y:auto}
-#mbox h3{font-size:14px;font-weight:700;margin-bottom:14px}
-.mf{margin-bottom:12px}
-.mf label{display:block;font-size:11px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
-.mf textarea,.mf input{width:100%;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:7px;padding:7px 9px;color:#f0f0f0;font-size:13px;resize:vertical;font-family:inherit}
-.mactions{display:flex;gap:8px;margin-top:14px}
-.mbtn{padding:7px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none}
-.mbtn.primary{background:#f472b6;color:#fff}.mbtn.danger{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.2)}
-.mbtn.cancel{background:#1a1a1a;color:#aaa}.mbtn:disabled{opacity:.5;cursor:default}
-#mmsg{font-size:11px;margin-top:8px;padding:5px 8px;border-radius:5px;display:none}
-#mmsg.ok{background:rgba(105,240,174,.1);color:#69f0ae;display:block}
-#mmsg.err{background:rgba(239,68,68,.1);color:#ef4444;display:block}
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{font-family:'Inter',sans-serif;background:#0a0a0a;color:#f0f0f0;padding:20px;max-width:1400px;margin:0 auto}}
+.hdr{{display:flex;align-items:center;gap:12px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #1a1a1a}}
+.back{{font-size:13px;color:#555;text-decoration:none;padding:5px 10px;border:1px solid #222;border-radius:6px}}
+.back:hover{{color:#aaa;border-color:#333}}
+h1{{font-size:20px;font-weight:700;flex:1}}
+.stats{{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:28px}}
+.stat{{background:#111;border:1px solid #1a1a1a;border-radius:10px;padding:16px}}
+.stat .val{{font-size:30px;font-weight:700;letter-spacing:-1px}}
+.stat .lbl{{font-size:11px;color:#555;margin-top:4px;text-transform:uppercase;letter-spacing:.5px}}
+.stat .sub{{font-size:11px;color:#444;margin-top:3px}}
+h2{{font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;margin-top:24px}}
+.cal{{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:8px}}
+.cday{{background:#111;border:1px solid #1a1a1a;border-radius:8px;padding:10px}}
+.cday .dn{{font-size:10px;color:#444}}.cday .dd{{font-size:16px;font-weight:700;margin:2px 0 5px}}
+.cpill{{font-size:10px;padding:1px 5px;border-radius:4px;font-weight:600;display:inline-block;margin:1px}}
+.cpill.photo{{background:rgba(79,195,247,.15);color:#4fc3f7}}
+.cpill.video{{background:rgba(244,114,182,.15);color:#f472b6}}
+.cpill.text{{background:rgba(105,240,174,.15);color:#69f0ae}}
+.uplist{{display:flex;flex-direction:column;gap:6px}}
+.upitem{{background:#111;border:1px solid #1a1a1a;border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .15s}}
+.upitem:hover{{border-color:#333}}
+.upitem img{{width:34px;height:34px;border-radius:5px;object-fit:cover;flex-shrink:0;background:#1a1a1a}}
+.upitem .meta{{flex:1;min-width:0}}.upitem .cap{{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+.upitem .tm{{font-size:10px;color:#555;margin-top:1px}}
+.dtabs{{display:flex;gap:3px;background:rgba(255,255,255,.04);border-radius:7px;padding:3px;width:fit-content;margin-bottom:10px}}
+.dtab{{padding:5px 12px;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer;color:#555;border:none;background:none}}
+.dtab.active{{background:#1a1a1a;color:#f0f0f0}}
+.dgrid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}}
+.dcard{{background:#111;border:1px solid #1a1a1a;border-radius:8px;overflow:hidden;cursor:pointer;transition:transform .15s,border-color .15s}}
+.dcard:hover{{transform:translateY(-2px);border-color:#f472b640}}
+.dcard img{{width:100%;aspect-ratio:9/16;object-fit:cover;display:block;background:#1a1a1a}}
+.dcard .di{{padding:6px 8px 8px}}.dcard .dc{{font-size:10px;color:#888;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}}
+#modal{{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;align-items:center;justify-content:center}}
+#modal.open{{display:flex}}
+#mbox{{background:#111;border:1px solid #2a2a2a;border-radius:14px;padding:24px;width:460px;max-width:95vw;max-height:90vh;overflow-y:auto}}
+#mbox h3{{font-size:14px;font-weight:700;margin-bottom:14px}}
+.mf{{margin-bottom:12px}}.mf label{{display:block;font-size:11px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}}
+.mf textarea,.mf input{{width:100%;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:7px;padding:7px 9px;color:#f0f0f0;font-size:13px;resize:vertical;font-family:inherit}}
+.mactions{{display:flex;gap:8px;margin-top:14px}}
+.mbtn{{padding:7px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none}}
+.mbtn.primary{{background:#f472b6;color:#fff}}.mbtn.danger{{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.2)}}
+.mbtn.cancel{{background:#1a1a1a;color:#aaa}}.mbtn:disabled{{opacity:.5;cursor:default}}
+#mmsg{{font-size:11px;margin-top:8px;padding:5px 8px;border-radius:5px;display:none}}
+#mmsg.ok{{background:rgba(105,240,174,.1);color:#69f0ae;display:block}}
+#mmsg.err{{background:rgba(239,68,68,.1);color:#ef4444;display:block}}
 </style></head><body>
 <div class="hdr">
-  <a href="/dashboard?token=bella-admin-2024" class="back">&#8592; Back</a>
-  <h1>&#128197; Content360</h1>
-  <span id="loadtime" style="font-size:11px;color:#444"></span>
-  <button onclick="location.reload()" style="background:#1a1a1a;border:1px solid #333;color:#888;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;margin-left:8px">&#8635; Refresh</button>
+  <a href="/dashboard?token=bella-admin-2024" class="back">← Back</a>
+  <h1>📅 Content360</h1>
+  <a href="/content360?token=bella-admin-2024" style="font-size:11px;color:#444;text-decoration:none;margin-left:auto;padding:4px 10px;border:1px solid #222;border-radius:5px">↻ Refresh</a>
 </div>
-<div id="loader"><div class="spin"></div><span id="loadmsg">Loading Content360 data...</span></div>
-<div id="root" style="display:none"></div>
+{_status_msg}
+<div class="stats">
+  <div class="stat"><div class="val" style="color:#f472b6">{_stats.get("scheduled_total",0)}</div><div class="lbl">Scheduled</div><div class="sub">{_stats.get("days_covered",0)} days covered</div></div>
+  <div class="stat"><div class="val" style="color:#818cf8">{_stats.get("draft_total",0)}</div><div class="lbl">Drafts</div><div class="sub">{_dvt.get("video",0)} video · {_dvt.get("photo",0)} photo</div></div>
+  <div class="stat"><div class="val" style="color:#69f0ae">{_daysLeft}d</div><div class="lbl">Coverage Left</div><div class="sub">Until {_maxDate or "—"}</div></div>
+  <div class="stat"><div class="val" style="color:#fbbf24;font-size:20px">{(_nxt["scheduled_at"][11:16] if _nxt else "--")}</div><div class="lbl">Next Post</div><div class="sub">{(_nxt["scheduled_at"][:10] if _nxt else "Nothing scheduled")}</div></div>
+</div>
+<h2>📅 Scheduled Calendar</h2>
+<div class="cal">{_cal_html()}</div>
+<h2>⏰ Upcoming Posts <span style="font-size:10px;color:#555;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2>
+<div class="uplist">{_up_items()}</div>
+<h2>📦 Drafts <span style="font-size:10px;color:#555;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2>
+<div class="dtabs">
+  <button class="dtab active" id="dtvid" onclick="swTab(this,'dpvideo','dpphoto')">🎬 Videos ({_dvt.get("video",0)})</button>
+  <button class="dtab" id="dtphoto" onclick="swTab(this,'dpphoto','dpvideo')">📸 Photos ({_dvt.get("photo",0)})</button>
+</div>
+<div id="dpvideo" class="dgrid">{_vids}</div>
+<div id="dpphoto" class="dgrid" style="display:none">{_photos}</div>
 <div id="modal" onclick="if(event.target===this)closeM()">
   <div id="mbox">
     <h3 id="mtitle">Edit Post</h3>
@@ -1105,140 +1194,52 @@ h2{font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-spa
   </div>
 </div>
 <script>
-var _ep=null,_t0=Date.now();
-document.getElementById('loadmsg').textContent='Fetching from Content360...';
-fetch('/c360-data?token=bella-admin-2024').then(function(r){return r.json();}).then(function(d){
-  document.getElementById('loadtime').textContent='Loaded in '+((Date.now()-_t0)/1000).toFixed(1)+'s';
-  document.getElementById('loader').style.display='none';
-  if(d.error){
-    document.getElementById('root').innerHTML='<div class="err-box">&#9888; '+d.error+'</div>';
-    document.getElementById('root').style.display='block';
-    return;
-  }
-  try{ render(d); }
-  catch(e){
-    document.getElementById('root').innerHTML='<div class="err-box">Render error: '+e.message+'</div>';
-    document.getElementById('root').style.display='block';
-  }
-}).catch(function(err){
-  document.getElementById('loader').style.display='none';
-  document.getElementById('root').innerHTML='<div class="err-box">Failed to load: '+err.message+'</div>';
-  document.getElementById('root').style.display='block';
-});
-
-function pill(t,n){return '<span class="cpill '+t+'">'+n+' '+t+'</span>';}
-function fmtDate(s){var d=new Date(s.replace(' ','T'));return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});}
-
-function postCard(p,cls,onclick){
-  return '<div class="'+cls+'" data-post="'+btoa(JSON.stringify(p))+'" onclick="openFromCard(this)">'
-    +(p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'')
-    +'<div class="di"><div class="dc">'+(p.caption||'&#8212;')+'</div></div></div>';
-}
-function upCard(p){
-  var img=p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'<div style="width:34px;height:34px;border-radius:5px;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">'+(p.media_type==='video'?'&#127916;':'&#128247;')+'</div>';
-  return '<div class="upitem" data-post="'+btoa(JSON.stringify(p))+'" onclick="openFromCard(this)">'
-    +img+'<div class="meta"><div class="cap">'+(p.caption||'&#8212;')+'</div><div class="tm">'+fmtDate(p.scheduled_at)+'</div></div>'
-    +'<span class="cpill '+p.media_type+'">'+p.media_type+'</span></div>';
-}
-
-function openFromCard(el){
-  try{ openM(JSON.parse(atob(el.getAttribute('data-post')))); }
-  catch(e){ alert('Error: '+e.message); }
-}
-
-function render(d){
-  var s=d.stats||{};
-  var today=new Date().toISOString().split('T')[0];
-  var upcoming=d.upcoming||[];
-  var byDay=d.by_day||{};
-  var dates=Object.keys(byDay).sort();
-  var maxDate=dates[dates.length-1]||today;
-  var daysLeft=Math.max(0,Math.ceil((new Date(maxDate)-new Date())/86400000));
-  var nxt=upcoming[0];
-  var dvt=s.draft_by_type||{};
-
-  var html='<div class="stats">'
-    +'<div class="stat"><div class="val" style="color:#f472b6">'+(s.scheduled_total||0)+'</div><div class="lbl">Scheduled</div><div class="sub">'+(s.days_covered||0)+' days covered</div></div>'
-    +'<div class="stat"><div class="val" style="color:#818cf8">'+(s.draft_total||0)+'</div><div class="lbl">Drafts</div><div class="sub">'+(dvt.video||0)+' video &#183; '+(dvt.photo||0)+' photo</div></div>'
-    +'<div class="stat"><div class="val" style="color:#69f0ae">'+daysLeft+'d</div><div class="lbl">Coverage Left</div><div class="sub">Until '+maxDate+'</div></div>'
-    +'<div class="stat"><div class="val" style="color:#fbbf24;font-size:20px">'+(nxt?nxt.scheduled_at.slice(11,16):'--')+'</div><div class="lbl">Next Post</div><div class="sub">'+(nxt?nxt.scheduled_at.slice(0,10):'Nothing scheduled')+'</div></div>'
-    +'</div>';
-
-  html+='<h2>&#128197; Scheduled Calendar</h2><div class="cal">';
-  dates.forEach(function(day){
-    var posts=byDay[day];
-    var dt=new Date(day+'T00:00:00');
-    var cnt={};posts.forEach(function(p){cnt[p.media_type]=(cnt[p.media_type]||0)+1;});
-    var pills=Object.keys(cnt).map(function(t){return pill(t,cnt[t]);}).join('');
-    html+='<div class="cday"><div class="dn">'+dt.toLocaleDateString('en-US',{weekday:'short'})+'</div>'
-      +'<div class="dd" style="'+(day===today?'color:#f472b6':'')+'">'
-      +dt.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'</div>'
-      +pills+'<div style="font-size:9px;color:#444;margin-top:3px">'+posts.length+' posts</div></div>';
-  });
-  html+='</div>';
-
-  html+='<h2>&#9200; Upcoming <span style="font-size:10px;color:#555;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2><div class="uplist">';
-  upcoming.slice(0,20).forEach(function(p){ html+=upCard(p); });
-  html+='</div>';
-
-  var vids=(d.drafts&&d.drafts.video)||[];
-  var photos=(d.drafts&&d.drafts.photo)||[];
-  html+='<h2>&#128230; Drafts <span style="font-size:10px;color:#555;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2>'
-    +'<div class="dtabs">'
-    +'<button class="dtab active" id="dtvid" onclick="swTab(\'video\',this)">&#127916; Videos ('+(dvt.video||0)+')</button>'
-    +'<button class="dtab" id="dtphoto" onclick="swTab(\'photo\',this)">&#128247; Photos ('+(dvt.photo||0)+')</button></div>'
-    +'<div id="dpvideo" class="dgrid">'+vids.map(function(p){return postCard(p,'dcard');}).join('')+'</div>'
-    +'<div id="dpphoto" class="dgrid" style="display:none">'+photos.map(function(p){return postCard(p,'dcard');}).join('')+'</div>';
-
-  document.getElementById('root').innerHTML=html;
-  document.getElementById('root').style.display='block';
-}
-
-function swTab(t,btn){
-  document.querySelectorAll('.dtab').forEach(function(b){b.classList.remove('active');});
-  document.getElementById('dpvideo').style.display=t==='video'?'grid':'none';
-  document.getElementById('dpphoto').style.display=t==='photo'?'grid':'none';
+var _ep=null;
+function swTab(btn,show,hide){{
+  document.querySelectorAll('.dtab').forEach(function(b){{b.classList.remove('active');}});
   btn.classList.add('active');
-}
-function openM(p){
+  document.getElementById(show).style.display='grid';
+  document.getElementById(hide).style.display='none';
+}}
+function openM(p){{
   _ep=p;
   document.getElementById('mtitle').textContent=p.status==='draft'?'Edit Draft':'Edit Scheduled Post';
   document.getElementById('mcap').value=p.caption||'';
   var sr=document.getElementById('mschedrow');
   var si=document.getElementById('msched');
-  if(p.scheduled_at){sr.style.display='block';si.value=p.scheduled_at.replace(' ','T').slice(0,16);}
-  else{sr.style.display='none';si.value='';}
+  if(p.scheduled_at){{sr.style.display='block';si.value=p.scheduled_at.replace(' ','T').slice(0,16);}}
+  else{{sr.style.display='none';si.value='';}}
   document.getElementById('mmsg').className='';
   document.getElementById('mmsg').textContent='';
   document.getElementById('modal').classList.add('open');
-}
-function closeM(){document.getElementById('modal').classList.remove('open');}
-function saveP(){
+}}
+function closeM(){{document.getElementById('modal').classList.remove('open');}}
+function saveP(){{
   if(!_ep)return;
   var b=document.getElementById('msave');b.disabled=true;b.textContent='Saving...';
-  var cap=document.getElementById('mcap').value.trim();
-  var sc=document.getElementById('msched').value;
-  fetch('/c360-action?token=bella-admin-2024',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action:'edit',post_uuid:_ep.uuid,caption:cap,scheduled_at:sc?sc.replace('T',' '):null})
-  }).then(function(r){return r.json();}).then(function(d){
+  fetch('/c360-action?token=bella-admin-2024',{{method:'POST',headers:{{'Content-Type':'application/json'}},
+    body:JSON.stringify({{action:'edit',post_uuid:_ep.uuid,caption:document.getElementById('mcap').value.trim(),
+    scheduled_at:document.getElementById('msched').value?document.getElementById('msched').value.replace('T',' '):null}})
+  }}).then(function(r){{return r.json();}}).then(function(d){{
     b.disabled=false;b.textContent='Save';
-    if(d.ok){setMsg('ok','Saved!');setTimeout(function(){location.reload();},900);}
+    if(d.ok){{setMsg('ok','Saved! Reloading...');setTimeout(function(){{location.reload();}},900);}}
     else setMsg('err','Error: '+(d.error||'?'));
-  }).catch(function(){b.disabled=false;b.textContent='Save';setMsg('err','Network error');});
-}
-function delP(){
-  if(!_ep||!confirm('Delete this post?'))return;
+  }}).catch(function(){{b.disabled=false;b.textContent='Save';setMsg('err','Network error');}});
+}}
+function delP(){{
+  if(!_ep||!confirm('Delete?'))return;
   var b=document.getElementById('mdel');b.disabled=true;b.textContent='Deleting...';
-  fetch('/c360-action?token=bella-admin-2024',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action:'delete',post_uuid:_ep.uuid})
-  }).then(function(r){return r.json();}).then(function(d){
+  fetch('/c360-action?token=bella-admin-2024',{{method:'POST',headers:{{'Content-Type':'application/json'}},
+    body:JSON.stringify({{action:'delete',post_uuid:_ep.uuid}})
+  }}).then(function(r){{return r.json();}}).then(function(d){{
     b.disabled=false;b.textContent='Delete';
-    if(d.ok){setMsg('ok','Deleted!');setTimeout(function(){closeM();location.reload();},800);}
+    if(d.ok){{setMsg('ok','Deleted!');setTimeout(function(){{closeM();location.reload();}},800);}}
     else setMsg('err','Error: '+(d.error||'?'));
-  }).catch(function(){b.disabled=false;b.textContent='Delete';setMsg('err','Network error');});
-}
-function setMsg(t,m){var el=document.getElementById('mmsg');el.className=t;el.textContent=m;}
+  }}).catch(function(){{b.disabled=false;b.textContent='Delete';setMsg('err','Network error');}});
+}}
+function setMsg(t,m){{var el=document.getElementById('mmsg');el.className=t;el.textContent=m;}}
 </script></body></html>"""
+
 
 # ── Dashboard HTML ────────────────────────────────────────────────────────────
 def build_dashboard(payment_stats, conv_stats):
