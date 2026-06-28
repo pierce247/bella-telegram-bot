@@ -2103,6 +2103,9 @@ class Handler(BaseHTTPRequestHandler):
             _c360_override = load_json(os.path.join(DATA_DIR, "c360_token.json"), {})
             if _c360_override.get("tok"): c360_tok = _c360_override["tok"]
             if _c360_override.get("uuid"): c360_uuid = _c360_override["uuid"]
+            # Hardcoded fallback (updated by Bella Manager when token rotates)
+            if not c360_tok: c360_tok = "rRJOi26P3OddVFgvSSBuG4FfHRJGhNfsxkKHBcOg50d0ca3a"
+            if not c360_uuid: c360_uuid = "2b0113a7-72cd-4678-aae6-7b4dd9c3d1d1"
             if not c360_uuid or not c360_tok:
                 self.send_json(200,{"error":"CONTENT360 credentials not configured. POST to /update-c360-token to set them.","stats":{},"by_day":{},"upcoming":[],"drafts":{}}); return
             def _c360_get(path_c360):
@@ -2218,6 +2221,9 @@ class Handler(BaseHTTPRequestHandler):
             _c360_override = load_json(os.path.join(DATA_DIR, "c360_token.json"), {})
             if _c360_override.get("tok"): c360_tok = _c360_override["tok"]
             if _c360_override.get("uuid"): c360_uuid = _c360_override["uuid"]
+            # Hardcoded fallback (updated by Bella Manager when token rotates)
+            if not c360_tok: c360_tok = "rRJOi26P3OddVFgvSSBuG4FfHRJGhNfsxkKHBcOg50d0ca3a"
+            if not c360_uuid: c360_uuid = "2b0113a7-72cd-4678-aae6-7b4dd9c3d1d1"
             if not c360_uuid or not c360_tok:
                 self.send_json(200,{"error":"CONTENT360 credentials not configured. POST to /update-c360-token to set them.","stats":{},"by_day":{},"upcoming":[],"drafts":{}}); return
             def _c360_get(path_c360):
