@@ -2610,6 +2610,18 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
         length=int(self.headers.get("Content-Length",0))
         body=self.rfile.read(length); p=urlparse(self.path)
 
+        if p.path == "/update-c360-cache":
+            if self.require_admin(p) != ADMIN_TOKEN:
+                self.send_json(401,{"error":"unauthorized"}); return
+            try:
+                data_in = json.loads(body)
+                save_json(os.path.join(DATA_DIR, "c360_data_cache.json"), {"data": data_in, "ts": time.time()})
+                if hasattr(Handler,'_c360_cache'): Handler._c360_cache = None; Handler._c360_cache_ts = 0
+                self.send_json(200, {"ok": True, "scheduled": data_in.get("stats",{}).get("scheduled_total",0), "drafts": data_in.get("stats",{}).get("draft_total",0)})
+            except Exception as e:
+                self.send_json(500, {"ok": False, "error": str(e)[:100]})
+            return
+
         if p.path == "/update-c360-token":
                 if self.require_admin(p) != ADMIN_TOKEN:
                     self.send_json(401,{"error":"unauthorized"}); return
