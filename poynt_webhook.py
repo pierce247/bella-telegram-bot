@@ -2086,6 +2086,27 @@ class Handler(BaseHTTPRequestHandler):
             tok_data = load_json(os.path.join(DATA_DIR, "c360_token.json"), {})
             self.send_json(200, {"ok": True, "tok_prefix": tok_data.get("tok","")[:12] or "not set", "uuid": tok_data.get("uuid","")})
 
+        elif p.path == "/c360-debug":
+            if self.require_admin(p) != ADMIN_TOKEN:
+                self.send_json(401,{"error":"unauthorized"}); return
+            import urllib.request as _ud2
+            _u = os.environ.get("CONTENT360_WORKSPACE_UUID","")
+            _t = os.environ.get("CONTENT360_ACCESS_TOKEN","")
+            _res = {"uuid_prefix": _u[:8] or "EMPTY", "tok_prefix": _t[:8] or "EMPTY"}
+            try:
+                _req2 = _ud2.Request(
+                    "https://app.content360.io/os/api/" + _u + "/posts?status=scheduled&limit=1",
+                    headers={"Authorization": "Bearer " + _t, "Accept": "application/json"}
+                )
+                with _ud2.urlopen(_req2, timeout=10) as _r2:
+                    _d2 = json.loads(_r2.read())
+                    _res["api_ok"] = True
+                    _res["total"] = _d2.get("meta",{}).get("total",0)
+            except Exception as _e2:
+                _res["api_ok"] = False
+                _res["error"] = str(_e2)[:100]
+            self.send_json(200, _res)
+
         elif p.path == "/c360-data":
             if self.require_admin(p) != ADMIN_TOKEN:
                 self.send_json(401,{"error":"unauthorized"}); return
