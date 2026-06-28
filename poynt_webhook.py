@@ -1084,10 +1084,10 @@ h2{font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-spa
 #mmsg.err{background:rgba(239,68,68,.1);color:#ef4444;display:block}
 </style></head><body>
 <div class="hdr">
-  <a href="/dashboard?token=bella-admin-2024" class="back">← Back</a>
-  <h1>📅 Content360</h1>
+  <a href="/dashboard?token=bella-admin-2024" class="back">&#8592; Back</a>
+  <h1>&#128197; Content360</h1>
   <span id="loadtime" style="font-size:11px;color:#444"></span>
-  <button onclick="location.reload()" style="background:#1a1a1a;border:1px solid #333;color:#888;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;margin-left:8px">↻ Refresh</button>
+  <button onclick="location.reload()" style="background:#1a1a1a;border:1px solid #333;color:#888;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;margin-left:8px">&#8635; Refresh</button>
 </div>
 <div id="loader"><div class="spin"></div><span id="loadmsg">Loading Content360 data...</span></div>
 <div id="root" style="display:none"></div>
@@ -1105,30 +1105,46 @@ h2{font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-spa
   </div>
 </div>
 <script>
-var _ep=null, _t0=Date.now();
-document.getElementById('loadmsg').textContent='Fetching from Content360... (first load ~5s, cached after)';
-
-fetch('/c360-data?token=bella-admin-2024').then(r=>r.json()).then(d=>{
-  var elapsed=((Date.now()-_t0)/1000).toFixed(1);
-  document.getElementById('loadtime').textContent='Loaded in '+elapsed+'s';
+var _ep=null,_t0=Date.now();
+document.getElementById('loadmsg').textContent='Fetching from Content360...';
+fetch('/c360-data?token=bella-admin-2024').then(function(r){return r.json();}).then(function(d){
+  document.getElementById('loadtime').textContent='Loaded in '+((Date.now()-_t0)/1000).toFixed(1)+'s';
   document.getElementById('loader').style.display='none';
   if(d.error){
-    document.getElementById('root').innerHTML='<div class="err-box">⚠️ '+d.error+'<br><br><small style="color:#888">To fix: update CONTENT360_ACCESS_TOKEN in Railway env vars, then reload this page.</small></div>';
+    document.getElementById('root').innerHTML='<div class="err-box">&#9888; '+d.error+'</div>';
     document.getElementById('root').style.display='block';
     return;
   }
-  render(d);
-}).catch(err=>{
+  try{ render(d); }
+  catch(e){
+    document.getElementById('root').innerHTML='<div class="err-box">Render error: '+e.message+'</div>';
+    document.getElementById('root').style.display='block';
+  }
+}).catch(function(err){
   document.getElementById('loader').style.display='none';
-  document.getElementById('root').innerHTML='<div class="err-box">⚠️ Failed to load: '+err.message+'</div>';
+  document.getElementById('root').innerHTML='<div class="err-box">Failed to load: '+err.message+'</div>';
   document.getElementById('root').style.display='block';
 });
 
-function fmtDate(s){
-  var d=new Date(s.replace(' ','T'));
-  return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
-}
 function pill(t,n){return '<span class="cpill '+t+'">'+n+' '+t+'</span>';}
+function fmtDate(s){var d=new Date(s.replace(' ','T'));return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});}
+
+function postCard(p,cls,onclick){
+  return '<div class="'+cls+'" data-post="'+btoa(JSON.stringify(p))+'" onclick="openFromCard(this)">'
+    +(p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'')
+    +'<div class="di"><div class="dc">'+(p.caption||'&#8212;')+'</div></div></div>';
+}
+function upCard(p){
+  var img=p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'<div style="width:34px;height:34px;border-radius:5px;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">'+(p.media_type==='video'?'&#127916;':'&#128247;')+'</div>';
+  return '<div class="upitem" data-post="'+btoa(JSON.stringify(p))+'" onclick="openFromCard(this)">'
+    +img+'<div class="meta"><div class="cap">'+(p.caption||'&#8212;')+'</div><div class="tm">'+fmtDate(p.scheduled_at)+'</div></div>'
+    +'<span class="cpill '+p.media_type+'">'+p.media_type+'</span></div>';
+}
+
+function openFromCard(el){
+  try{ openM(JSON.parse(atob(el.getAttribute('data-post')))); }
+  catch(e){ alert('Error: '+e.message); }
+}
 
 function render(d){
   var s=d.stats||{};
@@ -1143,54 +1159,47 @@ function render(d){
 
   var html='<div class="stats">'
     +'<div class="stat"><div class="val" style="color:#f472b6">'+(s.scheduled_total||0)+'</div><div class="lbl">Scheduled</div><div class="sub">'+(s.days_covered||0)+' days covered</div></div>'
-    +'<div class="stat"><div class="val" style="color:#818cf8">'+(s.draft_total||0)+'</div><div class="lbl">Drafts</div><div class="sub">'+(dvt.video||0)+' video · '+(dvt.photo||0)+' photo</div></div>'
+    +'<div class="stat"><div class="val" style="color:#818cf8">'+(s.draft_total||0)+'</div><div class="lbl">Drafts</div><div class="sub">'+(dvt.video||0)+' video &#183; '+(dvt.photo||0)+' photo</div></div>'
     +'<div class="stat"><div class="val" style="color:#69f0ae">'+daysLeft+'d</div><div class="lbl">Coverage Left</div><div class="sub">Until '+maxDate+'</div></div>'
     +'<div class="stat"><div class="val" style="color:#fbbf24;font-size:20px">'+(nxt?nxt.scheduled_at.slice(11,16):'--')+'</div><div class="lbl">Next Post</div><div class="sub">'+(nxt?nxt.scheduled_at.slice(0,10):'Nothing scheduled')+'</div></div>'
     +'</div>';
 
-  html+='<h2>📅 Scheduled Calendar</h2><div class="cal">';
+  html+='<h2>&#128197; Scheduled Calendar</h2><div class="cal">';
   dates.forEach(function(day){
     var posts=byDay[day];
     var dt=new Date(day+'T00:00:00');
-    var cnt={};posts.forEach(p=>{cnt[p.media_type]=(cnt[p.media_type]||0)+1;});
-    var pills=Object.entries(cnt).map(([t,n])=>pill(t,n)).join('');
+    var cnt={};posts.forEach(function(p){cnt[p.media_type]=(cnt[p.media_type]||0)+1;});
+    var pills=Object.keys(cnt).map(function(t){return pill(t,cnt[t]);}).join('');
     html+='<div class="cday"><div class="dn">'+dt.toLocaleDateString('en-US',{weekday:'short'})+'</div>'
-      +'<div class="dd" style="'+(day===today?'color:#f472b6':'')+'">'+dt.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'</div>'
+      +'<div class="dd" style="'+(day===today?'color:#f472b6':'')+'">'
+      +dt.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'</div>'
       +pills+'<div style="font-size:9px;color:#444;margin-top:3px">'+posts.length+' posts</div></div>';
   });
   html+='</div>';
 
-  html+='<h2>⏰ Upcoming Posts <span style="font-size:10px;color:#444;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2><div class="uplist">';
-  upcoming.slice(0,20).forEach(function(p){
-    var img=p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'<div style="width:34px;height:34px;border-radius:5px;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">'+(p.media_type==='video'?'🎬':'📸')+'</div>';
-    html+='<div class="upitem" onclick=\'openM('+JSON.stringify(p).replace(/'/g,"\\'")+')\'>'
-      +img+'<div class="meta"><div class="cap">'+(p.caption||'—')+'</div><div class="tm">'+fmtDate(p.scheduled_at)+'</div></div>'
-      +'<span class="cpill '+p.media_type+'">'+p.media_type+'</span></div>';
-  });
+  html+='<h2>&#9200; Upcoming <span style="font-size:10px;color:#555;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2><div class="uplist">';
+  upcoming.slice(0,20).forEach(function(p){ html+=upCard(p); });
   html+='</div>';
 
   var vids=(d.drafts&&d.drafts.video)||[];
   var photos=(d.drafts&&d.drafts.photo)||[];
-  html+='<h2>📦 Drafts <span style="font-size:10px;color:#444;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2>'
-    +'<div class="dtabs"><button class="dtab active" onclick="swTab(\'video\',this)">🎬 Videos ('+(dvt.video||0)+')</button>'
-    +'<button class="dtab" onclick="swTab(\'photo\',this)">📸 Photos ('+(dvt.photo||0)+')</button></div>'
-    +'<div id="dpvideo" class="dgrid">'
-    +vids.map(p=>'<div class="dcard" onclick=\'openM('+JSON.stringify(p).replace(/'/g,"\\'")+')\'>'+(p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'')+'<div class="di"><div class="dc">'+(p.caption||'—')+'</div></div></div>').join('')
-    +'</div><div id="dpphoto" class="dgrid" style="display:none">'
-    +photos.map(p=>'<div class="dcard" onclick=\'openM('+JSON.stringify(p).replace(/'/g,"\\'")+')\'>'+(p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'')+'<div class="di"><div class="dc">'+(p.caption||'—')+'</div></div></div>').join('')
-    +'</div>';
+  html+='<h2>&#128230; Drafts <span style="font-size:10px;color:#555;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2>'
+    +'<div class="dtabs">'
+    +'<button class="dtab active" id="dtvid" onclick="swTab(\'video\',this)">&#127916; Videos ('+(dvt.video||0)+')</button>'
+    +'<button class="dtab" id="dtphoto" onclick="swTab(\'photo\',this)">&#128247; Photos ('+(dvt.photo||0)+')</button></div>'
+    +'<div id="dpvideo" class="dgrid">'+vids.map(function(p){return postCard(p,'dcard');}).join('')+'</div>'
+    +'<div id="dpphoto" class="dgrid" style="display:none">'+photos.map(function(p){return postCard(p,'dcard');}).join('')+'</div>';
 
   document.getElementById('root').innerHTML=html;
   document.getElementById('root').style.display='block';
 }
 
 function swTab(t,btn){
-  document.querySelectorAll('.dtab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.dtab').forEach(function(b){b.classList.remove('active');});
   document.getElementById('dpvideo').style.display=t==='video'?'grid':'none';
   document.getElementById('dpphoto').style.display=t==='photo'?'grid':'none';
   btn.classList.add('active');
 }
-
 function openM(p){
   _ep=p;
   document.getElementById('mtitle').textContent=p.status==='draft'?'Edit Draft':'Edit Scheduled Post';
@@ -1200,6 +1209,7 @@ function openM(p){
   if(p.scheduled_at){sr.style.display='block';si.value=p.scheduled_at.replace(' ','T').slice(0,16);}
   else{sr.style.display='none';si.value='';}
   document.getElementById('mmsg').className='';
+  document.getElementById('mmsg').textContent='';
   document.getElementById('modal').classList.add('open');
 }
 function closeM(){document.getElementById('modal').classList.remove('open');}
@@ -1210,26 +1220,25 @@ function saveP(){
   var sc=document.getElementById('msched').value;
   fetch('/c360-action?token=bella-admin-2024',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({action:'edit',post_uuid:_ep.uuid,caption:cap,scheduled_at:sc?sc.replace('T',' '):null})
-  }).then(r=>r.json()).then(d=>{
+  }).then(function(r){return r.json();}).then(function(d){
     b.disabled=false;b.textContent='Save';
-    if(d.ok){setMsg('ok','Saved!');setTimeout(()=>location.reload(),900);}
+    if(d.ok){setMsg('ok','Saved!');setTimeout(function(){location.reload();},900);}
     else setMsg('err','Error: '+(d.error||'?'));
-  }).catch(()=>{b.disabled=false;b.textContent='Save';setMsg('err','Network error');});
+  }).catch(function(){b.disabled=false;b.textContent='Save';setMsg('err','Network error');});
 }
 function delP(){
   if(!_ep||!confirm('Delete this post?'))return;
   var b=document.getElementById('mdel');b.disabled=true;b.textContent='Deleting...';
   fetch('/c360-action?token=bella-admin-2024',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({action:'delete',post_uuid:_ep.uuid})
-  }).then(r=>r.json()).then(d=>{
+  }).then(function(r){return r.json();}).then(function(d){
     b.disabled=false;b.textContent='Delete';
-    if(d.ok){setMsg('ok','Deleted!');setTimeout(()=>{closeM();location.reload();},800);}
+    if(d.ok){setMsg('ok','Deleted!');setTimeout(function(){closeM();location.reload();},800);}
     else setMsg('err','Error: '+(d.error||'?'));
-  }).catch(()=>{b.disabled=false;b.textContent='Delete';setMsg('err','Network error');});
+  }).catch(function(){b.disabled=false;b.textContent='Delete';setMsg('err','Network error');});
 }
 function setMsg(t,m){var el=document.getElementById('mmsg');el.className=t;el.textContent=m;}
 </script></body></html>"""
-
 
 # ── Dashboard HTML ────────────────────────────────────────────────────────────
 def build_dashboard(payment_stats, conv_stats):
