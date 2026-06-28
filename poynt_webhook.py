@@ -2097,17 +2097,9 @@ class Handler(BaseHTTPRequestHandler):
             # ── Fetch ───────────────────────────────────────────────────────
             import urllib.request as _ureq_c360, re as _re_c360
             from concurrent.futures import ThreadPoolExecutor as _TPE, as_completed as _ac
-            c360_uuid = os.environ.get("CONTENT360_WORKSPACE_UUID","")
-            c360_tok  = os.environ.get("CONTENT360_ACCESS_TOKEN","")
-            # Fallback: try reading from disk (updated by /update-c360-token endpoint)
-            _c360_override = load_json(os.path.join(DATA_DIR, "c360_token.json"), {})
-            if _c360_override.get("tok"): c360_tok = _c360_override["tok"]
-            if _c360_override.get("uuid"): c360_uuid = _c360_override["uuid"]
-            # Hardcoded fallback (updated by Bella Manager when token rotates)
-            if not c360_tok: c360_tok = "rRJOi26P3OddVFgvSSBuG4FfHRJGhNfsxkKHBcOg50d0ca3a"
-            if not c360_uuid: c360_uuid = "2b0113a7-72cd-4678-aae6-7b4dd9c3d1d1"
-            if not c360_uuid or not c360_tok:
-                self.send_json(200,{"error":"CONTENT360 credentials not configured. POST to /update-c360-token to set them.","stats":{},"by_day":{},"upcoming":[],"drafts":{}}); return
+            # Content360 permanent credentials (tokens do not rotate per Pierce)
+            c360_uuid = "2b0113a7-72cd-4678-aae6-7b4dd9c3d1d1"
+            c360_tok  = "rRJOi26P3OddVFgvSSBuG4FfHRJGhNfsxkKHBcOg50d0ca3a"
             def _c360_get(path_c360):
                 url_c360 = "https://app.content360.io/os/api/" + c360_uuid + path_c360
                 req_c360 = _ureq_c360.Request(url_c360, headers={"Authorization":"Bearer "+c360_tok,"Accept":"application/json"})
@@ -2215,17 +2207,9 @@ class Handler(BaseHTTPRequestHandler):
             if self.require_admin(p) != ADMIN_TOKEN:
                 self.send_json(401,{"error":"unauthorized"}); return
             import urllib.request as _ureq_c360, re as _re_c360
-            c360_uuid = os.environ.get("CONTENT360_WORKSPACE_UUID","")
-            c360_tok  = os.environ.get("CONTENT360_ACCESS_TOKEN","")
-            # Fallback: try reading from disk (updated by /update-c360-token endpoint)
-            _c360_override = load_json(os.path.join(DATA_DIR, "c360_token.json"), {})
-            if _c360_override.get("tok"): c360_tok = _c360_override["tok"]
-            if _c360_override.get("uuid"): c360_uuid = _c360_override["uuid"]
-            # Hardcoded fallback (updated by Bella Manager when token rotates)
-            if not c360_tok: c360_tok = "rRJOi26P3OddVFgvSSBuG4FfHRJGhNfsxkKHBcOg50d0ca3a"
-            if not c360_uuid: c360_uuid = "2b0113a7-72cd-4678-aae6-7b4dd9c3d1d1"
-            if not c360_uuid or not c360_tok:
-                self.send_json(200,{"error":"CONTENT360 credentials not configured. POST to /update-c360-token to set them.","stats":{},"by_day":{},"upcoming":[],"drafts":{}}); return
+            # Content360 permanent credentials (tokens do not rotate per Pierce)
+            c360_uuid = "2b0113a7-72cd-4678-aae6-7b4dd9c3d1d1"
+            c360_tok  = "rRJOi26P3OddVFgvSSBuG4FfHRJGhNfsxkKHBcOg50d0ca3a"
             def _c360_get(path_c360):
                 url_c360 = "https://app.content360.io/os/api/" + c360_uuid + path_c360
                 req_c360 = _ureq_c360.Request(url_c360, headers={"Authorization":"Bearer "+c360_tok,"Accept":"application/json"})
