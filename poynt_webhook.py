@@ -1018,8 +1018,6 @@ def get_conv_stats():
 
 # ── Content360 Dashboard Page ───────────────────────────────────────────────────
 def build_c360_page():
-    c360_uuid = os.environ.get("CONTENT360_WORKSPACE_UUID","")
-    c360_tok  = os.environ.get("CONTENT360_ACCESS_TOKEN","")
     return """<!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>📅 Bella Content360</title>
@@ -1045,7 +1043,7 @@ h2{font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-spa
 .cpill.photo{background:rgba(79,195,247,.15);color:#4fc3f7}
 .cpill.video{background:rgba(244,114,182,.15);color:#f472b6}
 .cpill.text{background:rgba(105,240,174,.15);color:#69f0ae}
-.uplist{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.uplist{display:flex;flex-direction:column;gap:6px}
 .upitem{background:#111;border:1px solid #1a1a1a;border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .15s}
 .upitem:hover{border-color:#333}
 .upitem img{width:34px;height:34px;border-radius:5px;object-fit:cover;flex-shrink:0;background:#1a1a1a}
@@ -1064,6 +1062,7 @@ h2{font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-spa
 #loader{display:flex;align-items:center;gap:10px;color:#818cf8;font-size:13px;padding:20px 0}
 .spin{width:16px;height:16px;border:2px solid #818cf840;border-top-color:#818cf8;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
+.err-box{background:#1a0a0a;border:1px solid #3a1a1a;border-radius:8px;padding:16px;color:#ef4444;font-size:13px;line-height:1.6}
 #modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;align-items:center;justify-content:center}
 #modal.open{display:flex}
 #mbox{background:#111;border:1px solid #2a2a2a;border-radius:14px;padding:24px;width:460px;max-width:95vw;max-height:90vh;overflow-y:auto}
@@ -1078,14 +1077,14 @@ h2{font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-spa
 #mmsg{font-size:11px;margin-top:8px;padding:5px 8px;border-radius:5px;display:none}
 #mmsg.ok{background:rgba(105,240,174,.1);color:#69f0ae;display:block}
 #mmsg.err{background:rgba(239,68,68,.1);color:#ef4444;display:block}
-.err-box{background:#1a0a0a;border:1px solid #3a1a1a;border-radius:8px;padding:16px;color:#ef4444;font-size:13px}
 </style></head><body>
 <div class="hdr">
   <a href="/dashboard?token=bella-admin-2024" class="back">← Back</a>
   <h1>📅 Content360</h1>
   <span id="loadtime" style="font-size:11px;color:#444"></span>
+  <button onclick="location.reload()" style="background:#1a1a1a;border:1px solid #333;color:#888;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;margin-left:8px">↻ Refresh</button>
 </div>
-<div id="loader"><div class="spin"></div>Fetching from Content360...</div>
+<div id="loader"><div class="spin"></div><span id="loadmsg">Loading Content360 data...</span></div>
 <div id="root" style="display:none"></div>
 <div id="modal" onclick="if(event.target===this)closeM()">
   <div id="mbox">
@@ -1101,88 +1100,49 @@ h2{font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-spa
   </div>
 </div>
 <script>
-var C360_UUID='""" + c360_uuid + """';
-var C360_TOK='""" + c360_tok + """';
-var C360_BASE='https://app.content360.io/os/api/'+C360_UUID;
-var ADMIN_TOKEN='bella-admin-2024';
 var _ep=null, _t0=Date.now();
+document.getElementById('loadmsg').textContent='Fetching from Content360... (first load ~5s, cached after)';
 
-function c360get(path){
-  return fetch(C360_BASE+path,{headers:{'Authorization':'Bearer '+C360_TOK,'Accept':'application/json'}}).then(r=>{
-    if(!r.ok) throw new Error('C360 API error: '+r.status);
-    return r.json();
-  });
-}
+fetch('/c360-data?token=bella-admin-2024').then(r=>r.json()).then(d=>{
+  var elapsed=((Date.now()-_t0)/1000).toFixed(1);
+  document.getElementById('loadtime').textContent='Loaded in '+elapsed+'s';
+  document.getElementById('loader').style.display='none';
+  if(d.error){
+    document.getElementById('root').innerHTML='<div class="err-box">⚠️ '+d.error+'<br><br><small style="color:#888">To fix: update CONTENT360_ACCESS_TOKEN in Railway env vars, then reload this page.</small></div>';
+    document.getElementById('root').style.display='block';
+    return;
+  }
+  render(d);
+}).catch(err=>{
+  document.getElementById('loader').style.display='none';
+  document.getElementById('root').innerHTML='<div class="err-box">⚠️ Failed to load: '+err.message+'</div>';
+  document.getElementById('root').style.display='block';
+});
 
 function fmtDate(s){
   var d=new Date(s.replace(' ','T'));
   return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+' '+d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
 }
+function pill(t,n){return '<span class="cpill '+t+'">'+n+' '+t+'</span>';}
 
-function pill(t,n){ return '<span class="cpill '+t+'">'+n+' '+t+'</span>'; }
-
-var _sched_raw=[], _draft_raw=[];
-
-Promise.all([
-  c360get('/posts?status=scheduled&limit=50&page=1'),
-  c360get('/posts?status=draft&limit=50&page=1')
-]).then(([sr, dr])=>{
-  var total_sched=sr.meta&&sr.meta.total||sr.data.length;
-  var total_draft=dr.meta&&dr.meta.total||dr.data.length;
-  _sched_raw=sr.data||[];
-  _draft_raw=dr.data||[];
-  
-  // Also fetch page 2+ if needed (up to 4 pages scheduled, 2 pages draft)
-  var more=[];
-  if(sr.meta&&sr.meta.last_page>1){ for(var p=2;p<=Math.min(sr.meta.last_page,4);p++) more.push(c360get('/posts?status=scheduled&limit=50&page='+p).then(r=>{_sched_raw=_sched_raw.concat(r.data||[]);})); }
-  if(dr.meta&&dr.meta.last_page>1){ for(var p=2;p<=Math.min(dr.meta.last_page,2);p++) more.push(c360get('/posts?status=draft&limit=50&page='+p).then(r=>{_draft_raw=_draft_raw.concat(r.data||[]);})); }
-  return Promise.all(more).then(()=>render(total_sched, total_draft));
-}).catch(err=>{
-  document.getElementById('loader').style.display='none';
-  document.getElementById('root').innerHTML='<div class="err-box">⚠️ '+err.message+'<br><small style="color:#888;margin-top:6px;display:block">Check CONTENT360_ACCESS_TOKEN in Railway env vars.</small></div>';
-  document.getElementById('root').style.display='block';
-});
-
-function parsePost(p){
-  var tags=(p.tags||[]).map(t=>typeof t==='object'?t.id:t);
-  var tmap={4037:'photo',4038:'video',4039:'text'};
-  var mt=tmap[tags[0]]||'unknown';
-  var body='';
-  try{ body=(p.versions[0].content[0].body||'').replace(/<[^>]+>/g,'').trim().slice(0,80); }catch(e){}
-  var thumb=null;
-  try{ thumb=p.versions[0].content[0].media[0].thumb_url; }catch(e){}
-  return {id:p.id,uuid:p.uuid,status:p.status,scheduled_at:p.scheduled_at,media_type:mt,caption:body,thumb:thumb};
-}
-
-function render(total_sched, total_draft){
-  document.getElementById('loader').style.display='none';
-  document.getElementById('loadtime').textContent='Loaded in '+((Date.now()-_t0)/1000).toFixed(1)+'s';
-
-  var sched=_sched_raw.map(parsePost).sort((a,b)=>(a.scheduled_at||'').localeCompare(b.scheduled_at||''));
-  var drafts=_draft_raw.map(parsePost);
+function render(d){
+  var s=d.stats||{};
   var today=new Date().toISOString().split('T')[0];
-  var upcoming=sched.filter(p=>(p.scheduled_at||'')>=today);
-
-  // By-day calendar
-  var byDay={};
-  sched.forEach(p=>{ if(p.scheduled_at){ var d=p.scheduled_at.slice(0,10); if(!byDay[d])byDay[d]=[]; byDay[d].push(p); }});
+  var upcoming=d.upcoming||[];
+  var byDay=d.by_day||{};
   var dates=Object.keys(byDay).sort();
-  var minDate=dates[0]||today, maxDate=dates[dates.length-1]||today;
+  var maxDate=dates[dates.length-1]||today;
   var daysLeft=Math.max(0,Math.ceil((new Date(maxDate)-new Date())/86400000));
-
-  // Stats
-  var draftByType={video:0,photo:0,text:0};
-  drafts.forEach(p=>{if(draftByType[p.media_type]!==undefined)draftByType[p.media_type]++;});
   var nxt=upcoming[0];
+  var dvt=s.draft_by_type||{};
 
   var html='<div class="stats">'
-    +'<div class="stat"><div class="val" style="color:#f472b6">'+total_sched+'</div><div class="lbl">Scheduled</div><div class="sub">'+Object.keys(byDay).length+' days covered</div></div>'
-    +'<div class="stat"><div class="val" style="color:#818cf8">'+total_draft+'</div><div class="lbl">Drafts</div><div class="sub">'+(draftByType.video||0)+' video · '+(draftByType.photo||0)+' photo</div></div>'
+    +'<div class="stat"><div class="val" style="color:#f472b6">'+(s.scheduled_total||0)+'</div><div class="lbl">Scheduled</div><div class="sub">'+(s.days_covered||0)+' days covered</div></div>'
+    +'<div class="stat"><div class="val" style="color:#818cf8">'+(s.draft_total||0)+'</div><div class="lbl">Drafts</div><div class="sub">'+(dvt.video||0)+' video · '+(dvt.photo||0)+' photo</div></div>'
     +'<div class="stat"><div class="val" style="color:#69f0ae">'+daysLeft+'d</div><div class="lbl">Coverage Left</div><div class="sub">Until '+maxDate+'</div></div>'
     +'<div class="stat"><div class="val" style="color:#fbbf24;font-size:20px">'+(nxt?nxt.scheduled_at.slice(11,16):'--')+'</div><div class="lbl">Next Post</div><div class="sub">'+(nxt?nxt.scheduled_at.slice(0,10):'Nothing scheduled')+'</div></div>'
     +'</div>';
 
-  // Calendar
   html+='<h2>📅 Scheduled Calendar</h2><div class="cal">';
   dates.forEach(function(day){
     var posts=byDay[day];
@@ -1195,26 +1155,24 @@ function render(total_sched, total_draft){
   });
   html+='</div>';
 
-  // Upcoming
   html+='<h2>⏰ Upcoming Posts <span style="font-size:10px;color:#444;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2><div class="uplist">';
   upcoming.slice(0,20).forEach(function(p){
     var img=p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'<div style="width:34px;height:34px;border-radius:5px;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">'+(p.media_type==='video'?'🎬':'📸')+'</div>';
-    html+='<div class="upitem" onclick='openM('+JSON.stringify(p).replace(/'/g,"\'")+')'>'
+    html+='<div class="upitem" onclick=\'openM('+JSON.stringify(p).replace(/'/g,"\\'")+')\'>'
       +img+'<div class="meta"><div class="cap">'+(p.caption||'—')+'</div><div class="tm">'+fmtDate(p.scheduled_at)+'</div></div>'
       +'<span class="cpill '+p.media_type+'">'+p.media_type+'</span></div>';
   });
   html+='</div>';
 
-  // Drafts
-  var vids=drafts.filter(p=>p.media_type==='video').slice(0,30);
-  var photos=drafts.filter(p=>p.media_type==='photo').slice(0,30);
+  var vids=(d.drafts&&d.drafts.video)||[];
+  var photos=(d.drafts&&d.drafts.photo)||[];
   html+='<h2>📦 Drafts <span style="font-size:10px;color:#444;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2>'
-    +'<div class="dtabs"><button class="dtab active" onclick="swTab('video',this)" id="dtvid">🎬 Videos ('+(draftByType.video||total_draft)+')</button>'
-    +'<button class="dtab" onclick="swTab('photo',this)" id="dtphoto">📸 Photos ('+(draftByType.photo||0)+')</button></div>'
+    +'<div class="dtabs"><button class="dtab active" onclick="swTab(\'video\',this)">🎬 Videos ('+(dvt.video||0)+')</button>'
+    +'<button class="dtab" onclick="swTab(\'photo\',this)">📸 Photos ('+(dvt.photo||0)+')</button></div>'
     +'<div id="dpvideo" class="dgrid">'
-    +vids.map(p=>'<div class="dcard" onclick='openM('+JSON.stringify(p).replace(/'/g,"\'")+')'>'+(p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'')+'<div class="di"><div class="dc">'+(p.caption||'—')+'</div></div></div>').join('')
+    +vids.map(p=>'<div class="dcard" onclick=\'openM('+JSON.stringify(p).replace(/'/g,"\\'")+')\'>'+(p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'')+'<div class="di"><div class="dc">'+(p.caption||'—')+'</div></div></div>').join('')
     +'</div><div id="dpphoto" class="dgrid" style="display:none">'
-    +photos.map(p=>'<div class="dcard" onclick='openM('+JSON.stringify(p).replace(/'/g,"\'")+')'>'+(p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'')+'<div class="di"><div class="dc">'+(p.caption||'—')+'</div></div></div>').join('')
+    +photos.map(p=>'<div class="dcard" onclick=\'openM('+JSON.stringify(p).replace(/'/g,"\\'")+')\'>'+(p.thumb?'<img src="'+p.thumb+'" loading="lazy">':'')+'<div class="di"><div class="dc">'+(p.caption||'—')+'</div></div></div>').join('')
     +'</div>';
 
   document.getElementById('root').innerHTML=html;
@@ -1240,24 +1198,23 @@ function openM(p){
   document.getElementById('modal').classList.add('open');
 }
 function closeM(){document.getElementById('modal').classList.remove('open');}
-
 function saveP(){
   if(!_ep)return;
   var b=document.getElementById('msave');b.disabled=true;b.textContent='Saving...';
   var cap=document.getElementById('mcap').value.trim();
   var sc=document.getElementById('msched').value;
-  fetch('/c360-action?token='+ADMIN_TOKEN,{method:'POST',headers:{'Content-Type':'application/json'},
+  fetch('/c360-action?token=bella-admin-2024',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({action:'edit',post_uuid:_ep.uuid,caption:cap,scheduled_at:sc?sc.replace('T',' '):null})
   }).then(r=>r.json()).then(d=>{
     b.disabled=false;b.textContent='Save';
-    if(d.ok){setMsg('ok','Saved! Reloading...');setTimeout(()=>location.reload(),1000);}
+    if(d.ok){setMsg('ok','Saved!');setTimeout(()=>location.reload(),900);}
     else setMsg('err','Error: '+(d.error||'?'));
   }).catch(()=>{b.disabled=false;b.textContent='Save';setMsg('err','Network error');});
 }
 function delP(){
   if(!_ep||!confirm('Delete this post?'))return;
   var b=document.getElementById('mdel');b.disabled=true;b.textContent='Deleting...';
-  fetch('/c360-action?token='+ADMIN_TOKEN,{method:'POST',headers:{'Content-Type':'application/json'},
+  fetch('/c360-action?token=bella-admin-2024',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({action:'delete',post_uuid:_ep.uuid})
   }).then(r=>r.json()).then(d=>{
     b.disabled=false;b.textContent='Delete';
@@ -2021,6 +1978,12 @@ class Handler(BaseHTTPRequestHandler):
                 try: _ff.result()
                 except: pass
             self.send_html(200, build_dashboard(ps, cs))
+        elif p.path == "/update-c360-token":
+            if self.require_admin(p) != ADMIN_TOKEN:
+                self.send_json(401,{"error":"unauthorized"}); return
+            tok_data = load_json(os.path.join(DATA_DIR, "c360_token.json"), {})
+            self.send_json(200, {"ok": True, "tok_prefix": tok_data.get("tok","")[:12] or "not set", "uuid": tok_data.get("uuid","")})
+
         elif p.path == "/c360-data":
             if self.require_admin(p) != ADMIN_TOKEN:
                 self.send_json(401,{"error":"unauthorized"}); return
@@ -2034,8 +1997,12 @@ class Handler(BaseHTTPRequestHandler):
             from concurrent.futures import ThreadPoolExecutor as _TPE, as_completed as _ac
             c360_uuid = os.environ.get("CONTENT360_WORKSPACE_UUID","")
             c360_tok  = os.environ.get("CONTENT360_ACCESS_TOKEN","")
+            # Fallback: try reading from disk (updated by /update-c360-token endpoint)
+            _c360_override = load_json(os.path.join(DATA_DIR, "c360_token.json"), {})
+            if _c360_override.get("tok"): c360_tok = _c360_override["tok"]
+            if _c360_override.get("uuid"): c360_uuid = _c360_override["uuid"]
             if not c360_uuid or not c360_tok:
-                self.send_json(200,{"error":"env vars not set","stats":{},"by_day":{},"upcoming":[],"drafts":{}}); return
+                self.send_json(200,{"error":"CONTENT360 credentials not configured. POST to /update-c360-token to set them.","stats":{},"by_day":{},"upcoming":[],"drafts":{}}); return
             def _c360_get(path_c360):
                 url_c360 = "https://app.content360.io/os/api/" + c360_uuid + path_c360
                 req_c360 = _ureq_c360.Request(url_c360, headers={"Authorization":"Bearer "+c360_tok,"Accept":"application/json"})
@@ -2145,8 +2112,12 @@ class Handler(BaseHTTPRequestHandler):
             import urllib.request as _ureq_c360, re as _re_c360
             c360_uuid = os.environ.get("CONTENT360_WORKSPACE_UUID","")
             c360_tok  = os.environ.get("CONTENT360_ACCESS_TOKEN","")
+            # Fallback: try reading from disk (updated by /update-c360-token endpoint)
+            _c360_override = load_json(os.path.join(DATA_DIR, "c360_token.json"), {})
+            if _c360_override.get("tok"): c360_tok = _c360_override["tok"]
+            if _c360_override.get("uuid"): c360_uuid = _c360_override["uuid"]
             if not c360_uuid or not c360_tok:
-                self.send_json(200,{"error":"env vars not set","stats":{},"by_day":{},"upcoming":[],"drafts":{}}); return
+                self.send_json(200,{"error":"CONTENT360 credentials not configured. POST to /update-c360-token to set them.","stats":{},"by_day":{},"upcoming":[],"drafts":{}}); return
             def _c360_get(path_c360):
                 url_c360 = "https://app.content360.io/os/api/" + c360_uuid + path_c360
                 req_c360 = _ureq_c360.Request(url_c360, headers={"Authorization":"Bearer "+c360_tok,"Accept":"application/json"})
@@ -2533,7 +2504,23 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
         length=int(self.headers.get("Content-Length",0))
         body=self.rfile.read(length); p=urlparse(self.path)
 
-        if p.path == "/webhook":
+        if p.path == "/update-c360-token":
+                if self.require_admin(p) != ADMIN_TOKEN:
+                    self.send_json(401,{"error":"unauthorized"}); return
+                length=int(self.headers.get("Content-Length","0") or 0)
+                body=json.loads(self.rfile.read(length)) if length else {}
+                tok=body.get("tok","").strip()
+                uuid_val=body.get("uuid","").strip()
+                existing=load_json(os.path.join(DATA_DIR,"c360_token.json"),{})
+                if tok: existing["tok"]=tok
+                if uuid_val: existing["uuid"]=uuid_val
+                save_json(os.path.join(DATA_DIR,"c360_token.json"),existing)
+                # Clear cache
+                if hasattr(Handler,'_c360_cache'): Handler._c360_cache=None; Handler._c360_cache_ts=0
+                self.send_json(200,{"ok":True,"tok_prefix":existing.get("tok","")[:12]})
+                return
+
+        elif p.path == "/webhook":
             sig=self.headers.get("Poynt-Webhook-Signature","")
             if not valid_sig(body,sig): self.send_json(401,{"error":"bad sig"}); return
             self.send_json(200,{"ok":True})
