@@ -980,8 +980,8 @@ def get_payment_stats():
             if not e.get("amount_cents"): continue  # skip zero-amount entries
             ts_raw = e.get("ts","")
             ts = None
-            for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%a, %d %b %Y %H:%M:%S", "%a, %d %b %Y %H:%M"):
-                try: ts=time.mktime(time.strptime(ts_raw[:25].strip(), fmt)); break
+            for fmt, n in [("%Y-%m-%dT%H:%M:%S",19),("%Y-%m-%dT%H:%M",16),("%a, %d %b %Y %H:%M:%S",25),("%a, %d %b %Y %H:%M",22)]:
+                try: ts=time.mktime(time.strptime(ts_raw[:n], fmt)); break
                 except: pass
             if ts is None: continue
             if d_start < ts <= d_end: d_rev+=e.get("amount_cents",0); d_cnt+=1
