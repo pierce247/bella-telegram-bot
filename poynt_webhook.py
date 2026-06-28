@@ -963,7 +963,7 @@ def handle_payment_event(event):
 # ── Stats helper ─────────────────────────────────────────────────────────────
 def get_payment_stats():
     log      = load_json(PAYMENTS_LOG, [])
-    captured = [e for e in log if e.get("status","") in ("CAPTURED","AUTHORIZED","COMPLETED","") and not e.get("event_type","").startswith("BACKFILL_DECLINED")]
+    captured = [e for e in log if (e.get("status","") in ("CAPTURED","AUTHORIZED","COMPLETED") or (e.get("status","")=="" and e.get("amount_cents",0)>0)) and not e.get("event_type","").startswith("BACKFILL_DECLINED")]
     revenue  = sum(e.get("amount_cents",0) for e in captured)
     delivered= sum(1 for e in captured if e.get("delivered"))
     pending  = load_json(PENDING_FILE, {})
@@ -977,8 +977,13 @@ def get_payment_stats():
         d_end   = (ct_day_start - i*86400) - tz_sec
         d_rev=0; d_cnt=0
         for e in captured:
-            try: ts=time.mktime(time.strptime(e["ts"][:19],"%Y-%m-%dT%H:%M:%S"))
-            except: continue
+            if not e.get("amount_cents"): continue  # skip zero-amount entries
+            ts_raw = e.get("ts","")
+            ts = None
+            for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%a, %d %b %Y %H:%M:%S", "%a, %d %b %Y %H:%M"):
+                try: ts=time.mktime(time.strptime(ts_raw[:25].strip(), fmt)); break
+                except: pass
+            if ts is None: continue
             if d_start < ts <= d_end: d_rev+=e.get("amount_cents",0); d_cnt+=1
         # Format date label in CT
         daily.append({"date":time.strftime("%m/%d",time.localtime(d_end+tz_sec)),"revenue_cents":d_rev,"count":d_cnt})
@@ -1299,7 +1304,7 @@ def build_dashboard(payment_stats, conv_stats):
     daily_gd = ps.get("daily",[])
     max_gd   = max((d.get("revenue_cents",0) for d in daily_gd), default=1) or 1
     gd_bars  = "".join(
-        '<div class="bar-wrap"><div class="bar" style="height:{h}px;background:#f472b6"></div>'
+        '<div class="bar-wrap" onclick="showDayDetail(\'{d}\')" style="cursor:pointer" title="${a:.0f} on {d}"><div class="bar" style="height:{h}px;background:#f472b6"></div>'
         '<div class="bar-lbl">{d}<br><small>${a:.0f}</small></div></div>'.format(
             h=max(4,int(d.get("revenue_cents",0)/max_gd*80)),
             d=d.get("date",""),
@@ -1350,17 +1355,21 @@ def build_dashboard(payment_stats, conv_stats):
         key=lambda x: x["amount"], reverse=True
     )[:8]
     payer_rows = "".join(
-        '<div class="pay-card captured" style="cursor:default">'
+        '<div class="pay-card captured" style="cursor:pointer" onclick="openPayerDetail(\'{email}\')" title="Click for full payment history">'
         '<div class="pay-summary">'
         '<div class="pay-icon">👤</div>'
         '<div class="pay-main">'
         '<div class="pay-name">{name}</div>'
-        '<div class="pay-meta">{email}{count}</div>'
+        '<div class="pay-meta">{email_lbl}{count}</div>'
         '</div>'
+        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">'
         '<div class="pay-amount">${amount:.2f}</div>'
+        '<div style="font-size:10px;color:#555">click for details →</div>'
+        '</div>'
         '</div></div>'.format(
+            email=p["email"].replace("'","\'"),
             name=p["name"],
-            email=(p["email"] + " · ") if p["email"] else "",
+            email_lbl=(p["email"] + " · ") if p["email"] else "",
             count=str(p["count"]) + (" payment" if p["count"]==1 else " payments"),
             amount=p["amount"]/100
         ) for p in top_payers
@@ -1695,6 +1704,7 @@ table{font-size:12px}th,td{padding:7px 10px!important}
 <script>
 const PAYMENTS = """ + pay_data + """;
 const TOP_PAYERS = """ + payer_data + """;
+const TOP_FANS = """ + json.dumps([{"chat_id":f.get("chat_id"),"name":f.get("name","")} for f in (_fans_list or [])[:50]]) + """;
 const TG_USERS = """ + tg_users_data + """;
 let currentFilter = 'all';
 let visibleRows = [];
@@ -1954,6 +1964,54 @@ document.querySelectorAll('.bar-wrap').forEach(function(w){
   w.addEventListener('mouseenter',function(){tip.style.display='block';});
   w.addEventListener('mouseleave',function(){tip.style.display='none';});
 });
+
+function showDayDetail(dateStr) {
+  var matching = PAYMENTS.filter(function(p){ return p.ts && p.ts.indexOf && (p.ts.includes(dateStr) || (function(){try{var d=new Date(p.ts.replace(/(\/|-)/g,function(m,g){return g||m}));var fmt=(d.getMonth()+1).toString().padStart(2,'0')+'/'+(d.getDate().toString().padStart(2,'0'));return fmt===dateStr;}catch(e){return false;}})()); });
+  if(!matching.length){alert('No captured payments found for '+dateStr);return;}
+  var total=matching.reduce(function(s,p){return s+(p.amount_cents||0);},0);
+  var rows=matching.map(function(p){return '<tr><td>'+((p.name||'?').slice(0,20))+'</td><td>$'+(((p.amount_cents||0)/100).toFixed(2))+'</td><td><span class="badge '+(p.status==='CAPTURED'||p.status===''?'green':'')+'">'+((p.status||'pending').toLowerCase())+'</span></td><td style="color:#555;font-size:11px">'+((p.ts||'').slice(0,19).replace('T',' '))+'</td></tr>';}).join('');
+  var html='<h3 style="margin-bottom:14px;color:#f472b6">📅 Payments on '+dateStr+'</h3>'
+    +'<div style="margin-bottom:12px;font-size:13px;color:#aaa">Total: <strong style="color:#f0f0f0">$'+(total/100).toFixed(2)+'</strong> across '+matching.length+' payment'+( matching.length!==1?'s':'')+'</div>'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
+    +'<tr style="color:#555;font-size:11px;border-bottom:1px solid #1a1a1a"><th style="text-align:left;padding:6px 8px">Name</th><th>Amount</th><th>Status</th><th>Time</th></tr>'
+    +rows+'</table>';
+  openPayerModal(html);
+}
+
+function openPayerModal(html) {
+  var existing=document.getElementById('payerModal');
+  if(existing) existing.remove();
+  var overlay=document.createElement('div');
+  overlay.id='payerModal';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
+  var box=document.createElement('div');
+  box.style.cssText='background:#111;border:1px solid #2a2a2a;border-radius:14px;padding:24px;width:600px;max-width:95vw;max-height:85vh;overflow-y:auto';
+  box.innerHTML=html+'<div style="margin-top:16px;text-align:right"><button onclick="document.getElementById('payerModal').remove()" style="background:#1a1a1a;border:1px solid #333;color:#aaa;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px">Close</button></div>';
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+}
+
+function openPayerDetail(email) {
+  var pmts=PAYMENTS.filter(function(p){return p.email===email;});
+  if(!pmts.length){alert('No payments found for '+email);return;}
+  var total=pmts.reduce(function(s,p){return s+(p.amount_cents||0);},0);
+  var name=pmts[0].name||email;
+  var rows=pmts.map(function(p){return '<tr><td style="color:#555;font-size:11px">'+((p.ts||'').slice(0,19).replace('T',' '))+'</td><td>$'+((p.amount_cents||0)/100).toFixed(2)+'</td><td><span class="badge '+(p.status==='CAPTURED'?'green':'')+'">'+((p.status||'?').toLowerCase())+'</span></td><td style="color:#555;font-size:11px">'+(p.delivered?'✅ delivered':'—')+'</td></tr>';}).join('');
+  var chatMatch=TOP_FANS.find(function(f){return f.name&&name&&(f.name.toLowerCase().includes(name.split(' ')[0].toLowerCase())||name.toLowerCase().includes((f.name||'').split(' ')[0].toLowerCase()));});
+  var chatBtn=chatMatch?'<button onclick="openFanModal('+chatMatch.chat_id+',''+chatMatch.name.replace(/'/g,"\\'")+'')" style="background:#818cf820;border:1px solid #818cf8;color:#818cf8;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:8px">💬 Open Chat</button>':'';
+  var html='<h3 style="margin-bottom:6px;color:#f472b6">💳 '+name+'</h3>'
+    +'<div style="font-size:12px;color:#555;margin-bottom:14px">'+email+'</div>'
+    +'<div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;align-items:center">'
+    +'<div style="background:#1a1a1a;border-radius:8px;padding:10px 14px"><div style="font-size:22px;font-weight:700;color:#f472b6">$'+(total/100).toFixed(2)+'</div><div style="font-size:10px;color:#555;margin-top:2px">TOTAL SPENT</div></div>'
+    +'<div style="background:#1a1a1a;border-radius:8px;padding:10px 14px"><div style="font-size:22px;font-weight:700;color:#818cf8">'+pmts.length+'</div><div style="font-size:10px;color:#555;margin-top:2px">PAYMENTS</div></div>'
+    +'<div style="background:#1a1a1a;border-radius:8px;padding:10px 14px"><div style="font-size:22px;font-weight:700;color:#69f0ae">$'+((total/100)/pmts.length).toFixed(2)+'</div><div style="font-size:10px;color:#555;margin-top:2px">AVG ORDER</div></div>'
+    +chatBtn+'</div>'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
+    +'<tr style="color:#555;font-size:11px;border-bottom:1px solid #1a1a1a"><th style="text-align:left;padding:6px 8px">Date</th><th>Amount</th><th>Status</th><th>Delivered</th></tr>'
+    +rows+'</table>';
+  openPayerModal(html);
+}
 
 </body></html>"""
 
