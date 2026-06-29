@@ -2621,7 +2621,7 @@ function buildCard(p,i){
   var amt=((p.amount_cents||0)/100).toFixed(2);
   var ts=(p.ts||'').replace('T',' ').slice(0,16);
   var rid=(p.resource_id||'').replace(/^gmail-order-/,'Order #').replace(/-[0-9a-f-]{20,}/i,'');
-  var badge=dec?'<span style="color:#ef4444">DECLINED</span>':isFv?'<span style="color:#818cf8">FANVUE</span>':'<span style="color:#22c55e">CAPTURED</span>';
+  var badge=dec?'<span style="color:#ef4444">DECLINED</span>':isFv?'<span style="color:#818cf8">FANVUE</span>':'<span style="color:#22c55e">'+((p.status||'OK').toLowerCase())+'</span>';
   var h='<div class="pay-card '+cls+'" onclick="togglePayCard(this)" style="cursor:pointer">';
   h+='<div class="pay-summary">';
   h+='<div style="flex-shrink:0;font-size:20px">'+(dec?'❌':isFv?'🌸':'✅')+'</div>';
@@ -2865,12 +2865,12 @@ function toggleAccordion(btn) {
    ----------------------------------------------------------- */
 function openSubModal() {
   var m = document.getElementById('subModal');
-  if (m) m.classList.add('open');
+  if (m) { m.style.display='block'; m.style.overflow='auto'; }
 }
 
 function closeSubModal() {
   var m = document.getElementById('subModal');
-  if (m) m.classList.remove('open');
+  if (m) m.style.display='none';
 }
 
 /* -----------------------------------------------------------
