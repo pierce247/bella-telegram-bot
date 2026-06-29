@@ -987,6 +987,33 @@ def get_payment_stats():
             if d_start < ts <= d_end: d_rev+=e.get("amount_cents",0); d_cnt+=1
         # Format date label in CT
         daily.append({"date":time.strftime("%m/%d",time.localtime(d_end+tz_sec)),"revenue_cents":d_rev,"count":d_cnt})
+    # ── Extended date ranges for chart ─────────────────────────────────────
+    def _make_daily(days):
+        result = []
+        for j in range(days-1, -1, -1):
+            d_start = (ct_day_start - (j+1)*86400) - tz_sec
+            d_end   = (ct_day_start - j*86400) - tz_sec
+            d_rev = 0; d_cnt = 0
+            for e in captured:
+                if not e.get("amount_cents"): continue
+                ts_raw = e.get("ts","")
+                ts = None
+                for fmt, n in [("%Y-%m-%dT%H:%M:%S",19),("%Y-%m-%dT%H:%M",16),("%a, %d %b %Y %H:%M:%S",25),("%a, %d %b %Y %H:%M",22)]:
+                    try: ts=time.mktime(time.strptime(ts_raw[:n], fmt)); break
+                    except: pass
+                if ts is None: continue
+                if d_start < ts <= d_end: d_rev+=e.get("amount_cents",0); d_cnt+=1
+            result.append({"date":time.strftime("%m/%d",time.localtime(d_end+tz_sec)),"revenue_cents":d_rev,"count":d_cnt})
+        return result
+
+    daily_30d = _make_daily(30)
+    # Current month
+    import datetime as _dt
+    _now_ct = _dt.datetime.fromtimestamp(time.time() + tz_sec)
+    _month_start_ct = _now_ct.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    _days_in_month = (_now_ct - _month_start_ct).days + 1
+    daily_month = _make_daily(_days_in_month)
+
     # Top payers
     from collections import defaultdict
     payer_totals = defaultdict(lambda: {"name":"","amount":0,"count":0,"email":""})
@@ -996,7 +1023,7 @@ def get_payment_stats():
     top_payers = sorted(payer_totals.values(), key=lambda x: x["amount"], reverse=True)[:10]
     return {"total_revenue_cents":revenue,"total_revenue":f"${revenue/100:.2f}","total_payments":len(captured),
             "delivered":delivered,"unmatched":len(captured)-delivered,"pending_fans":len(pending),
-            "daily":daily,"top_payers":top_payers,"recent":list(reversed(log))[:50]}
+            "daily":daily,"daily_30d":daily_30d,"daily_month":daily_month,"top_payers":top_payers,"recent":list(reversed(log))[:50]}
 
 _conv_stats_cache = {}
 def get_conv_stats():
@@ -1370,17 +1397,26 @@ def build_dashboard(payment_stats, conv_stats):
         for k,v in fv_breakdown.items() if v.get("gross_cents",0)>0
     ) or '<tr><td colspan=2 class="empty">—</td></tr>'
 
-    # ── Daily revenue charts ────────────────────────────────────────────────
-    daily_gd = ps.get("daily",[])
-    max_gd   = max((d.get("revenue_cents",0) for d in daily_gd), default=1) or 1
-    gd_bars  = "".join(
-        '<div class="bar-wrap" onclick="showDayDetail(\'{d}\')" style="cursor:pointer" title="${a:.0f} on {d}"><div class="bar" style="height:{h}px;background:#f472b6"></div>'
-        '<div class="bar-lbl">{d}<br><small>${a:.0f}</small></div></div>'.format(
-            h=max(4,int(d.get("revenue_cents",0)/max_gd*80)),
-            d=d.get("date",""),
-            a=d.get("revenue_cents",0)/100
-        ) for d in daily_gd
-    )
+    # ── Daily revenue charts (7d, 30d, month) ─────────────────────────────────
+    daily_gd       = ps.get("daily", [])
+    daily_gd_30    = ps.get("daily_30d", daily_gd)
+    daily_gd_month = ps.get("daily_month", daily_gd)
+
+    def _make_gd_bars(data):
+        mx = max((d.get("revenue_cents",0) for d in data), default=1) or 1
+        return "".join(
+            '<div class="bar-wrap" onclick="showDayDetail(\'{d}\')" style="cursor:pointer" title="${a:.0f} on {d}">'
+            '<div class="bar" style="height:{h}px;background:#f472b6"></div>'
+            '<div class="bar-lbl">{d}<br><small>${a:.0f}</small></div></div>'.format(
+                h=max(4, int(d.get("revenue_cents",0)/mx*80)),
+                d=d.get("date",""), a=d.get("revenue_cents",0)/100
+            ) for d in data
+        ) or '<div style="color:#333;padding:20px;text-align:center;font-size:12px">No data</div>'
+
+    gd_bars       = _make_gd_bars(daily_gd)
+    gd_bars_30    = _make_gd_bars(daily_gd_30)
+    gd_bars_month = _make_gd_bars(daily_gd_month)
+
     daily_conv = cs.get("daily_messages",[])
     max_msg  = max((d.get("count",0) for d in daily_conv), default=1) or 1
     conv_bars= "".join(
@@ -1396,10 +1432,10 @@ def build_dashboard(payment_stats, conv_stats):
         '<div class="bar-wrap"><div class="bar" style="height:{h}px;background:#818cf8"></div>'
         '<div class="bar-lbl">{d}<br><small>${a:.0f}</small></div></div>'.format(
             h=max(4,int(d.get("gross_cents",0)/max_fvd*80)),
-            d=d.get("date",""),
-            a=d.get("gross_cents",0)/100
+            d=d.get("date",""), a=d.get("gross_cents",0)/100
         ) for d in fv_daily
     )
+
 
     # ── Payer aggregation (key by name+email to avoid merging different people) ──
     from collections import defaultdict
@@ -1522,7 +1558,7 @@ h2{color:#f472b6;font-size:13px;font-weight:600;margin:24px 0 10px;text-transfor
 .fv-stat .val{color:#818cf8}
 .star-stat .val{color:#f59e0b}
 .charts{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap}
-.chart{background:#111;border:1px solid #1a1a1a;border-radius:10px;padding:14px;flex:1;min-width:200px}
+.chart{background:#111;border:1px solid #1a1a1a;border-radius:10px;padding:14px;flex:1;min-width:0;box-sizing:border-box}
 .chart-title{font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
 .bars{display:flex;align-items:flex-end;gap:4px;height:90px}
 .bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
@@ -1648,11 +1684,7 @@ table{font-size:12px}th,td{padding:7px 10px!important}
     </div>
   </div>
 </div>
-<div class="charts">
-  <div class="chart"><div class="chart-title">Fanvue daily (June)</div><div class="bars">""" + (fv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
-  <div class="chart"><div class="chart-title">GoDaddy daily (7d)</div><div class="bars">""" + (gd_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
-  <div class="chart"><div class="chart-title">Messages daily (7d)</div><div class="bars">""" + (conv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
-</div>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px"><span style="font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.5px">Revenue Charts</span><div style="display:flex;gap:4px;background:rgba(255,255,255,.04);border-radius:6px;padding:3px"><button onclick="setRange('7d',this)" id="rng7d" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;border:none;color:#555;background:none">7D</button><button onclick="setRange('30d',this)" id="rng30d" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;border:none;color:#555;background:none">30D</button><button onclick="setRange('month',this)" id="rngmonth" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;border:none;background:#1a1a1a;color:#f0f0f0">MTD</button></div></div><div class="charts" style="width:100%;box-sizing:border-box;overflow:hidden"><div class="chart"><div class="chart-title">Fanvue daily</div><div class="bars">""" + (fv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div><div class="chart"><div class="chart-title">GoDaddy daily (<span id=\"gdRangeLabel\">MTD</span>)</div><div class="bars" id="gdBars7d" style="display:none">""" + (gd_bars or '') + """</div><div class="bars" id="gdBars30d" style="display:none">""" + (gd_bars_30 or '') + """</div><div class="bars" id="gdBarsMonth">""" + (gd_bars_month or '') + """</div></div><div class="chart"><div class="chart-title">Messages daily</div><div class="bars">""" + (conv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div></div>
 
 <h2>💳 GoDaddy Payment Links</h2>
 <div class="stats">
@@ -1867,6 +1899,15 @@ function renderPayCards(rows, keepOpen){
 
 function loadMore(){showCount+=20;renderPayCards(visibleRows);}
 
+function setRange(r,btn){
+  document.querySelectorAll('#rng7d,#rng30d,#rngmonth').forEach(function(b){b.style.background='none';b.style.color='#555';});
+  btn.style.background='#1a1a1a';btn.style.color='#f0f0f0';
+  var labels={'7d':'7D','30d':'30D','month':'MTD'};
+  var el=document.getElementById('gdRangeLabel');if(el)el.textContent=labels[r]||r;
+  document.getElementById('gdBars7d').style.display=(r==='7d'?'flex':'none');
+  document.getElementById('gdBars30d').style.display=(r==='30d'?'flex':'none');
+  document.getElementById('gdBarsMonth').style.display=(r==='month'?'flex':'none');
+}
 function filterPay(t,btn){
   currentFilter=t;showCount=10;
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
