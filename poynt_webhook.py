@@ -1405,7 +1405,7 @@ def build_dashboard(payment_stats, conv_stats):
 
     fv_breakdown = fv.get("breakdown",{})
     fv_bd_rows = "".join(
-        '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.05);">'f'<span style="font-size:13px;color:#e5e7eb;text-transform:capitalize">{k}</span>'f'<span style="font-size:14px;font-weight:700;background:linear-gradient(135deg,#f472b6,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">{v["gross"]}</span></div>'
+        f'<tr><td style="text-transform:capitalize">{k}</td><td>{v["gross"]}</td></tr>'
         for k,v in fv_breakdown.items() if v.get("gross_cents",0)>0
     ) or '<tr><td colspan=2 class="empty">—</td></tr>'
 
@@ -2554,17 +2554,38 @@ var currentFilter = 'all';
 var showCount = 10;
 var visibleRows = [];
 
-function filterPay(t,btn){
-  currentFilter=t; showCount=10;
-  document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('active');});
-  if(btn) btn.classList.add('active');
-  visibleRows=PAYMENTS||[];
-  var q=(document.getElementById('paySearch')||{}).value;
-  if(q) q=q.toLowerCase();
-  if(q) visibleRows=visibleRows.filter(function(p){return (p.name||'').toLowerCase().includes(q)||(p.email||'').toLowerCase().includes(q);});
-  if(t==='captured') visibleRows=visibleRows.filter(function(p){return p.status==='CAPTURED'||p.status==='AUTHORIZED'||p.status==='COMPLETED';});
-  else if(t==='declined') visibleRows=visibleRows.filter(function(p){return p.status==='DECLINED'||(p.event_type||'').endsWith('DECLINED');});
-  else if(t==='unmatched') visibleRows=visibleRows.filter(function(p){return !p.chat_id&&!p.delivered&&p.status!=='DECLINED';});
+function filterPay(t, btn) {
+  currentFilter = t;
+  showCount = 10;
+  // toggle filter button active state
+  var allBtns = document.querySelectorAll('.filter-btn');
+  for (var i = 0; i < allBtns.length; i++) {
+    allBtns[i].classList.remove('active');
+  }
+  if (btn) btn.classList.add('active');
+
+  var now = Date.now() / 1000;
+  var DAY = 86400;
+  visibleRows = (PAYMENTS || []).filter(function (p) {
+    var ts = p.timestamp || p.created || 0;
+    if (t === 'all') return true;
+    if (t === 'today') return (now - ts) < DAY;
+    if (t === '7d') return (now - ts) < 7 * DAY;
+    if (t === '30d') return (now - ts) < 30 * DAY;
+    if (t === 'tips') return (p.type || '').toLowerCase() === 'tip';
+    if (t === 'subs') {
+      var ty = (p.type || '').toLowerCase();
+      return ty === 'sub' || ty === 'subscription';
+    }
+    if (t === 'ppv') return (p.type || '').toLowerCase() === 'ppv';
+    return true;
+  });
+
+  // sort newest first
+  visibleRows.sort(function (a, b) {
+    return (b.timestamp || b.created || 0) - (a.timestamp || a.created || 0);
+  });
+
   renderPayCards(visibleRows);
 }
 
@@ -2597,31 +2618,28 @@ function buildCard(p,i){
   var dec=(p.event_type||'').endsWith('DECLINED')||p.status==='DECLINED';
   var isFv=(p.source||'').startsWith('fanvue');
   var cls=dec?'declined':isFv?'fanvue':'captured';
-  var icon=dec?'❌':isFv?'🌸':'✅';
   var amt=((p.amount_cents||0)/100).toFixed(2);
-  var ts=p.ts||'';
-  var dateStr=ts?ts.replace('T',' ').slice(0,16):'';
-  var src=p.source||p.event_type||'';
+  var ts=(p.ts||'').replace('T',' ').slice(0,16);
   var rid=(p.resource_id||'').replace(/^gmail-order-/,'Order #').replace(/-[0-9a-f-]{20,}/i,'');
-  var safeEmail=(p.email||'').replace(/"/g,'&quot;');
-  return '<div class="pay-card '+cls+'" onclick="this.querySelector(\'.pay-detail\').classList.toggle(\'open\')">'+
-    '<div class="pay-summary">'+
-      '<div class="pay-icon">'+icon+'</div>'+
-      '<div class="pay-main">'+
-        '<div class="pay-name">'+(p.name||'Unknown')+'</div>'+
-        '<div class="pay-meta">'+(p.email||'—')+'</div>'+
-        '<div style="font-size:10px;color:#6b7280">'+dateStr+(rid?' · '+rid:'')+'</div>'+
-      '</div>'+
-      '<div class="pay-amount '+cls+'">$'+amt+'</div>'+
-    '</div>'+
-    '<div class="pay-detail">'+
-      '<div class="pay-detail-row"><span class="pay-detail-lbl">Status</span><span class="pay-detail-val"><span class="badge '+(p.status==='CAPTURED'?'green':'')+'">'+((p.status||'?').toLowerCase())+'</span></span></div>'+
-      '<div class="pay-detail-row"><span class="pay-detail-lbl">Delivered</span><span class="pay-detail-val">'+(p.delivered?'✅ yes':'—')+'</span></div>'+
-      (p.chat_id?'<div class="pay-detail-row"><span class="pay-detail-lbl">Fan</span><span class="pay-detail-val"><a href="#" onclick="openFanModal('+p.chat_id+',\''+(p.name||'').replace(/\'/g,\'\\\'\')+'\')" style="color:#f472b6">View chat →</a></span></div>':'')+
-      (p.notes?'<div class="pay-detail-row"><span class="pay-detail-lbl">Note</span><span class="pay-detail-val">'+p.notes+'</span></div>':'')+
-    '</div>'+
-  '</div>';
+  var badge=dec?'<span style="color:#ef4444">DECLINED</span>':isFv?'<span style="color:#818cf8">FANVUE</span>':'<span style="color:#22c55e">CAPTURED</span>';
+  var h='<div class="pay-card '+cls+'" onclick="togglePayCard(this)" style="cursor:pointer">';
+  h+='<div class="pay-summary">';
+  h+='<div style="flex-shrink:0;font-size:20px">'+(dec?'❌':isFv?'🌸':'✅')+'</div>';
+  h+='<div class="pay-main">';
+  h+='<div class="pay-name">'+(p.name||'Unknown')+'</div>';
+  h+='<div class="pay-meta">'+(p.email||'&mdash;')+'</div>';
+  h+='<div style="font-size:10px;color:#6b7280">'+ts+(rid?' &middot; '+rid:'')+'</div>';
+  h+='</div>';
+  h+='<div class="pay-amount '+cls+'">$'+amt+'</div>';
+  h+='</div>';
+  h+='<div class="pay-detail" style="display:none">';
+  h+='<div class="pay-detail-row"><span class="pay-detail-lbl">Status</span><span class="pay-detail-val">'+badge+'</span></div>';
+  h+='<div class="pay-detail-row"><span class="pay-detail-lbl">Delivered</span><span class="pay-detail-val">'+(p.delivered?'Yes':'No')+'</span></div>';
+  if(p.notes) h+='<div class="pay-detail-row"><span class="pay-detail-lbl">Note</span><span class="pay-detail-val">'+p.notes+'</span></div>';
+  h+='</div></div>';
+  return h;
 }
+function togglePayCard(el){ var d=el.querySelector('.pay-detail'); if(d) d.style.display=d.style.display==='none'?'block':'none'; }
 
 function loadMore() {
   showCount += 20;
