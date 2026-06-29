@@ -1909,8 +1909,6 @@ input, textarea {
   scrollbar-color: rgba(244, 114, 182, 0.4) transparent;
   align-items: flex-end;
   min-height: 140px;
-  /* RTL makes scroll position start at the right (newest date visible first) */
-  direction: rtl;
 }
 
 .bars::-webkit-scrollbar { height: 6px; }
@@ -1927,8 +1925,6 @@ input, textarea {
   gap: 4px;
   min-width: 36px;
   flex: 0 0 auto;
-  /* Override RTL so bar labels/content read normally */
-  direction: ltr;
 }
 
 .bar {
@@ -3095,7 +3091,12 @@ filterPay('all', document.querySelector('.filter-btn.active'));
 
 // Initialize
 filterPay('all', document.querySelector('.filter-btn.active'));
-// Charts already show newest first (no scroll needed)
+// Scroll Fanvue and GoDaddy bar charts to the right (newest date) — runs after full DOM parse
+(function() {
+  document.querySelectorAll('.chart .bars').forEach(function(b) {
+    b.scrollLeft = b.scrollWidth;
+  });
+})();
 
 </script>
 </body></html>"""
