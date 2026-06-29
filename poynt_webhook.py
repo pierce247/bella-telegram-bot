@@ -1405,7 +1405,7 @@ def build_dashboard(payment_stats, conv_stats):
 
     fv_breakdown = fv.get("breakdown",{})
     fv_bd_rows = "".join(
-        f'<tr><td style="text-transform:capitalize">{k}</td><td>{v["gross"]}</td></tr>'
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.05);">'f'<span style="font-size:13px;color:#e5e7eb;text-transform:capitalize">{k}</span>'f'<span style="font-size:14px;font-weight:700;background:linear-gradient(135deg,#f472b6,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">{v["gross"]}</span></div>'
         for k,v in fv_breakdown.items() if v.get("gross_cents",0)>0
     ) or '<tr><td colspan=2 class="empty">—</td></tr>'
 
@@ -1571,12 +1571,11 @@ html, body {
   padding: 0;
   max-width: 100vw;
   overflow-x: hidden;
-  background: #000 !important;
 }
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: linear-gradient(135deg, #000000 0%, #0a0a14 40%, #0f0f1f 100%);
+  background: linear-gradient(135deg, #0a0a14 0%, #0f0f1f 50%, #0a0f1a 100%);
   background-attachment: fixed;
   color: #e5e7eb;
   font-size: 14px;
@@ -1620,9 +1619,9 @@ input, textarea {
    ============================================================ */
 
 .glass-card {
-  background: rgba(20, 20, 35, 0.85);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   border-radius: 16px;
@@ -1642,9 +1641,9 @@ input, textarea {
 }
 
 .stat {
-  background: rgba(20, 20, 35, 0.85);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   border-radius: 16px;
@@ -1728,9 +1727,9 @@ input, textarea {
 }
 
 .chart {
-  background: rgba(20, 20, 35, 0.85);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   border-radius: 16px;
@@ -1896,9 +1895,9 @@ input, textarea {
 @media (min-width: 900px) { .pay-list { grid-template-columns: 1fr 1fr; } }
 
 .pay-card {
-  background: rgba(20, 20, 35, 0.85);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   border-radius: 14px;
@@ -2025,9 +2024,9 @@ input, textarea {
    ============================================================ */
 
 .fan-table-wrap {
-  background: rgba(20, 20, 35, 0.85);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   border-radius: 16px;
@@ -2555,38 +2554,17 @@ var currentFilter = 'all';
 var showCount = 10;
 var visibleRows = [];
 
-function filterPay(t, btn) {
-  currentFilter = t;
-  showCount = 10;
-  // toggle filter button active state
-  var allBtns = document.querySelectorAll('.filter-btn');
-  for (var i = 0; i < allBtns.length; i++) {
-    allBtns[i].classList.remove('active');
-  }
-  if (btn) btn.classList.add('active');
-
-  var now = Date.now() / 1000;
-  var DAY = 86400;
-  visibleRows = (PAYMENTS || []).filter(function (p) {
-    var ts = p.timestamp || p.created || 0;
-    if (t === 'all') return true;
-    if (t === 'today') return (now - ts) < DAY;
-    if (t === '7d') return (now - ts) < 7 * DAY;
-    if (t === '30d') return (now - ts) < 30 * DAY;
-    if (t === 'tips') return (p.type || '').toLowerCase() === 'tip';
-    if (t === 'subs') {
-      var ty = (p.type || '').toLowerCase();
-      return ty === 'sub' || ty === 'subscription';
-    }
-    if (t === 'ppv') return (p.type || '').toLowerCase() === 'ppv';
-    return true;
-  });
-
-  // sort newest first
-  visibleRows.sort(function (a, b) {
-    return (b.timestamp || b.created || 0) - (a.timestamp || a.created || 0);
-  });
-
+function filterPay(t,btn){
+  currentFilter=t; showCount=10;
+  document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('active');});
+  if(btn) btn.classList.add('active');
+  visibleRows=PAYMENTS||[];
+  var q=(document.getElementById('paySearch')||{}).value;
+  if(q) q=q.toLowerCase();
+  if(q) visibleRows=visibleRows.filter(function(p){return (p.name||'').toLowerCase().includes(q)||(p.email||'').toLowerCase().includes(q);});
+  if(t==='captured') visibleRows=visibleRows.filter(function(p){return p.status==='CAPTURED'||p.status==='AUTHORIZED'||p.status==='COMPLETED';});
+  else if(t==='declined') visibleRows=visibleRows.filter(function(p){return p.status==='DECLINED'||(p.event_type||'').endsWith('DECLINED');});
+  else if(t==='unmatched') visibleRows=visibleRows.filter(function(p){return !p.chat_id&&!p.delivered&&p.status!=='DECLINED';});
   renderPayCards(visibleRows);
 }
 
@@ -2615,29 +2593,33 @@ function renderPayCards(rows) {
   if (lm) lm.style.display = rows.length > showCount ? 'block' : 'none';
 }
 
-function buildCard(p, i) {
-  var amount = parseFloat(p.amount || 0).toFixed(2);
-  var name = escHtml(p.name || p.fan_name || p.email || 'Unknown');
-  var email = escHtml(p.email || '');
-  var type = escHtml(p.type || 'payment');
-  var ts = p.timestamp || p.created || 0;
-  var date = ts ? new Date(ts * 1000).toLocaleString() : '';
-  var safeEmail = (p.email || '').replace(/'/g, "\\'");
-  return '<div class="pay-card" onclick="this.classList.toggle(\'expanded\')">' +
-    '<div class="pay-card-head">' +
-      '<div>' +
-        '<div class="pay-card-name">' + name + '</div>' +
-        '<div class="pay-card-meta">' +
-          '<span class="badge">' + type + '</span> ' + date +
-        '</div>' +
-      '</div>' +
-      '<div class="pay-card-amount">$' + amount + '</div>' +
-    '</div>' +
-    '<div class="pay-card-detail">' +
-      '<div>Email: ' + email + '</div>' +
-      (p.note ? '<div>Note: ' + escHtml(p.note) + '</div>' : '') +
-      '<div style="margin-top:8px"><button class="filter-btn" onclick="event.stopPropagation();openPayerDetail(\'' + safeEmail + '\')">View payer history</button></div>' +
-    '</div>' +
+function buildCard(p,i){
+  var dec=(p.event_type||'').endsWith('DECLINED')||p.status==='DECLINED';
+  var isFv=(p.source||'').startsWith('fanvue');
+  var cls=dec?'declined':isFv?'fanvue':'captured';
+  var icon=dec?'❌':isFv?'🌸':'✅';
+  var amt=((p.amount_cents||0)/100).toFixed(2);
+  var ts=p.ts||'';
+  var dateStr=ts?ts.replace('T',' ').slice(0,16):'';
+  var src=p.source||p.event_type||'';
+  var rid=(p.resource_id||'').replace(/^gmail-order-/,'Order #').replace(/-[0-9a-f-]{20,}/i,'');
+  var safeEmail=(p.email||'').replace(/"/g,'&quot;');
+  return '<div class="pay-card '+cls+'" onclick="this.querySelector(\'.pay-detail\').classList.toggle(\'open\')">'+
+    '<div class="pay-summary">'+
+      '<div class="pay-icon">'+icon+'</div>'+
+      '<div class="pay-main">'+
+        '<div class="pay-name">'+(p.name||'Unknown')+'</div>'+
+        '<div class="pay-meta">'+(p.email||'—')+'</div>'+
+        '<div style="font-size:10px;color:#6b7280">'+dateStr+(rid?' · '+rid:'')+'</div>'+
+      '</div>'+
+      '<div class="pay-amount '+cls+'">$'+amt+'</div>'+
+    '</div>'+
+    '<div class="pay-detail">'+
+      '<div class="pay-detail-row"><span class="pay-detail-lbl">Status</span><span class="pay-detail-val"><span class="badge '+(p.status==='CAPTURED'?'green':'')+'">'+((p.status||'?').toLowerCase())+'</span></span></div>'+
+      '<div class="pay-detail-row"><span class="pay-detail-lbl">Delivered</span><span class="pay-detail-val">'+(p.delivered?'✅ yes':'—')+'</span></div>'+
+      (p.chat_id?'<div class="pay-detail-row"><span class="pay-detail-lbl">Fan</span><span class="pay-detail-val"><a href="#" onclick="openFanModal('+p.chat_id+',\''+(p.name||'').replace(/\'/g,\'\\\'\')+'\')" style="color:#f472b6">View chat →</a></span></div>':'')+
+      (p.notes?'<div class="pay-detail-row"><span class="pay-detail-lbl">Note</span><span class="pay-detail-val">'+p.notes+'</span></div>':'')+
+    '</div>'+
   '</div>';
 }
 
@@ -2938,8 +2920,6 @@ document.addEventListener('keydown', function (e) {
    Init - must come AFTER all function definitions
    ----------------------------------------------------------- */
 filterPay('all', document.querySelector('.filter-btn.active'));
-function scrollChartsToEnd() { document.querySelectorAll('.bars').forEach(function(b) { b.scrollLeft = 99999; }); }
-scrollChartsToEnd(); setTimeout(scrollChartsToEnd, 300); setTimeout(scrollChartsToEnd, 800);
 
 
 // Initialize
