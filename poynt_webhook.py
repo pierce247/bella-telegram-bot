@@ -1105,11 +1105,17 @@ def build_c360_page():
         return h or '<div style="color:#555;font-size:13px">No scheduled posts</div>'
 
     def _fmt_date(s):
+        """Convert Content360 UTC scheduled_at to Central Time for display."""
         if not s: return ""
         try:
-            import datetime as _dt
-            d = _dt.datetime.strptime(s[:16], "%Y-%m-%d %H:%M")
-            return d.strftime("%a %b %-d · %I:%M %p")
+            import time as _t
+            # Content360 stores as "2026-06-18 02:00:00" UTC
+            epoch = _t.mktime(_t.strptime(s[:16], "%Y-%m-%d %H:%M"))
+            # mktime treats as local; Content360 is UTC so add local offset back, then apply CT
+            import calendar as _cal
+            epoch_utc = _cal.timegm(_t.strptime(s[:16], "%Y-%m-%d %H:%M"))
+            ct = _t.localtime(epoch_utc + TZ_OFFSET * 3600)
+            return _t.strftime("%a %b %-d · %-I:%M %p CT", ct)
         except:
             return s[:16]
 
@@ -1118,14 +1124,22 @@ def build_c360_page():
         return _j.dumps(p).replace('"', '&quot;')
 
     def _up_items():
+        import calendar as _cal2, time as _t2
         h = ""
         for p in _upcoming[:40]:
             img = f'<img src="{p.get("thumb","")}" loading="lazy">' if p.get("thumb") else f'<div class="up-nothumb">{("🎬" if p.get("media_type")=="video" else "📸")}</div>'
             cap = p.get("caption","—")[:50] or "—"
             mt = p.get("media_type","?")
             sa = p.get("scheduled_at","")
-            date_str = sa[:10] if sa else ""
-            time_str = sa[11:16] if len(sa) > 11 else ""
+            # Convert UTC scheduled_at to CT for display
+            try:
+                epoch_utc = _cal2.timegm(_t2.strptime(sa[:16], "%Y-%m-%d %H:%M"))
+                ct = _t2.localtime(epoch_utc + TZ_OFFSET * 3600)
+                date_str = _t2.strftime("%a %-m/%-d", ct)
+                time_str = _t2.strftime("%-I:%M %p", ct)
+            except:
+                date_str = sa[:10] if sa else ""
+                time_str = sa[11:16] if len(sa) > 11 else ""
             pj = _post_json(p)
             h += f'<div class="upcard" onclick="openM({pj})">{img}<div class="upcard-info"><div class="upcard-date">{date_str}</div><div class="upcard-time">{time_str}</div><div class="upcard-cap">{cap}</div><span class="cpill {mt}">{mt}</span></div></div>'
         return h or '<div style="color:#555">No upcoming posts</div>'
@@ -1215,7 +1229,7 @@ h2{{font-size:10px;font-weight:600;color:#555;text-transform:uppercase;letter-sp
   <div class="stat"><div class="val">{_stats.get("scheduled_total",0)}</div><div class="lbl">Scheduled</div><div class="sub">{_stats.get("days_covered",0)} days covered</div></div>
   <div class="stat"><div class="val">{_stats.get("draft_total",0)}</div><div class="lbl">Drafts</div><div class="sub">{_dvt.get("video",0)} video · {_dvt.get("photo",0)} photo</div></div>
   <div class="stat"><div class="val">{_daysLeft}d</div><div class="lbl">Coverage Left</div><div class="sub">Until {_maxDate or "—"}</div></div>
-  <div class="stat"><div class="val" style="font-size:22px">{(_nxt["scheduled_at"][11:16] if _nxt else "--")}</div><div class="lbl">Next Post</div><div class="sub">{(_nxt["scheduled_at"][:10] if _nxt else "Nothing scheduled")}</div></div>
+  <div class="stat"><div class="val" style="font-size:22px">{(_fmt_date(_nxt["scheduled_at"]).split("·")[1].strip() if _nxt and "·" in _fmt_date(_nxt.get("scheduled_at","")) else "--")}</div><div class="lbl">Next Post</div><div class="sub">{(_fmt_date(_nxt["scheduled_at"]).split("·")[0].strip() if _nxt else "Nothing scheduled")}</div></div>
 </div>
 <h2>📅 Scheduled Calendar</h2>
 <div class="cal">{_cal_html()}</div>
