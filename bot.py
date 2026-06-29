@@ -27,6 +27,19 @@ GD_API_SECRET    = os.environ.get("GODADDY_API_SECRET", "")
 GD_ORDERS_FILE   = "/data/bella_gd_orders.json"
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
+# Per-chat fallback history — prevents reusing the same fallback within 10 messages
+_fallback_history: dict = defaultdict(lambda: deque(maxlen=10))
+
+def _pick(pool: list, chat_id: int = 0) -> str:
+    """Pick from pool, avoiding recently used responses for this chat."""
+    recent = _fallback_history[chat_id]
+    available = [x for x in pool if x not in recent]
+    if not available:
+        available = pool  # all used — reset
+    choice = random.choice(available)
+    recent.append(choice)
+    return choice
+
 # ── Persona ───────────────────────────────────────────────────────────────────
 
 BELLA_SYSTEM = """I'm Bella. 25, from Boca Raton. I'm building my brand as an influencer — that's what I'm all in on right now. I had a rough relationship that messed me up a little, I have trust stuff, I test people, I get attached. But I'm not bitter. I find the good in people.
@@ -506,7 +519,7 @@ def clean_reply(text: str) -> str:
 
 
 def bella_reply(user_name: str, user_text: str, history: list,
-                heat: int = 1, extra: str = "") -> str:
+                heat: int = 1, extra: str = "", chat_id: int = 0) -> str:
     """Generate Bella's reply using conversation history and heat level."""
     # No name extraction — Bella calls everyone "babe" to avoid confusion, jealousy,
     # and false positives from "I'm [adjective]" being misread as a name introduction.
@@ -571,114 +584,162 @@ def bella_reply(user_name: str, user_text: str, history: list,
 
     # Content/body requests
     if any(kw in t for kw in ["pic", "photo", "boob", "ass", "nude", "show", "body", "tit", "naked", "see you"]):
-        return random.choice([
+        return _pick([
             "tip me and see what happens 😈",
             "show me you're serious and I'll show you something worth it 💕",
-            "you're not ready for that yet babe 🌸",
+            "you're not ready for that yet 🌸",
             "that's what my page is for — earned, not given 😏",
             "you want to see me? make it worth my while first 🔥",
             "I don't just send that to anyone... but tap the button and let's see 😈",
-        ])
+            "patience is a virtue and I'm worth the wait 😏",
+            "that's a big ask... show me you mean it first 💕",
+        ], chat_id)
 
     # Compliments / beautiful / gorgeous / sexy
     if any(kw in t for kw in ["beautiful", "gorgeous", "sexy", "hot", "pretty", "stunning", "perfect", "amazing"]):
-        return random.choice([
+        return _pick([
             "you say that like it surprises you 😏",
             "I know 🩷 but I love hearing it from you",
             "keep talking like that and see what happens 😈",
             "that's definitely getting you somewhere 💕",
             "you have no idea what you do to me when you say that 🔥",
             "stop it... actually don't 🌸",
-        ])
+            "I needed to hear that today 🩷",
+            "you're very good at this 😏",
+            "the way you say things... 💕",
+        ], chat_id)
 
     # Questions / confusion
     if any(kw in t for kw in ["what", "huh", "??", "really", "seriously", "wait"]):
-        return random.choice([
+        return _pick([
             "you heard me 😏",
             "don't play dumb it's cute but I see you 🩷",
             "yes really. now what are you gonna do about it 😈",
-            "exactly what I said babe",
             "I never say things I don't mean 🌸",
-        ])
+            "exactly what I said 😏",
+            "you're overthinking it 💕",
+            "why does that surprise you 🔥",
+            "did I stutter 😈",
+        ], chat_id)
 
     # Leaving / busy / goodbye
     if any(kw in t for kw in ["busy", "work", "later", "gotta go", "have to go", "bye", "goodbye", "heading out"]):
-        return random.choice([
+        return _pick([
             "go handle your business, come back to me 🩷",
             "fine... but you better come find me later 😏",
             "okay go. but I want details when you're back 🔥",
             "you're always leaving me wanting more 🌸",
             "don't take too long, I get impatient 😈",
-        ])
+            "fine, go. I'll be here 💕",
+            "I'll miss this 🩷",
+            "don't forget about me out there 😏",
+        ], chat_id)
 
     # Love / feelings / I love you
     if any(kw in t for kw in ["love you", "love u", "i love", "feelings", "heart", "miss you", "miss u"]):
-        return random.choice([
+        return _pick([
             "that does something to me 🩷",
-            "careful babe, keep saying things like that 😏",
+            "careful... keep saying things like that 😏",
             "I feel that 💕",
             "you're making this very hard to resist 🔥",
             "I like the way you say things 🌸",
-        ])
+            "why do you say things like that 🩷",
+            "you're dangerous 😏",
+            "that just made my night 💕",
+            "say it again 🌸",
+        ], chat_id)
 
     # One-word / minimal responses (ok, lol, sure, fine)
     if t in ["ok", "okay", "k", "fine", "sure", "lol", "haha", "😂", "lmao", "lol 😂", "hahaha"]:
-        return random.choice([
+        return _pick([
             "just okay?? 😏",
             "that's all I get?",
             "you're funny 🩷",
             "you think this is a joke 😈",
             "...is that your answer 🌸",
             "I expected more from you 😏",
-        ])
+            "really? that's it? 💕",
+            "you're impossible 🌸",
+            "I know you can do better than that 😏",
+            "wow, okay 😂",
+        ], chat_id)
 
     # Explicit / heat 4-5 territory
     if any(kw in t for kw in ["fuck", "sex", "cum", "wet", "hard", "inside", "touch", "feel"]):
-        return random.choice([
+        return _pick([
             "you're bold... I respect it 🔥",
             "keep going 😈",
             "my type of energy 💕",
             "you have no idea what you just started 🌸",
             "I like where your head is at 😏",
             "you saying that just made this more interesting 🔥",
-        ])
+            "now we're talking 😈",
+            "you went there huh 🔥",
+            "I was waiting for you to say something like that 💕",
+        ], chat_id)
 
     # Meetup / calls — redirect lightly, don't dwell on it
     if any(kw in t for kw in ["meet", "come over", "irl", "in person"]):
-        return random.choice([
+        return _pick([
             "let's keep it right here for now 😏",
-            "you already have my attention babe 🩷",
+            "you already have my attention 🩷",
             "this is enough for tonight 💕",
             "I like where we are right now 😏",
-        ])
+            "one step at a time 🌸",
+            "why rush? this is fun 😏",
+        ], chat_id)
 
-    # Generic catch-all — heat-aware based on heat param
+    # Generic catch-all — heat-aware, large diverse pool with cooldown
     _heat = heat if heat else 1
     if _heat >= 4:
-        return random.choice([
+        return _pick([
             "keep going 🔥",
             "you're making me crazy rn 😈",
             "I like the way your mind works 💕",
             "don't stop 🌸",
             "yes... exactly that 🔥",
-        ])
+            "you know exactly what you're doing 😈",
+            "this is a dangerous conversation 🔥",
+            "I want more of this 💕",
+            "you're really going there huh 🌸",
+            "I can't stop thinking about this 🔥",
+        ], chat_id)
     elif _heat >= 2:
-        return random.choice([
+        return _pick([
             "I'm listening 😏",
-            "go on... 🩷",
-            "interesting babe 🌸",
             "tell me more 💕",
-            "you have my attention now 😈",
-        ])
+            "you have my attention 😈",
+            "that's... interesting 🌸",
+            "go ahead 😏",
+            "say more 🩷",
+            "I want to hear the rest 💕",
+            "you're keeping me curious 😏",
+            "don't leave me hanging 🌸",
+            "okay now I'm intrigued 😈",
+            "where is this going 🩷",
+            "I'm paying attention now 😏",
+            "that caught me off guard 💕",
+            "you've got my full attention 🔥",
+        ], chat_id)
     else:
-        return random.choice([
-            "😏",
-            "tell me more",
-            "interesting 🩷",
+        return _pick([
+            "that's actually sweet 🩷",
             "you're something else 🌸",
-            "I'm here 💕",
-            "go on 😏",
-        ])
+            "okay I see you 😏",
+            "I wasn't expecting that 💕",
+            "you're interesting 🩷",
+            "not what I thought you'd say 😏",
+            "I like that about you 🌸",
+            "you have a way with words 💕",
+            "that made me smile 🩷",
+            "you're kind of a lot 😏",
+            "you always surprise me 🌸",
+            "honestly? I like this 💕",
+            "you're different 🩷",
+            "I wasn't bored before but now I really am not 😏",
+            "okay you got me 🌸",
+            "I see what you're doing and I'm not mad about it 💕",
+        ], chat_id)
 
 
 # ── Heat scoring ──────────────────────────────────────────────────────────────
@@ -1486,7 +1547,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
 
     # 5. Generate reply (track time for research)
     _reply_start = time.time()
-    reply = bella_reply(user_name, text, history, chat_heat[chat_id], extra)
+    reply = bella_reply(user_name, text, history, chat_heat[chat_id], extra, chat_id)
     _reply_ms = int((time.time() - _reply_start) * 1000)
     # Empty reply — use a safe fallback instead of sending nothing
     if not reply:
