@@ -2554,38 +2554,17 @@ var currentFilter = 'all';
 var showCount = 10;
 var visibleRows = [];
 
-function filterPay(t, btn) {
-  currentFilter = t;
-  showCount = 10;
-  // toggle filter button active state
-  var allBtns = document.querySelectorAll('.filter-btn');
-  for (var i = 0; i < allBtns.length; i++) {
-    allBtns[i].classList.remove('active');
-  }
-  if (btn) btn.classList.add('active');
-
-  var now = Date.now() / 1000;
-  var DAY = 86400;
-  visibleRows = (PAYMENTS || []).filter(function (p) {
-    var ts = p.timestamp || p.created || 0;
-    if (t === 'all') return true;
-    if (t === 'today') return (now - ts) < DAY;
-    if (t === '7d') return (now - ts) < 7 * DAY;
-    if (t === '30d') return (now - ts) < 30 * DAY;
-    if (t === 'tips') return (p.type || '').toLowerCase() === 'tip';
-    if (t === 'subs') {
-      var ty = (p.type || '').toLowerCase();
-      return ty === 'sub' || ty === 'subscription';
-    }
-    if (t === 'ppv') return (p.type || '').toLowerCase() === 'ppv';
-    return true;
-  });
-
-  // sort newest first
-  visibleRows.sort(function (a, b) {
-    return (b.timestamp || b.created || 0) - (a.timestamp || a.created || 0);
-  });
-
+function filterPay(t,btn){
+  currentFilter=t; showCount=10;
+  document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('active');});
+  if(btn) btn.classList.add('active');
+  visibleRows=PAYMENTS||[];
+  var q=(document.getElementById('paySearch')||{}).value;
+  if(q) q=q.toLowerCase();
+  if(q) visibleRows=visibleRows.filter(function(p){return (p.name||'').toLowerCase().includes(q)||(p.email||'').toLowerCase().includes(q);});
+  if(t==='captured') visibleRows=visibleRows.filter(function(p){return p.status==='CAPTURED'||p.status==='AUTHORIZED'||p.status==='COMPLETED';});
+  else if(t==='declined') visibleRows=visibleRows.filter(function(p){return p.status==='DECLINED'||(p.event_type||'').endsWith('DECLINED');});
+  else if(t==='unmatched') visibleRows=visibleRows.filter(function(p){return !p.chat_id&&!p.delivered&&p.status!=='DECLINED';});
   renderPayCards(visibleRows);
 }
 
@@ -2662,13 +2641,12 @@ function openFanModal(chatId, name, msgs, heat, last) {
   }
   if (bodyEl) bodyEl.innerHTML = '<div style="color:#9ca3af;padding:20px;text-align:center">Loading conversation...</div>';
   modal.classList.add('open');
-  modal.style.display = 'block';
   loadFanConversation(chatId, name);
 }
 
 function closeFanModal() {
   var modal = document.getElementById('fanModal');
-  if (modal) modal.classList.remove('open'); modal.style.display = 'none';
+  if (modal) modal.classList.remove('open');
 }
 
 function loadFanConversation(chatId, name) {
