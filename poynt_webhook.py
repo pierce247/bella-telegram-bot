@@ -1554,7 +1554,7 @@ def build_dashboard(payment_stats, conv_stats):
         status = str(p.get('status','?')).lower()
         cls = 'declined' if dec else 'captured'
         src = p.get('source','')
-        src_lbl = ' · Fanvue' if 'fanvue' in src else (' · Zapier' if src=='zapier' else (' · GoDaddy' if 'gmail' in src else ''))
+        src_lbl = ' · Fanvue' if 'fanvue' in src else (' · GoDaddy' if src in ('zapier','gmail_realtime') or 'gmail' in src else '')
         return (
             f'<div class="pay-card {cls}" data-status="{cls}" data-name="{name.lower()}" data-email="{email.lower()}" onclick="this.querySelector(\'.pay-detail\').style.display=this.querySelector(\'.pay-detail\').style.display===\'none\'?\'block\':\'none\'" style="cursor:pointer">'
             f'<div class="pay-summary">'
