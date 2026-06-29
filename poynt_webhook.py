@@ -984,7 +984,7 @@ def get_payment_stats():
     tz_sec = TZ_OFFSET * 3600  # seconds offset from UTC
     ct_now = time.time() + tz_sec
     ct_day_start = ct_now - (ct_now % 86400)  # CT midnight of today
-    for i in range(6,-1,-1):
+    for i in range(0, 7, 1):  # newest first
         d_start = (ct_day_start - (i+1)*86400) - tz_sec   # convert back to UTC for comparison
         d_end   = (ct_day_start - i*86400) - tz_sec
         d_rev=0; d_cnt=0
@@ -1002,7 +1002,7 @@ def get_payment_stats():
     # ── Extended date ranges for chart ─────────────────────────────────────
     def _make_daily(days):
         result = []
-        for j in range(days-1, -1, -1):
+        for j in range(0, days, 1):  # newest first
             d_start = (ct_day_start - (j+1)*86400) - tz_sec
             d_end   = (ct_day_start - j*86400) - tz_sec
             d_rev = 0; d_cnt = 0
@@ -1405,9 +1405,9 @@ def build_dashboard(payment_stats, conv_stats):
 
     fv_breakdown = fv.get("breakdown",{})
     fv_bd_rows = "".join(
-        f'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="font-size:13px;color:#e5e7eb;text-transform:capitalize">{k}</span><span style="font-size:14px;font-weight:700;background:linear-gradient(135deg,#f472b6,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">{v["gross"]}</span></div>'
+        f'<tr><td style="text-transform:capitalize">{k}</td><td>{v["gross"]}</td></tr>'
         for k,v in fv_breakdown.items() if v.get("gross_cents",0)>0
-    ) or '<tr><td colspan=2 class="empty">—</span></div>'
+    ) or '<tr><td colspan=2 class="empty">—</td></tr>'
 
     # ── Daily revenue charts (7d, 30d, month) ─────────────────────────────────
     daily_gd       = ps.get("daily", [])
@@ -2477,11 +2477,18 @@ section { margin-bottom: 24px; }
 
 <!-- Fan detail modal -->
 <div id="fanModal" style="display:none;position:fixed;inset:0;background:#000000cc;z-index:999;padding:20px;overflow-y:auto" onclick="if(event.target===this)closeFanModal()">
-  <div style="background:#111;border:1px solid #222;border-radius:16px;max-width:500px;margin:0 auto;padding:20px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <h2 style="margin:0;border:none;padding:0" id="fanModalName">Fan Details</h2>
+  <div style="background:#111;border:1px solid #222;border-radius:16px;max-width:540px;margin:0 auto;padding:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <h2 style="margin:0;border:none;padding:0" id="fanModalTitle">Fan Details</h2>
       <button onclick="closeFanModal()" style="background:none;border:none;color:#888;font-size:20px;cursor:pointer">✕</button>
     </div>
+    <div id="fanModalMeta" style="margin-bottom:12px;font-size:13px"></div>
+    <!-- Memory / notes section -->
+    <div id="fanModalMemory" style="background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.2);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#c4b5fd;display:none">
+      <div style="font-size:11px;font-weight:600;color:#a78bfa;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Memory / Notes</div>
+      <div id="fanModalMemoryText" style="color:#e0d9ff;line-height:1.5"></div>
+    </div>
+    <!-- Chat transcript -->
     <div id="fanModalBody"></div>
   </div>
 </div>
@@ -2667,33 +2674,95 @@ function closeFanModal() {
 function loadFanConversation(chatId, name) {
   var bodyEl = document.getElementById('fanModalBody');
   if (!bodyEl) return;
-  var url = STATS_URL + '/api/conversation/' + encodeURIComponent(chatId) + '?token=bella-admin-2024';
-  fetch(url)
+
+  // Load memory/notes in parallel
+  var memoryEl = document.getElementById('fanModalMemory');
+  var memoryTextEl = document.getElementById('fanModalMemoryText');
+  if (memoryEl) memoryEl.style.display = 'none';
+  var memUrl = '/api/fan-memory/' + encodeURIComponent(chatId) + '?token=bella-admin-2024';
+  fetch(memUrl)
     .then(function (r) { return r.json(); })
     .then(function (data) {
-      var msgs = (data && data.messages) ? data.messages : [];
-      if (!msgs.length) {
+      if (!data) return;
+      var hasContent = false;
+      var memHtml = '';
+      if (data.notes && data.notes.trim()) {
+        memHtml += '<div style="margin-bottom:4px">' + escHtml(data.notes) + '</div>';
+        hasContent = true;
+      }
+      if (data.memory_messages && data.memory_messages.length) {
+        for (var mi = 0; mi < data.memory_messages.length; mi++) {
+          var mm = data.memory_messages[mi];
+          var mts = mm.ts ? new Date(mm.ts * 1000).toLocaleDateString() : '';
+          memHtml += '<div style="font-size:12px;margin-top:4px;padding-top:4px;border-top:1px solid rgba(167,139,250,0.15)">' +
+            escHtml(mm.content || '') +
+            (mts ? ' <span style="color:#7c3aed;font-size:10px">' + mts + '</span>' : '') +
+            '</div>';
+          hasContent = true;
+        }
+      }
+      if (hasContent && memoryEl && memoryTextEl) {
+        memoryTextEl.innerHTML = memHtml;
+        memoryEl.style.display = 'block';
+      }
+    })
+    .catch(function () {});  // memory is best-effort, don't surface errors
+
+  // Load conversation - try local route first (which has Postgres fallback), then STATS_URL
+  var localUrl = '/api/conversation/' + encodeURIComponent(chatId) + '?token=bella-admin-2024';
+  var statsUrl = STATS_URL ? (STATS_URL + '/api/conversation/' + encodeURIComponent(chatId) + '?token=bella-admin-2024') : null;
+
+  function renderMessages(data) {
+    var msgs = (data && data.messages) ? data.messages : [];
+    // Filter out memory/note roles
+    msgs = msgs.filter(function(m) { return m.role !== 'memory' && m.role !== 'note'; });
+    if (!msgs.length) {
+      bodyEl.innerHTML = '<div style="color:#9ca3af;padding:20px;text-align:center">No messages yet.</div>';
+      return;
+    }
+    var html = '<div class="chat-log">';
+    for (var i = 0; i < msgs.length; i++) {
+      var m = msgs[i];
+      // user messages: gray on left (.fan); assistant messages: pink on right (.bella)
+      var who = (m.role === 'assistant' || m.from === 'bella') ? 'bella' : 'fan';
+      var text = escHtml(m.text || m.content || '');
+      var ts = m.ts || m.timestamp;
+      var t = ts ? new Date(ts * 1000).toLocaleString() : '';
+      html += '<div class="chat-bubble ' + who + '">' + text +
+        (t ? '<div class="chat-meta">' + t + '</div>' : '') +
+        '</div>';
+    }
+    html += '</div>';
+    bodyEl.innerHTML = html;
+    // scroll to bottom
+    var log = bodyEl.querySelector('.chat-log');
+    if (log) log.scrollTop = log.scrollHeight;
+  }
+
+  fetch(localUrl)
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data && data.messages) {
+        renderMessages(data);
+      } else if (statsUrl) {
+        // fall back to STATS_URL bot API
+        return fetch(statsUrl).then(function(r2) { return r2.json(); }).then(renderMessages);
+      } else {
         bodyEl.innerHTML = '<div style="color:#9ca3af;padding:20px;text-align:center">No messages yet.</div>';
-        return;
       }
-      var html = '<div class="chat-log">';
-      for (var i = 0; i < msgs.length; i++) {
-        var m = msgs[i];
-        var who = (m.role === 'assistant' || m.from === 'bella') ? 'bella' : 'fan';
-        var text = escHtml(m.text || m.content || '');
-        var t = m.timestamp ? new Date(m.timestamp * 1000).toLocaleString() : '';
-        html += '<div class="chat-bubble ' + who + '">' + text +
-          (t ? '<div class="chat-meta">' + t + '</div>' : '') +
-          '</div>';
-      }
-      html += '</div>';
-      bodyEl.innerHTML = html;
-      // scroll to bottom
-      var log = bodyEl.querySelector('.chat-log');
-      if (log) log.scrollTop = log.scrollHeight;
     })
     .catch(function (err) {
-      bodyEl.innerHTML = '<div style="color:#f9a8d4;padding:20px;text-align:center">Error loading: ' + escHtml(String(err)) + '</div>';
+      if (statsUrl) {
+        // If local route fails entirely, try STATS_URL
+        fetch(statsUrl)
+          .then(function(r2) { return r2.json(); })
+          .then(renderMessages)
+          .catch(function(err2) {
+            bodyEl.innerHTML = '<div style="color:#f9a8d4;padding:20px;text-align:center">Error loading: ' + escHtml(String(err2)) + '</div>';
+          });
+      } else {
+        bodyEl.innerHTML = '<div style="color:#f9a8d4;padding:20px;text-align:center">Error loading: ' + escHtml(String(err)) + '</div>';
+      }
     });
 }
 
@@ -2869,17 +2938,13 @@ document.addEventListener('keydown', function (e) {
    Init - must come AFTER all function definitions
    ----------------------------------------------------------- */
 filterPay('all', document.querySelector('.filter-btn.active'));
+function scrollChartsToEnd() { document.querySelectorAll('.bars').forEach(function(b) { b.scrollLeft = 99999; }); }
+scrollChartsToEnd(); setTimeout(scrollChartsToEnd, 300); setTimeout(scrollChartsToEnd, 800);
 
 
 // Initialize
 filterPay('all', document.querySelector('.filter-btn.active'));
-// Scroll chart bars to most recent (rightmost) - newest date always visible
-function scrollChartsToEnd() {
-  document.querySelectorAll('.bars').forEach(function(b) { b.scrollLeft = 99999; });
-}
-scrollChartsToEnd();
-setTimeout(scrollChartsToEnd, 300);
-setTimeout(scrollChartsToEnd, 800);
+// Charts already show newest first (no scroll needed)
 
 </script>
 </body></html>"""
@@ -3475,6 +3540,61 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 self.send_html(400, f"<h2 style='color:red'>Token exchange failed (HTTP {e.code})</h2><pre>{err}</pre>")
             except Exception as e:
                 self.send_html(500, f"<h2>Error</h2><p>{e}</p>")
+
+        elif p.path.startswith("/api/conversation/"):
+            # Fetch conversation for a fan: try bot API first, fall back to direct Postgres
+            if qs.get("token",[""])[0] != ADMIN_TOKEN and self.headers.get("X-Admin-Token","") != ADMIN_TOKEN:
+                self.send_json(401,{"error":"unauthorized"}); return
+            chat_id = p.path[len("/api/conversation/"):]
+            if not chat_id:
+                self.send_json(400,{"error":"missing chat_id"}); return
+            # Try bot API first
+            bot_data = _call_bot_api(f"/api/conversation/{chat_id}?token={ADMIN_TOKEN}")
+            if bot_data and "messages" in bot_data:
+                self.send_json(200, bot_data); return
+            # Fall back to direct Postgres
+            rows = pg_query(
+                "SELECT role, content, ts FROM messages WHERE chat_id = %s ORDER BY ts DESC LIMIT 50",
+                (chat_id,), fetchall=True
+            )
+            if rows is None:
+                self.send_json(200, {"messages": [], "source": "postgres_unavailable"}); return
+            messages = [{"role": r[0], "content": r[1], "ts": float(r[2]) if r[2] else None} for r in rows]
+            # Reverse so oldest-first for display
+            messages.reverse()
+            self.send_json(200, {"messages": messages, "source": "postgres"})
+
+        elif p.path.startswith("/api/fan-memory/"):
+            # Return stored memory/notes for a fan
+            if qs.get("token",[""])[0] != ADMIN_TOKEN and self.headers.get("X-Admin-Token","") != ADMIN_TOKEN:
+                self.send_json(401,{"error":"unauthorized"}); return
+            chat_id = p.path[len("/api/fan-memory/"):]
+            if not chat_id:
+                self.send_json(400,{"error":"missing chat_id"}); return
+            # Get notes from fans table
+            fan_row = pg_query(
+                "SELECT name, notes FROM fans WHERE chat_id = %s",
+                (chat_id,), fetchone=True
+            )
+            notes = ""
+            fan_name = ""
+            if fan_row:
+                fan_name = fan_row[0] or ""
+                notes = fan_row[1] or ""
+            # Also check messages table for role='memory' or role='note'
+            mem_rows = pg_query(
+                "SELECT role, content, ts FROM messages WHERE chat_id = %s AND role IN ('memory','note') ORDER BY ts DESC LIMIT 20",
+                (chat_id,), fetchall=True
+            )
+            memory_messages = []
+            if mem_rows:
+                memory_messages = [{"role": r[0], "content": r[1], "ts": float(r[2]) if r[2] else None} for r in mem_rows]
+            self.send_json(200, {
+                "chat_id": chat_id,
+                "name": fan_name,
+                "notes": notes,
+                "memory_messages": memory_messages
+            })
 
         else:
             self.send_json(404,{"error":"not found"})
