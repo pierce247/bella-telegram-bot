@@ -1571,11 +1571,12 @@ html, body {
   padding: 0;
   max-width: 100vw;
   overflow-x: hidden;
+  background: #000 !important;
 }
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: linear-gradient(135deg, #0a0a14 0%, #0f0f1f 50%, #0a0f1a 100%);
+  background: linear-gradient(135deg, #000000 0%, #0a0a14 40%, #0f0f1f 100%);
   background-attachment: fixed;
   color: #e5e7eb;
   font-size: 14px;
@@ -1619,9 +1620,9 @@ input, textarea {
    ============================================================ */
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(20, 20, 35, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   border-radius: 16px;
@@ -1641,9 +1642,9 @@ input, textarea {
 }
 
 .stat {
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(20, 20, 35, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   border-radius: 16px;
@@ -1727,9 +1728,9 @@ input, textarea {
 }
 
 .chart {
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(20, 20, 35, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   border-radius: 16px;
@@ -1759,7 +1760,7 @@ input, textarea {
 /* Range toggle pills */
 .range-tabs {
   display: inline-flex;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(20, 20, 35, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 10px;
   padding: 3px;
@@ -1895,9 +1896,9 @@ input, textarea {
 @media (min-width: 900px) { .pay-list { grid-template-columns: 1fr 1fr; } }
 
 .pay-card {
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(20, 20, 35, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   border-radius: 14px;
@@ -2024,9 +2025,9 @@ input, textarea {
    ============================================================ */
 
 .fan-table-wrap {
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(20, 20, 35, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   border-radius: 16px;
@@ -2071,7 +2072,7 @@ input, textarea {
 }
 
 .fan-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(20, 20, 35, 0.85);
 }
 
 .fan-table tbody tr:last-child td { border-bottom: none; }
