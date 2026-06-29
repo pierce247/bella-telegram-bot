@@ -1908,6 +1908,8 @@ input, textarea {
   scrollbar-color: rgba(244, 114, 182, 0.4) transparent;
   align-items: flex-end;
   min-height: 140px;
+  /* RTL makes scroll position start at the right (newest date visible first) */
+  direction: rtl;
 }
 
 .bars::-webkit-scrollbar { height: 6px; }
@@ -1924,6 +1926,8 @@ input, textarea {
   gap: 4px;
   min-width: 36px;
   flex: 0 0 auto;
+  /* Override RTL so bar labels/content read normally */
+  direction: ltr;
 }
 
 .bar {
@@ -2393,7 +2397,7 @@ section { margin-bottom: 24px; }
 
 
 /* Chart bars scroll to right (most recent) */
-.bars { scroll-behavior: smooth; }
+/* .bars scroll-behavior handled by direction:rtl in main CSS */
 </style>
 <script>setTimeout(()=>location.reload(),60000)</script>
 </head><body>
@@ -3014,13 +3018,7 @@ function addMasterContact() {
       if(d.ok){document.getElementById('addMasterEmail').value='';document.getElementById('addMasterName').value='';}
     });
 }
-/* Scroll all bar charts to the right (most recent) on load */
-function scrollChartsRight() {
-  document.querySelectorAll('.bars').forEach(function(b) { b.scrollLeft = b.scrollWidth; });
-}
-document.addEventListener('DOMContentLoaded', scrollChartsRight);
-window.addEventListener('load', scrollChartsRight);
-setTimeout(scrollChartsRight, 150);
+/* Charts use direction:rtl so scroll starts at right (newest date) automatically */
 
 function closeSubModal() {
   var m = document.getElementById('subModal');
