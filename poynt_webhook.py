@@ -1031,7 +1031,8 @@ def build_c360_page():
     _age = int(_time.time() - _ts) if _ts else -1
     _stats = _d.get("stats", {})
     _byDay = _d.get("by_day", {})
-    _upcoming = _d.get("upcoming", [])
+    _now_utc = time.strftime('%Y-%m-%d %H:%M', time.gmtime())
+    _upcoming = [p for p in _d.get("upcoming", []) if (p.get("scheduled_at") or "") >= _now_utc]
     _drafts = _d.get("drafts", {})
     _dvt = _stats.get("draft_by_type", {})
     _dates = sorted(_byDay.keys())
