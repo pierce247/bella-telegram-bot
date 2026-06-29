@@ -3825,6 +3825,43 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 print(f"[gmail] error: {e}")
                 self.send_json(200,{"ok":True})
 
+        elif p.path == "/zapier-payment":
+            # Called by Zapier when a new GoDaddy payment arrives (structured fields, no parsing needed)
+            try:
+                data = json.loads(body)
+                token = data.get("token","") or self.headers.get("X-Admin-Token","")
+                if token != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
+                raw_amt = str(data.get("amount","0")).replace("$","").replace(",","").strip()
+                amt_cents = int(float(raw_amt)*100) if raw_amt else 0
+                order_id = str(data.get("order_id","")).strip() or "zap"
+                resource_id = f"gmail-order-{order_id}" if order_id != "zap" else f"zapier-{int(time.time())}"
+                log2 = load_json(PAYMENTS_LOG, [])
+                if any(e.get("resource_id") == resource_id for e in log2):
+                    self.send_json(200, {"ok": True, "added": 0, "duplicate": True}); return
+                entry = {
+                    "ts": data.get("ts","") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "event_type": "ZAPIER_PAYMENT",
+                    "resource_id": resource_id,
+                    "name": (data.get("name","") or "Unknown").strip(),
+                    "email": (data.get("email","") or "").lower().strip(),
+                    "amount_cents": amt_cents,
+                    "amount_usd": f"${amt_cents/100:.2f}",
+                    "status": "CAPTURED",
+                    "chat_id": None,
+                    "delivered": False,
+                    "source": "zapier"
+                }
+                log2.insert(0, entry)
+                save_json(PAYMENTS_LOG, log2)
+                print(f"[zapier] New payment: {entry['name']} ${raw_amt} (Order #{order_id})")
+                # Notify owner
+                msg = f"\U0001f4b0 New Zapier payment!\n\U0001f464 {entry['name']}\n\U0001f4b5 ${raw_amt}\n\U0001f4e7 {entry['email']}\n\U0001f4e6 Order #{order_id}"
+                for oid in OWNER_CHAT_IDS: send_telegram(oid, msg)
+                self.send_json(200, {"ok": True, "added": 1, "total": len(log2)})
+            except Exception as ez:
+                print(f"[zapier] error: {ez}")
+                self.send_json(500, {"error": str(ez)})
+
         elif p.path == "/enrich-payments":
             # Look up any payments with missing details from Poynt API and fill them in
             try:
