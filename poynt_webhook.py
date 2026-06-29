@@ -961,8 +961,20 @@ def handle_payment_event(event):
 
 
 # ── Stats helper ─────────────────────────────────────────────────────────────
+# Known email overrides (not always captured by webhook but confirmed from receipts)
+_EMAIL_OVERRIDES = {
+    "matt carroll": "mattcarroll32@gmail.com",
+    "neil yeoman": "neil.yeoman@hotmail.co.uk",
+}
+
 def get_payment_stats():
     log      = load_json(PAYMENTS_LOG, [])
+    # Apply email overrides to entries missing email
+    for e in log:
+        name_key = (e.get("name","") or "").strip().lower()
+        if name_key in _EMAIL_OVERRIDES and not e.get("email"):
+            e["email"] = _EMAIL_OVERRIDES[name_key]
+    
     captured = [e for e in log if (e.get("status","") in ("CAPTURED","AUTHORIZED","COMPLETED") or (e.get("status","")=="" and e.get("amount_cents",0)>0)) and not e.get("event_type","").startswith("BACKFILL_DECLINED")]
     revenue  = sum(e.get("amount_cents",0) for e in captured)
     delivered= sum(1 for e in captured if e.get("delivered"))
@@ -986,7 +998,7 @@ def get_payment_stats():
             if ts is None: continue
             if d_start < ts <= d_end: d_rev+=e.get("amount_cents",0); d_cnt+=1
         # Format date label in CT
-        daily.append({"date":time.strftime("%m/%d",time.localtime(d_end+tz_sec)),"revenue_cents":d_rev,"count":d_cnt})
+        daily.append({"date":time.strftime("%-m/%-d",time.localtime(d_start+tz_sec)),"revenue_cents":d_rev,"count":d_cnt})
     # ── Extended date ranges for chart ─────────────────────────────────────
     def _make_daily(days):
         result = []
@@ -1003,7 +1015,7 @@ def get_payment_stats():
                     except: pass
                 if ts is None: continue
                 if d_start < ts <= d_end: d_rev+=e.get("amount_cents",0); d_cnt+=1
-            result.append({"date":time.strftime("%m/%d",time.localtime(d_end+tz_sec)),"revenue_cents":d_rev,"count":d_cnt})
+            result.append({"date":time.strftime("%-m/%-d",time.localtime(d_start+tz_sec)),"revenue_cents":d_rev,"count":d_cnt})
         return result
 
     daily_30d = _make_daily(30)
@@ -2268,6 +2280,9 @@ section { margin-bottom: 24px; }
   .stats { gap: 8px; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
 }
 
+
+/* Chart bars scroll to right (most recent) */
+.bars { scroll-behavior: smooth; }
 </style>
 <script>setTimeout(()=>location.reload(),60000)</script>
 </head><body>
@@ -2845,6 +2860,10 @@ filterPay('all', document.querySelector('.filter-btn.active'));
 
 // Initialize
 filterPay('all', document.querySelector('.filter-btn.active'));
+// Scroll chart bars to most recent (rightmost)
+setTimeout(function(){
+  document.querySelectorAll('.bars').forEach(function(b){ b.scrollLeft = b.scrollWidth; });
+}, 100);
 
 </script>
 </body></html>"""
