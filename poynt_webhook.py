@@ -1405,11 +1405,9 @@ def build_dashboard(payment_stats, conv_stats):
 
     fv_breakdown = fv.get("breakdown",{})
     fv_bd_rows = "".join(
-        '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.05);">'
-        f'<span style="font-size:13px;color:#e5e7eb;text-transform:capitalize">{k}</span>'
-        f'<span style="font-size:14px;font-weight:700;background:linear-gradient(135deg,#f472b6,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">{v["gross"]}</span></div>'
+        f'<tr><td style="text-transform:capitalize">{k}</td><td>{v["gross"]}</td></tr>'
         for k,v in fv_breakdown.items() if v.get("gross_cents",0)>0
-    ) or '<div style="color:#555;padding:12px">No breakdown data</div>'
+    ) or '<tr><td colspan=2 class="empty">—</td></tr>'
 
     # ── Daily revenue charts (7d, 30d, month) ─────────────────────────────────
     daily_gd       = ps.get("daily", [])
@@ -2560,10 +2558,11 @@ function filterPay(t,btn){
   currentFilter=t; showCount=10;
   document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('active');});
   if(btn) btn.classList.add('active');
-  visibleRows=(PAYMENTS||[]).slice();
+  visibleRows=PAYMENTS||[];
   var q=(document.getElementById('paySearch')||{}).value;
-  if(q){ q=q.toLowerCase(); visibleRows=visibleRows.filter(function(p){return (p.name||'').toLowerCase().includes(q)||(p.email||'').toLowerCase().includes(q);}); }
-  if(t==='captured') visibleRows=visibleRows.filter(function(p){return ['CAPTURED','AUTHORIZED','COMPLETED'].indexOf(p.status)>=0;});
+  if(q) q=q.toLowerCase();
+  if(q) visibleRows=visibleRows.filter(function(p){return (p.name||'').toLowerCase().includes(q)||(p.email||'').toLowerCase().includes(q);});
+  if(t==='captured') visibleRows=visibleRows.filter(function(p){return p.status==='CAPTURED'||p.status==='AUTHORIZED'||p.status==='COMPLETED';});
   else if(t==='declined') visibleRows=visibleRows.filter(function(p){return p.status==='DECLINED'||(p.event_type||'').endsWith('DECLINED');});
   else if(t==='unmatched') visibleRows=visibleRows.filter(function(p){return !p.chat_id&&!p.delivered&&p.status!=='DECLINED';});
   renderPayCards(visibleRows);
@@ -2594,31 +2593,31 @@ function renderPayCards(rows) {
   if (lm) lm.style.display = rows.length > showCount ? 'block' : 'none';
 }
 
-function buildCard(p, i) {
-  var amount = parseFloat(p.amount || 0).toFixed(2);
-  var name = escHtml(p.name || p.fan_name || p.email || 'Unknown');
-  var email = escHtml(p.email || '');
-  var type = escHtml(p.type || 'payment');
-  var ts = p.timestamp || p.created || 0;
-  var date = ts ? new Date(ts * 1000).toLocaleString() : '';
-  var safeEmail = (p.email || '').replace(/'/g, "\\'");
-  return '<div class="pay-card" onclick="this.classList.toggle(\'expanded\')">' +
-    '<div class="pay-card-head">' +
-      '<div>' +
-        '<div class="pay-card-name">' + name + '</div>' +
-        '<div class="pay-card-meta">' +
-          '<span class="badge">' + type + '</span> ' + date +
-        '</div>' +
-      '</div>' +
-      '<div class="pay-card-amount">$' + amount + '</div>' +
-    '</div>' +
-    '<div class="pay-card-detail">' +
-      '<div>Email: ' + email + '</div>' +
-      (p.note ? '<div>Note: ' + escHtml(p.note) + '</div>' : '') +
-      '<div style="margin-top:8px"><button class="filter-btn" onclick="event.stopPropagation();openPayerDetail(\'' + safeEmail + '\')">View payer history</button></div>' +
-    '</div>' +
-  '</div>';
+function buildCard(p,i){
+  var dec=(p.event_type||'').endsWith('DECLINED')||p.status==='DECLINED';
+  var isFv=(p.source||'').startsWith('fanvue');
+  var cls=dec?'declined':(isFv?'fanvue':'captured');
+  var amt=((p.amount_cents||0)/100).toFixed(2);
+  var ts=(p.ts||'').replace('T',' ').slice(0,16);
+  var rid=(p.resource_id||'').replace(/^gmail-order-/,'Order #').replace(/-[0-9a-f-]{20,}/i,'');
+  var h='<div class="pay-card '+cls+'" onclick="togglePayCard(this)" style="cursor:pointer">';
+  h+='<div class="pay-summary">';
+  h+='<div style="flex-shrink:0;font-size:18px">'+(dec?'DECLINED':(isFv?'Fanvue':'OK'))+'</div>';
+  h+='<div class="pay-main">';
+  h+='<div class="pay-name">'+(p.name||'Unknown')+'</div>';
+  h+='<div class="pay-meta">'+(p.email||'&mdash;')+'</div>';
+  h+='<div style="font-size:10px;color:#6b7280">'+ts+(rid?' &middot; '+rid:'')+'</div>';
+  h+='</div>';
+  h+='<div class="pay-amount '+cls+'">$'+amt+'</div>';
+  h+='</div>';
+  h+='<div class="pay-detail" style="display:none">';
+  h+='<div>Status: '+((p.status||'?').toLowerCase())+'</div>';
+  h+='<div>Delivered: '+(p.delivered?'Yes':'No')+'</div>';
+  if(p.notes) h+='<div>Note: '+p.notes+'</div>';
+  h+='</div></div>';
+  return h;
 }
+function togglePayCard(el){ var d=el.querySelector('.pay-detail'); if(d) d.style.display=d.style.display==='none'?'block':'none'; }
 
 function loadMore() {
   showCount += 20;
@@ -2921,7 +2920,7 @@ filterPay('all', document.querySelector('.filter-btn.active'));
 
 // Initialize
 filterPay('all', document.querySelector('.filter-btn.active'));
-setTimeout(function(){ document.querySelectorAll('.bars').forEach(function(b){ b.scrollLeft=b.scrollWidth; }); }, 500);
+// Charts already show newest first (no scroll needed)
 
 </script>
 </body></html>"""
