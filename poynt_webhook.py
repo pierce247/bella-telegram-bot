@@ -2497,10 +2497,10 @@ section { margin-bottom: 24px; }
 
 <h2>&#128101; Master Contact List</h2>
 <div class="stats">
-  <div class="stat"><div class="val">" + str(len(_master_list)) + "</div><div class="lbl">Total Contacts</div></div>
-  <div class="stat"><div class="val" style="color:#22c55e">" + str(sum(1 for c in _master_list if c["converted"])) + "</div><div class="lbl">Converted</div></div>
-  <div class="stat"><div class="val">" + str(len(_subs_active)) + "</div><div class="lbl">Linktree Subs</div></div>
-  <div class="stat"><div class="val" style="color:#f472b6">" + str(_subs_rate) + "%</div><div class="lbl">Conv. Rate</div></div>
+  <div class="stat"><div class="val">""" + str(len(_master_list)) + """</div><div class="lbl">Total Contacts</div></div>
+  <div class="stat"><div class="val" style="color:#22c55e">""" + str(sum(1 for c in _master_list if c["converted"])) + """</div><div class="lbl">Converted</div></div>
+  <div class="stat"><div class="val">""" + str(len(_subs_active)) + """</div><div class="lbl">Linktree Subs</div></div>
+  <div class="stat"><div class="val" style="color:#f472b6">""" + str(_subs_rate) + """%</div><div class="lbl">Conv. Rate</div></div>
 </div>
 <div style="display:flex;gap:8px;margin:10px 0;flex-wrap:wrap;align-items:center">
   <input class="search-input" id="masterSearch" oninput="filterMaster()" placeholder="Search name or email..." style="flex:1;min-width:180px;margin:0">
@@ -2513,7 +2513,7 @@ section { margin-bottom: 24px; }
   <button class="filter-btn" id="mfGD" onclick="filterMasterBy('godaddy',this)">&#127978; GoDaddy</button>
 </div>
 <div id="masterList" style="display:flex;flex-direction:column;gap:6px">
-" + _master_cards_html + "
+""" + _master_cards_html + """
 </div>
 <!-- Add contact form -->
 <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
@@ -3015,9 +3015,12 @@ function addMasterContact() {
     });
 }
 /* Scroll all bar charts to the right (most recent) on load */
-window.addEventListener('load', function() {
+function scrollChartsRight() {
   document.querySelectorAll('.bars').forEach(function(b) { b.scrollLeft = b.scrollWidth; });
-});
+}
+document.addEventListener('DOMContentLoaded', scrollChartsRight);
+window.addEventListener('load', scrollChartsRight);
+setTimeout(scrollChartsRight, 150);
 
 function closeSubModal() {
   var m = document.getElementById('subModal');
