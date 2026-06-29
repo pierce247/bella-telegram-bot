@@ -1032,7 +1032,7 @@ def get_payment_stats():
     for e in captured:
         k=e.get("email","?"); payer_totals[k]["name"]=e.get("name","?"); payer_totals[k]["email"]=k
         payer_totals[k]["amount"]+=e.get("amount_cents",0); payer_totals[k]["count"]+=1
-    top_payers = sorted(payer_totals.values(), key=lambda x: x["amount"], reverse=True)[:10]
+    top_payers = sorted(payer_totals.values(), key=lambda x: x["amount"], reverse=True)[:6]
     return {"total_revenue_cents":revenue,"total_revenue":f"${revenue/100:.2f}","total_payments":len(captured),
             "delivered":delivered,"unmatched":len(captured)-delivered,"pending_fans":len(pending),
             "daily":daily,"daily_30d":daily_30d,"daily_month":daily_month,"top_payers":top_payers,"recent":list(reversed(log))[:50]}
@@ -1139,8 +1139,10 @@ def build_c360_page():
             h += f'<div class="dcard" onclick="openM({pj})">{img}<div class="di"><div class="dc">{cap}</div></div></div>'
         return h
 
-    _vids = _draft_grid(_drafts.get("video",[]))
-    _photos = _draft_grid(_drafts.get("photo",[]))
+    _dv = _drafts.get("video",[]) if isinstance(_drafts,dict) else []
+    _dp = _drafts.get("photo",[]) if isinstance(_drafts,dict) else []
+    _vids = _draft_grid(_dv)
+    _photos = _draft_grid(_dp)
 
     _no_data = not _stats.get("scheduled_total") and not _stats.get("draft_total")
     _status_msg = (f'<div style="background:#1a0a0a;border:1px solid #2a1a1a;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:#ef4444">⚠️ No Content360 data cached yet. This refreshes automatically via Bella Manager.</div>' if _no_data else
@@ -1523,7 +1525,14 @@ def build_dashboard(payment_stats, conv_stats):
             f'</div>'
             f'</div>'
         )
-    payment_list_html = "".join(_pay_card(p) for p in all_p_sorted[:50])
+    _pay_show = [p for p in all_p_sorted if (p.get('amount_cents') or 0) > 0]
+    payment_list_html = "".join(_pay_card(p) for p in _pay_show[:6])
+    if len(_pay_show) > 6:
+        payment_list_html += "".join(
+            _pay_card(p).replace('class="pay-card', 'class="pay-card pay-hidden', 1)
+            for p in _pay_show[6:]
+        )
+        payment_list_html += '<button class="load-more-btn" onclick="document.querySelectorAll(\'.pay-hidden\').forEach(function(e){e.classList.remove(\'pay-hidden\')});this.style.display=\'none\'">Show ' + str(len(_pay_show)-6) + ' more payments</button>' 
     tg_users_data = json.dumps(tg_usernames)
 
     # ── Fan table: prefer cs.top_fans, fall back to direct get_pg_fans() ───────
@@ -1933,6 +1942,8 @@ input, textarea {
   cursor: pointer;
 }
 
+.pay-hidden { display: none !important; }
+.load-more-btn { width:100%;margin-top:8px;padding:10px;background:rgba(244,114,182,0.1);border:1px solid rgba(244,114,182,0.3);color:#f472b6;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;display:block; }
 .pay-card:hover {
   border-color: rgba(244, 114, 182, 0.3);
   transform: translateY(-1px);
@@ -2870,7 +2881,7 @@ function toggleAccordion(btn) {
    ----------------------------------------------------------- */
 function openSubModal() {
   var m = document.getElementById('subModal');
-  if (m) m.classList.add('open');
+  if(m){m.style.display='block';}
 }
 
 function closeSubModal() {
