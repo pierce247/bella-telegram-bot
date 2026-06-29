@@ -1519,19 +1519,42 @@ def build_dashboard(payment_stats, conv_stats):
         ) for p in top_payers
     ) or '<div style="color:#333;text-align:center;padding:16px">No payments yet</div>'
 
-    # Always sort newest first for display
-    all_p_sorted = sorted(all_p, key=lambda p: p.get("ts",""), reverse=True)
+    # Always sort newest first — parse both ISO and RFC timestamp formats for correct ordering
+    def _ts_epoch(p):
+        ts_raw = str(p.get("ts","") or "")
+        for fmt, n in [("%Y-%m-%dT%H:%M:%SZ",20),("%Y-%m-%dT%H:%M:%S",19),("%Y-%m-%dT%H:%M",16),
+                       ("%a, %d %b %Y %H:%M:%S +0000",30),("%a, %d %b %Y %H:%M:%S +000",29),
+                       ("%a, %d %b %Y %H:%M:%S",25),("%a, %d %b %Y %H:%M",22),("%a, %d %b %Y",16)]:
+            try: return time.mktime(time.strptime(ts_raw[:n], fmt))
+            except: pass
+        return 0
+    def _fmt_ts(ts_raw):
+        """Parse ISO or RFC timestamp and return human-readable local time."""
+        ts_raw = str(ts_raw or "")
+        for fmt, n in [("%Y-%m-%dT%H:%M:%SZ",20),("%Y-%m-%dT%H:%M:%S",19),("%Y-%m-%dT%H:%M",16),
+                       ("%a, %d %b %Y %H:%M:%S +0000",30),("%a, %d %b %Y %H:%M:%S +000",29),
+                       ("%a, %d %b %Y %H:%M:%S",25),("%a, %d %b %Y %H:%M",22),("%a, %d %b %Y",16)]:
+            try:
+                epoch = time.mktime(time.strptime(ts_raw[:n], fmt))
+                local = time.localtime(epoch + TZ_OFFSET * 3600)
+                return time.strftime("%-m/%-d/%y %-I:%M %p", local) + f" {TZ_NAME}"
+            except: pass
+        return ts_raw[:25] if ts_raw else "—"
+    all_p_sorted = sorted(all_p, key=_ts_epoch, reverse=True)
     pay_data = json.dumps(all_p_sorted, default=str)
     payer_data = json.dumps(top_payers, default=str)
     # Pre-render payment list for direct HTML injection (no JS needed)
     def _pay_card(p):
         dec = (p.get('event_type','').endswith('DECLINED') or p.get('status')=='DECLINED')
         amt = f"${p.get('amount_cents',0)/100:.2f}"
-        ts = str(p.get('ts',''))[:16]
+        ts = _fmt_ts(p.get('ts',''))
         name = p.get('name') or 'Unknown'
         email = p.get('email') or '—'
+        rid = str(p.get('resource_id',''))
         status = str(p.get('status','?')).lower()
         cls = 'declined' if dec else 'captured'
+        src = p.get('source','')
+        src_lbl = ' · Fanvue' if 'fanvue' in src else (' · Zapier' if src=='zapier' else (' · GoDaddy' if 'gmail' in src else ''))
         return (
             f'<div class="pay-card {cls}" data-status="{cls}" data-name="{name.lower()}" data-email="{email.lower()}" onclick="this.querySelector(\'.pay-detail\').style.display=this.querySelector(\'.pay-detail\').style.display===\'none\'?\'block\':\'none\'" style="cursor:pointer">'
             f'<div class="pay-summary">'
@@ -1539,13 +1562,14 @@ def build_dashboard(payment_stats, conv_stats):
             f'<div class="pay-main">'
             f'<div class="pay-name">{name}</div>'
             f'<div class="pay-meta">{email}</div>'
-            f'<div style="font-size:10px;color:#6b7280">{ts}</div>'
+            f'<div style="font-size:10px;color:#6b7280">{ts}{src_lbl}</div>'
             f'</div>'
             f'<div class="pay-amount {cls}">{amt}</div>'
             f'</div>'
             f'<div class="pay-detail" style="display:none;padding:10px;border-top:1px solid rgba(255,255,255,0.05)">'
-            f'<div>Status: {status}</div>'
-            f'<div>Delivered: {"Yes" if p.get("delivered") else "No"}</div>'
+            f'<div style="font-size:12px;color:#888">Status: {status}</div>'
+            f'<div style="font-size:12px;color:#888">Order: {rid}</div>'
+            f'<div style="font-size:12px;color:#888">Delivered: {"Yes" if p.get("delivered") else "No"}</div>'
             f'</div>'
             f'</div>'
         )
