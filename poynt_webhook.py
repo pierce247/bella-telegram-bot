@@ -1035,7 +1035,7 @@ def get_payment_stats():
     top_payers = sorted(payer_totals.values(), key=lambda x: x["amount"], reverse=True)[:6]
     return {"total_revenue_cents":revenue,"total_revenue":f"${revenue/100:.2f}","total_payments":len(captured),
             "delivered":delivered,"unmatched":len(captured)-delivered,"pending_fans":len(pending),
-            "daily":daily,"daily_30d":daily_30d,"daily_month":daily_month,"top_payers":top_payers,"recent":list(reversed(log))[:50]}
+            "daily":daily,"daily_30d":daily_30d,"daily_month":daily_month,"top_payers":top_payers,"recent":log}
 
 _conv_stats_cache = {}
 def get_conv_stats():
@@ -1352,7 +1352,8 @@ def build_dashboard(payment_stats, conv_stats):
     all_p = ps.get("recent", [])
     cap   = [p for p in all_p if p.get("status","") in ("CAPTURED","AUTHORIZED","COMPLETED","")
              and not p.get("event_type","").endswith("DECLINED")]
-    gd_rev_cents = sum(p.get("amount_cents",0) for p in cap)
+    # Use pre-calculated total from get_payment_stats (avoids 50-entry cap on "recent")
+    gd_rev_cents = ps.get("total_revenue_cents", sum(p.get("amount_cents",0) for p in cap))
 
     fv = cs.get("_fanvue",{})  # injected below by get_conv_stats
     fv_rev_cents = fv.get("earnings",{}).get("all_time_gross_cents",0)
@@ -1417,6 +1418,8 @@ def build_dashboard(payment_stats, conv_stats):
     daily_gd_month = ps.get("daily_month", daily_gd)
 
     def _make_gd_bars(data):
+        # Reverse so oldest is on left, newest on right (standard time-series)
+        data = list(reversed(data))
         mx = max((d.get("revenue_cents",0) for d in data), default=1) or 1
         return "".join(
             '<div class="bar-wrap" onclick="showDayDetail(\'{d}\')" style="cursor:pointer" title="${a:.0f} on {d}">'
@@ -1431,7 +1434,7 @@ def build_dashboard(payment_stats, conv_stats):
     gd_bars_30    = _make_gd_bars(daily_gd_30)
     gd_bars_month = _make_gd_bars(daily_gd_month)
 
-    daily_conv = cs.get("daily_messages",[])
+    daily_conv = list(reversed(cs.get("daily_messages",[])))  # oldest left, newest right
     max_msg  = max((d.get("count",0) for d in daily_conv), default=1) or 1
     conv_bars= "".join(
         '<div class="bar-wrap"><div class="bar conv-bar" style="height:{h}px"></div>'
@@ -1440,7 +1443,7 @@ def build_dashboard(payment_stats, conv_stats):
             d=d.get("date",""),c=d.get("count",0)
         ) for d in daily_conv
     )
-    fv_daily = fv.get("daily_june",[])
+    fv_daily = list(reversed(fv.get("daily_june",[])))  # oldest left, newest right
     max_fvd  = max((d.get("gross_cents",0) for d in fv_daily), default=1) or 1
     fv_bars  = "".join(
         '<div class="bar-wrap"><div class="bar" style="height:{h}px;background:#818cf8"></div>'
