@@ -984,7 +984,7 @@ def get_payment_stats():
     tz_sec = TZ_OFFSET * 3600  # seconds offset from UTC
     ct_now = time.time() + tz_sec
     ct_day_start = ct_now - (ct_now % 86400)  # CT midnight of today
-    for i in range(6,-1,-1):
+    for i in range(0, 7, 1):  # newest first
         d_start = (ct_day_start - (i+1)*86400) - tz_sec   # convert back to UTC for comparison
         d_end   = (ct_day_start - i*86400) - tz_sec
         d_rev=0; d_cnt=0
@@ -1002,7 +1002,7 @@ def get_payment_stats():
     # ── Extended date ranges for chart ─────────────────────────────────────
     def _make_daily(days):
         result = []
-        for j in range(days-1, -1, -1):
+        for j in range(0, days, 1):  # newest first
             d_start = (ct_day_start - (j+1)*86400) - tz_sec
             d_end   = (ct_day_start - j*86400) - tz_sec
             d_rev = 0; d_cnt = 0
@@ -1478,7 +1478,7 @@ def build_dashboard(payment_stats, conv_stats):
         '<div class="pay-icon">👤</div>'
         '<div class="pay-main">'
         '<div class="pay-name">{name}</div>'
-        '<div class="pay-meta">{email_lbl}{count}</div>'
+        '<div class="pay-meta">{email_lbl}</div>''<div style="font-size:11px;color:#6b7280;margin-top:2px">{count}</div>'
         '</div>'
         '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">'
         '<div class="pay-amount">${amount:.2f}</div>'
@@ -1487,7 +1487,7 @@ def build_dashboard(payment_stats, conv_stats):
         '</div></div>'.format(
             email=p["email"].replace("'","\'"),
             name=p["name"],
-            email_lbl=((p["email"][:25] + ("…" if len(p["email"])>25 else "")) + " · ") if p["email"] else "— · ",
+            email_lbl=(p["email"][:30] + ("…" if len(p["email"])>30 else "")) if p["email"] else "—",
             count=str(p["count"]) + (" payment" if p["count"]==1 else " payments"),
             amount=p["amount"]/100
         ) for p in top_payers
@@ -1888,10 +1888,11 @@ input, textarea {
 }
 
 .pay-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 10px;
 }
+@media (min-width: 900px) { .pay-list { grid-template-columns: 1fr 1fr; } }
 
 .pay-card {
   background: rgba(255, 255, 255, 0.06);
@@ -2330,8 +2331,10 @@ section { margin-bottom: 24px; }
     </button>
     <div style="display:none;padding:0 14px 12px">
       """ + "".join(
-          f'<div class="fv-row"><span class="fv-row-lbl">{s["name"]}</span><span class="fv-row-val">{s["gross"]}</span></div>'
-          for s in fv_top
+          '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.05);">'
+        f'<span style="font-size:13px;color:#e5e7eb">{s["name"]}</span>'
+        f'<span style="font-size:14px;font-weight:700;background:linear-gradient(135deg,#f472b6,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">{s["gross"]}</span></div>'
+        for s in fv_top
       ) + ("" if fv_top else '<div class="fv-row"><span class="fv-row-lbl" style="color:#555">No data yet</span></div>') + """
     </div>
   </div>
@@ -2481,6 +2484,15 @@ section { margin-bottom: 24px; }
     <div id="fanModalBody"></div>
   </div>
 </div>
+
+
+<script>
+var STATS_URL=""" + (STATS_URL or "") + """;
+var PAYMENTS=""" + pay_data + """;
+var TOP_PAYERS=""" + payer_data + """;
+var TOP_FANS=""" + json.dumps([{"chat_id":f.get("chat_id"),"name":f.get("name","")} for f in (_fans_list or [])[:100]]) + """;
+var TG_USERS=""" + tg_users_data + """;
+</script>
 
 <script>
 
@@ -2860,10 +2872,7 @@ filterPay('all', document.querySelector('.filter-btn.active'));
 
 // Initialize
 filterPay('all', document.querySelector('.filter-btn.active'));
-// Scroll chart bars to most recent (rightmost)
-setTimeout(function(){
-  document.querySelectorAll('.bars').forEach(function(b){ b.scrollLeft = b.scrollWidth; });
-}, 100);
+// Charts already show newest first (no scroll needed)
 
 </script>
 </body></html>"""
