@@ -1461,8 +1461,7 @@ def build_dashboard(payment_stats, conv_stats):
     daily_gd_month = ps.get("daily_month", daily_gd)
 
     def _make_gd_bars(data):
-        # Reverse so oldest is on left, newest on right (standard time-series)
-        data = list(reversed(data))
+        # Keep newest-first — RTL flex on #gdBarsEl places newest on the right visually
         mx = max((d.get("revenue_cents",0) for d in data), default=1) or 1
         return "".join(
             '<div class="bar-wrap" onclick="showDayDetail(\'{d}\')" style="cursor:pointer" title="${a:.0f} on {d}">'
@@ -1487,8 +1486,8 @@ def build_dashboard(payment_stats, conv_stats):
             d=d.get("date",""),c=d.get("count",0)
         ) for d in daily_conv
     )
-    # daily_june comes oldest-first from fanvue_stats → use as-is (oldest left, newest right)
-    fv_daily = fv.get("daily_june",[])
+    # Reverse to newest-first — RTL flex on #fvBarsEl places newest on the right visually
+    fv_daily = list(reversed(fv.get("daily_june",[])))
     max_fvd  = max((d.get("gross_cents",0) for d in fv_daily), default=1) or 1
     fv_bars  = "".join(
         '<div class="bar-wrap"><div class="bar" style="height:{h}px;background:#818cf8"></div>'
@@ -2394,7 +2393,10 @@ section { margin-bottom: 24px; }
 
 
 /* Chart bars scroll to right (most recent) */
-/* .bars scroll-behavior handled by direction:rtl in main CSS */
+/* Fanvue + GoDaddy bars: RTL so scroll starts at right (newest date visible by default) */
+/* Messages uses LTR (fits without scrolling) */
+#fvBarsEl, #gdBarsEl { direction: rtl; }
+#fvBarsEl .bar-wrap, #gdBarsEl .bar-wrap { direction: ltr; }
 </style>
 <script>setTimeout(()=>location.reload(),60000)</script>
 </head><body>
@@ -2466,11 +2468,9 @@ section { margin-bottom: 24px; }
 <span style="font-size:10px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:8px">Revenue Charts</span>
 <div class="charts" style="max-width:100%">
   <div class="chart" style="min-width:0"><div class="chart-title">Fanvue MTD</div><div class="bars" id="fvBarsEl">""" + (fv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
-  <script>(function(){var b=document.getElementById('fvBarsEl');if(b){b.scrollLeft=99999;}})();</script>
   <div class="chart" style="min-width:0"><div class="chart-title">GoDaddy MTD</div>
     <div class="bars" id="gdBarsEl">""" + gd_bars_month + """</div>
   </div>
-  <script>(function(){var b=document.getElementById('gdBarsEl');if(b){b.scrollLeft=99999;}})();</script>
   <div class="chart" style="min-width:0"><div class="chart-title">Messages MTD</div><div class="bars">""" + (conv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
 </div>
 
@@ -3093,16 +3093,7 @@ filterPay('all', document.querySelector('.filter-btn.active'));
 
 // Initialize
 filterPay('all', document.querySelector('.filter-btn.active'));
-// Scroll Fanvue+GoDaddy bar charts to right (newest date visible by default)
-function _snapBars() {
-  ['fvBarsEl','gdBarsEl'].forEach(function(id) {
-    var b = document.getElementById(id);
-    if (b) b.scrollLeft = 99999;
-  });
-}
-_snapBars();
-requestAnimationFrame(function(){ requestAnimationFrame(_snapBars); });
-setTimeout(_snapBars, 300);
+// Fanvue+GoDaddy charts use direction:rtl — no JS scroll needed
 
 </script>
 </body></html>"""
