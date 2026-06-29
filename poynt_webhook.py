@@ -1150,70 +1150,72 @@ def build_c360_page():
 
     return f"""<!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>📅 Bella Content360</title>
+<title>Bella Content360</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩷</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-*{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:'Inter',sans-serif;background:#0a0a0a;color:#f0f0f0;padding:20px;max-width:1400px;margin:0 auto}}
-.hdr{{display:flex;align-items:center;gap:12px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #1a1a1a}}
-.back{{font-size:13px;color:#555;text-decoration:none;padding:5px 10px;border:1px solid #222;border-radius:6px}}
-.back:hover{{color:#aaa;border-color:#333}}
-h1{{font-size:20px;font-weight:700;flex:1}}
+*{{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}}
+html{{background:#000!important}}
+body{{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#0d0d1a 0%,#0a0a12 50%,#0d0a14 100%);background-attachment:fixed;color:#f0f0f0;padding:20px;max-width:1400px;margin:0 auto;min-height:100vh}}
+.hdr{{display:flex;align-items:center;gap:12px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.06)}}
+.back{{font-size:13px;color:#888;text-decoration:none;padding:5px 12px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;background:rgba(255,255,255,0.04);backdrop-filter:blur(8px)}}
+.back:hover{{color:#f0f0f0;border-color:rgba(255,255,255,0.2)}}
+h1{{font-size:20px;font-weight:700;flex:1;background:linear-gradient(135deg,#f472b6,#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}}
 .stats{{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:28px}}
-.stat{{background:#111;border:1px solid #1a1a1a;border-radius:10px;padding:16px}}
-.stat .val{{font-size:30px;font-weight:700;letter-spacing:-1px}}
-.stat .lbl{{font-size:11px;color:#555;margin-top:4px;text-transform:uppercase;letter-spacing:.5px}}
-.stat .sub{{font-size:11px;color:#444;margin-top:3px}}
-h2{{font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;margin-top:24px}}
+.stat{{background:rgba(255,255,255,0.06);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.08);box-shadow:0 4px 20px rgba(0,0,0,0.3);border-radius:14px;padding:16px}}
+.stat .val{{font-size:30px;font-weight:700;letter-spacing:-1px;background:linear-gradient(135deg,#f472b6,#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}}
+.stat .lbl{{font-size:11px;color:#666;margin-top:4px;text-transform:uppercase;letter-spacing:.5px}}
+.stat .sub{{font-size:11px;color:#555;margin-top:3px}}
+h2{{font-size:10px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;margin-top:24px}}
 .cal{{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:8px}}
-.cday{{background:#111;border:1px solid #1a1a1a;border-radius:8px;padding:10px}}
-.cday .dn{{font-size:10px;color:#444}}.cday .dd{{font-size:16px;font-weight:700;margin:2px 0 5px}}
+.cday{{background:rgba(255,255,255,0.05);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:10px}}
+.cday .dn{{font-size:10px;color:#555}}.cday .dd{{font-size:16px;font-weight:700;margin:2px 0 5px}}
 .cpill{{font-size:10px;padding:1px 5px;border-radius:4px;font-weight:600;display:inline-block;margin:1px}}
 .cpill.photo{{background:rgba(79,195,247,.15);color:#4fc3f7}}
 .cpill.video{{background:rgba(244,114,182,.15);color:#f472b6}}
 .cpill.text{{background:rgba(105,240,174,.15);color:#69f0ae}}
 .upgrid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:8px}}
-.upcard{{background:#111;border:1px solid #1a1a1a;border-radius:10px;overflow:hidden;cursor:pointer;transition:transform .15s,border-color .15s}}
-.upcard:hover{{transform:translateY(-2px);border-color:#f472b640}}
+.upcard{{background:rgba(255,255,255,0.05);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.07);border-radius:14px;overflow:hidden;cursor:pointer;transition:transform .15s,border-color .15s,box-shadow .15s}}
+.upcard:hover{{transform:translateY(-2px);border-color:rgba(244,114,182,0.3);box-shadow:0 8px 24px rgba(244,114,182,0.1)}}
 .upcard img{{width:100%;aspect-ratio:9/16;object-fit:cover;display:block;background:#1a1a1a}}
-.up-nothumb{{width:100%;aspect-ratio:9/16;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-size:32px}}
+.up-nothumb{{width:100%;aspect-ratio:9/16;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;font-size:32px}}
 .upcard-info{{padding:8px 9px 10px}}
 .upcard-date{{font-size:11px;font-weight:600;color:#818cf8}}
 .upcard-time{{font-size:13px;font-weight:700;color:#f0f0f0;margin:1px 0 4px}}
 .upcard-cap{{font-size:10px;color:#888;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:5px}}
 .dtabs{{display:flex;gap:3px;background:rgba(255,255,255,.04);border-radius:7px;padding:3px;width:fit-content;margin-bottom:10px}}
 .dtab{{padding:5px 12px;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer;color:#555;border:none;background:none}}
-.dtab.active{{background:#1a1a1a;color:#f0f0f0}}
+.dtab.active{{background:rgba(255,255,255,0.08);color:#f0f0f0}}
 .dgrid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}}
-.dcard{{background:#111;border:1px solid #1a1a1a;border-radius:8px;overflow:hidden;cursor:pointer;transition:transform .15s,border-color .15s}}
-.dcard:hover{{transform:translateY(-2px);border-color:#f472b640}}
-.dcard img{{width:100%;aspect-ratio:9/16;object-fit:cover;display:block;background:#1a1a1a}}
+.dcard{{background:rgba(255,255,255,0.05);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.07);border-radius:12px;overflow:hidden;cursor:pointer;transition:transform .15s,border-color .15s,box-shadow .15s}}
+.dcard:hover{{transform:translateY(-2px);border-color:rgba(244,114,182,0.3);box-shadow:0 8px 24px rgba(244,114,182,0.1)}}
+.dcard img{{width:100%;aspect-ratio:9/16;object-fit:cover;display:block;background:rgba(255,255,255,0.04)}}
 .dcard .di{{padding:6px 8px 8px}}.dcard .dc{{font-size:10px;color:#888;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}}
-#modal{{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;align-items:center;justify-content:center}}
+#modal{{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(4px);z-index:9999;align-items:center;justify-content:center}}
 #modal.open{{display:flex}}
-#mbox{{background:#111;border:1px solid #2a2a2a;border-radius:14px;padding:24px;width:460px;max-width:95vw;max-height:90vh;overflow-y:auto}}
+#mbox{{background:rgba(20,20,35,0.95);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.1);box-shadow:0 24px 64px rgba(0,0,0,0.6);border-radius:18px;padding:24px;width:460px;max-width:95vw;max-height:90vh;overflow-y:auto}}
 #mbox h3{{font-size:14px;font-weight:700;margin-bottom:14px}}
 .mf{{margin-bottom:12px}}.mf label{{display:block;font-size:11px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}}
-.mf textarea,.mf input{{width:100%;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:7px;padding:7px 9px;color:#f0f0f0;font-size:13px;resize:vertical;font-family:inherit}}
+.mf textarea,.mf input{{width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:7px 9px;color:#f0f0f0;font-size:13px;resize:vertical;font-family:inherit}}
 .mactions{{display:flex;gap:8px;margin-top:14px}}
-.mbtn{{padding:7px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none}}
-.mbtn.primary{{background:#f472b6;color:#fff}}.mbtn.danger{{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.2)}}
-.mbtn.cancel{{background:#1a1a1a;color:#aaa}}.mbtn:disabled{{opacity:.5;cursor:default}}
+.mbtn{{padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:none}}
+.mbtn.primary{{background:linear-gradient(135deg,#f472b6,#c084fc);color:#fff}}.mbtn.danger{{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.2)}}
+.mbtn.cancel{{background:rgba(255,255,255,0.06);color:#aaa;border:1px solid rgba(255,255,255,0.08)}}.mbtn:disabled{{opacity:.5;cursor:default}}
 #mmsg{{font-size:11px;margin-top:8px;padding:5px 8px;border-radius:5px;display:none}}
 #mmsg.ok{{background:rgba(105,240,174,.1);color:#69f0ae;display:block}}
 #mmsg.err{{background:rgba(239,68,68,.1);color:#ef4444;display:block}}
 </style></head><body>
 <div class="hdr">
-  <a href="/dashboard?token=bella-admin-2024" class="back">← Back</a>
-  <h1>📅 Content360</h1>
-  <a href="/content360?token=bella-admin-2024" style="font-size:11px;color:#444;text-decoration:none;margin-left:auto;padding:4px 10px;border:1px solid #222;border-radius:5px">↻ Refresh</a>
+  <a href="/dashboard?token=bella-admin-2024" class="back">← Dashboard</a>
+  <h1>Content360</h1>
+  <a href="/content360?token=bella-admin-2024" style="font-size:11px;color:#555;text-decoration:none;margin-left:auto;padding:4px 12px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;background:rgba(255,255,255,0.04)">↻ Refresh</a>
 </div>
 {_status_msg}
 <div class="stats">
-  <div class="stat"><div class="val" style="color:#f472b6">{_stats.get("scheduled_total",0)}</div><div class="lbl">Scheduled</div><div class="sub">{_stats.get("days_covered",0)} days covered</div></div>
-  <div class="stat"><div class="val" style="color:#818cf8">{_stats.get("draft_total",0)}</div><div class="lbl">Drafts</div><div class="sub">{_dvt.get("video",0)} video · {_dvt.get("photo",0)} photo</div></div>
-  <div class="stat"><div class="val" style="color:#69f0ae">{_daysLeft}d</div><div class="lbl">Coverage Left</div><div class="sub">Until {_maxDate or "—"}</div></div>
-  <div class="stat"><div class="val" style="color:#fbbf24;font-size:20px">{(_nxt["scheduled_at"][11:16] if _nxt else "--")}</div><div class="lbl">Next Post</div><div class="sub">{(_nxt["scheduled_at"][:10] if _nxt else "Nothing scheduled")}</div></div>
+  <div class="stat"><div class="val">{_stats.get("scheduled_total",0)}</div><div class="lbl">Scheduled</div><div class="sub">{_stats.get("days_covered",0)} days covered</div></div>
+  <div class="stat"><div class="val">{_stats.get("draft_total",0)}</div><div class="lbl">Drafts</div><div class="sub">{_dvt.get("video",0)} video · {_dvt.get("photo",0)} photo</div></div>
+  <div class="stat"><div class="val">{_daysLeft}d</div><div class="lbl">Coverage Left</div><div class="sub">Until {_maxDate or "—"}</div></div>
+  <div class="stat"><div class="val" style="font-size:22px">{(_nxt["scheduled_at"][11:16] if _nxt else "--")}</div><div class="lbl">Next Post</div><div class="sub">{(_nxt["scheduled_at"][:10] if _nxt else "Nothing scheduled")}</div></div>
 </div>
 <h2>📅 Scheduled Calendar</h2>
 <div class="cal">{_cal_html()}</div>
