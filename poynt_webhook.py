@@ -1031,8 +1031,7 @@ def build_c360_page():
     _age = int(_time.time() - _ts) if _ts else -1
     _stats = _d.get("stats", {})
     _byDay = _d.get("by_day", {})
-    _now_utc = time.strftime('%Y-%m-%d %H:%M', time.gmtime())
-    _upcoming = [p for p in _d.get("upcoming", []) if (p.get("scheduled_at") or "") >= _now_utc]
+    _upcoming = _d.get("upcoming", [])
     _drafts = _d.get("drafts", {})
     _dvt = _stats.get("draft_by_type", {})
     _dates = sorted(_byDay.keys())
@@ -1575,7 +1574,7 @@ a{color:#f472b6;text-decoration:none}
 .fan-table th{background:#181818;padding:9px 10px;text-align:left;font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.05em}
 .fan-table td{padding:9px 10px;border-top:1px solid #1a1a1a;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:640px){
-body{padding:10px}
+body{padding:10px;overflow-x:hidden}
 h1{font-size:18px}h2{font-size:12px}
 .stats{gap:6px}.stat{min-width:calc(50% - 6px)!important;padding:10px 12px}.stat .val{font-size:18px}
 .charts{flex-direction:column!important}.bar-lbl{font-size:8px}
@@ -2084,6 +2083,7 @@ function openPayerDetail(email) {
   openPayerModal(html);
 }
 
+</script>
 </body></html>"""
 
 def valid_sig(body, hdr):
