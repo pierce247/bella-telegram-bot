@@ -1397,58 +1397,45 @@ def build_dashboard(payment_stats, conv_stats):
         for k,v in fv_breakdown.items() if v.get("gross_cents",0)>0
     ) or '<tr><td colspan=2 class="empty">—</td></tr>'
 
-    # ── Daily revenue charts (7D/30D/MTD for all 3 charts) ──────────────────
-    def _clean_date(dt_str):
-        """Convert 06/01 -> 6/1, 06/29 -> 6/29"""
-        try:
-            m, d = dt_str.split("/")
-            return str(int(m)) + "/" + str(int(d))
-        except: return dt_str
-
-    def _make_bars(data, color="#f472b6", onclick_prefix="showDayDetail"):
-        mx = max((d.get("revenue_cents",0) for d in data), default=1) or 1
-        return "".join(
-            '<div class="bar-wrap" title="{d}: ${a:.0f}" onclick="{fn}(\'{d}\')">'
-            '<div class="bar" style="height:{h}px;background:{c}"></div>'
-            '<div class="bar-lbl">{sd}<br><small>${a:.0f}</small></div></div>'.format(
-                h=max(4, int(d.get("revenue_cents",0)/mx*80)),
-                d=d.get("date",""), sd=_clean_date(d.get("date","")),
-                a=d.get("revenue_cents",0)/100, c=color, fn=onclick_prefix
-            ) for d in data
-        ) or '<div style="color:#333;padding:10px;text-align:center;font-size:11px">No data</div>'
-
-    def _make_msg_bars(data):
-        mx = max((d.get("count",0) for d in data), default=1) or 1
-        return "".join(
-            '<div class="bar-wrap"><div class="bar conv-bar" style="height:{h}px"></div>'
-            '<div class="bar-lbl">{sd}<br><small>{c}</small></div></div>'.format(
-                h=max(4, int(d.get("count",0)/mx*80)),
-                sd=_clean_date(d.get("date","")), c=d.get("count",0)
-            ) for d in data
-        ) or '<div style="color:#333;padding:10px;text-align:center;font-size:11px">No data</div>'
-
-    # GoDaddy bars for 3 ranges
+    # ── Daily revenue charts (7d, 30d, month) ─────────────────────────────────
     daily_gd       = ps.get("daily", [])
     daily_gd_30    = ps.get("daily_30d", daily_gd)
     daily_gd_month = ps.get("daily_month", daily_gd)
-    gd_b7   = _make_bars(daily_gd,       "#f472b6")
-    gd_b30  = _make_bars(daily_gd_30,    "#f472b6")
-    gd_bm   = _make_bars(daily_gd_month, "#f472b6")
 
-    # Fanvue bars
-    fv_daily = fv.get("daily_june",[])
-    def _fv_bar(d):
-        return {"date": d.get("date",""), "revenue_cents": d.get("gross_cents",0)}
-    fv_data = [_fv_bar(d) for d in fv_daily]
-    fv_b7   = _make_bars(fv_data[-7:]  if len(fv_data)>=7  else fv_data, "#818cf8")
-    fv_b30  = _make_bars(fv_data[-30:] if len(fv_data)>=30 else fv_data, "#818cf8")
-    fv_bm   = _make_bars(fv_data,                                         "#818cf8")
+    def _make_gd_bars(data):
+        mx = max((d.get("revenue_cents",0) for d in data), default=1) or 1
+        return "".join(
+            '<div class="bar-wrap" onclick="showDayDetail(\'{d}\')" style="cursor:pointer" title="${a:.0f} on {d}">'
+            '<div class="bar" style="height:{h}px;background:#f472b6"></div>'
+            '<div class="bar-lbl">{d}<br><small>${a:.0f}</small></div></div>'.format(
+                h=max(4, int(d.get("revenue_cents",0)/mx*80)),
+                d=d.get("date",""), a=d.get("revenue_cents",0)/100
+            ) for d in data
+        ) or '<div style="color:#333;padding:20px;text-align:center;font-size:12px">No data</div>'
 
-    # Message bars
+    gd_bars       = _make_gd_bars(daily_gd)
+    gd_bars_30    = _make_gd_bars(daily_gd_30)
+    gd_bars_month = _make_gd_bars(daily_gd_month)
+
     daily_conv = cs.get("daily_messages",[])
-    msg_b7   = _make_msg_bars(daily_conv[-7:]  if len(daily_conv)>=7  else daily_conv)
-    msg_b30  = _make_msg_bars(daily_conv[-30:] if len(daily_conv)>=30 else daily_conv)
-    msg_bm   = _make_msg_bars(daily_conv)
+    max_msg  = max((d.get("count",0) for d in daily_conv), default=1) or 1
+    conv_bars= "".join(
+        '<div class="bar-wrap"><div class="bar conv-bar" style="height:{h}px"></div>'
+        '<div class="bar-lbl">{d}<br><small>{c}</small></div></div>'.format(
+            h=max(4,int(d.get("count",0)/max_msg*80)),
+            d=d.get("date",""),c=d.get("count",0)
+        ) for d in daily_conv
+    )
+    fv_daily = fv.get("daily_june",[])
+    max_fvd  = max((d.get("gross_cents",0) for d in fv_daily), default=1) or 1
+    fv_bars  = "".join(
+        '<div class="bar-wrap"><div class="bar" style="height:{h}px;background:#818cf8"></div>'
+        '<div class="bar-lbl">{d}<br><small>${a:.0f}</small></div></div>'.format(
+            h=max(4,int(d.get("gross_cents",0)/max_fvd*80)),
+            d=d.get("date",""), a=d.get("gross_cents",0)/100
+        ) for d in fv_daily
+    )
+
 
     # ── Payer aggregation (key by name+email to avoid merging different people) ──
     from collections import defaultdict
@@ -1557,87 +1544,685 @@ def build_dashboard(payment_stats, conv_stats):
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>🩷 Bella Ops</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#f0f0f0;padding:16px;overflow-x:hidden}
-h1{color:#f472b6;font-size:22px}
-.sub{color:#444;font-size:12px;margin-bottom:20px}
-h2{color:#f472b6;font-size:13px;font-weight:600;margin:24px 0 10px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid #1a1a1a;padding-bottom:6px}
-.stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-.stat{background:#141414;border:1px solid #222;border-radius:10px;padding:14px 18px;flex:1;min-width:100px}
-.stat .val{font-size:22px;font-weight:700;color:#f472b6}
-.stat .lbl{font-size:11px;color:#555;margin-top:3px}
-.stat .sub2{font-size:10px;color:#888;margin-top:2px}
-.combined .val{font-size:32px;color:#ffffff}
-.fv-stat .val{color:#818cf8}
-.star-stat .val{color:#f59e0b}
-.charts{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;max-width:100%;overflow:hidden}
-.chart{background:#111;border:1px solid #1a1a1a;border-radius:10px;padding:14px;flex:1;min-width:0;box-sizing:border-box}
-.chart-title{font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
-.bars{display:flex;align-items:flex-end;gap:3px;height:90px;overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}
-.bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
-.bar{background:#f472b6;border-radius:3px 3px 0 0;width:100%}
-.conv-bar{background:#22c55e}
-table{width:100%;border-collapse:collapse;background:#111;border-radius:10px;overflow:hidden;margin-bottom:12px}
-th{background:#181818;padding:9px 12px;text-align:left;font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.05em}
-td{padding:9px 12px;border-top:1px solid #1a1a1a;font-size:13px}
-tr:hover td{background:#161616}
-.empty{color:#333;text-align:center;padding:20px!important}
-.badge{background:#f472b620;color:#f472b6;padding:2px 7px;border-radius:4px;font-size:11px}
-.badge.green{background:#22c55e20;color:#22c55e}
-.filters{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
-.filter-btn{background:#1a1a1a;border:1px solid #333;color:#888;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px}
-.filter-btn.active{background:#f472b620;border-color:#f472b6;color:#f472b6}
-.search-input{background:#1a1a1a;border:1px solid #333;color:#f0f0f0;padding:5px 12px;border-radius:6px;font-size:12px;width:100%}
-.footer{color:#333;font-size:11px;margin-top:24px;text-align:center}
-a{color:#f472b6;text-decoration:none}
-.fv-badge{background:#818cf820;color:#818cf8;padding:2px 7px;border-radius:4px;font-size:10px}
-/* ── Payment cards ── */
-.pay-list{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
-.pay-card{background:#111;border:1px solid #1e1e1e;border-radius:12px;overflow:hidden;cursor:pointer;transition:border-color .15s}
-.pay-card:hover{border-color:#333}
-.pay-card.declined{border-left:3px solid #ef4444}
-.pay-card.captured{border-left:3px solid #22c55e}
-.pay-card.fanvue{border-left:3px solid #818cf8}
-.pay-summary{display:flex;align-items:center;padding:12px 14px;gap:12px}
-.pay-icon{font-size:20px;flex-shrink:0}
-.pay-main{flex:1;min-width:0}
-.pay-name{font-size:14px;font-weight:600;color:#f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pay-meta{font-size:11px;color:#555;margin-top:2px}
-.pay-amount{font-size:18px;font-weight:700;color:#f472b6;flex-shrink:0;text-align:right}
-.pay-amount.declined{color:#ef4444}
-.pay-amount.fanvue{color:#818cf8}
-.pay-detail{display:none;padding:0 14px 14px;border-top:1px solid #1a1a1a;margin-top:0}
-.pay-detail.open{display:block}
-.pay-detail-row{display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:1px solid #141414;font-size:13px}
-.pay-detail-row:last-child{border-bottom:none}
-.pay-detail-lbl{color:#555;font-size:11px;text-transform:uppercase;letter-spacing:.04em;flex-shrink:0;margin-right:12px}
-.pay-detail-val{color:#e0e0e0;text-align:right;word-break:break-all}
-/* ── Fanvue combined ── */
-.fv-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
-.fv-row{background:#111;border:1px solid #1a1a1a;border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center}
-.fv-row-lbl{font-size:12px;color:#888}
-.fv-row-val{font-size:14px;font-weight:600;color:#818cf8}
-.fv-divider{grid-column:1/-1;border:none;border-top:1px solid #1a1a1a;margin:4px 0}
-/* ── Fans table ── */
-.fan-table{width:100%;border-collapse:collapse;background:#111;border-radius:10px;overflow:hidden;margin-bottom:12px}
-.fan-table th{background:#181818;padding:9px 10px;text-align:left;font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.05em}
-.fan-table td{padding:9px 10px;border-top:1px solid #1a1a1a;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media(max-width:640px){
-body{padding:10px;overflow-x:hidden}
-h1{font-size:18px}h2{font-size:12px}
-.stats{gap:6px}.stat{min-width:calc(50% - 6px)!important;padding:10px 12px}.stat .val{font-size:18px}
-.charts{flex-direction:column!important}.bar-lbl{font-size:7px;white-space:nowrap}
-.hide-mob{display:none!important}
-.search-input{width:100%!important}.filters{flex-wrap:wrap;gap:5px}.filter-btn{font-size:11px;padding:4px 8px}
-.pay-amount{font-size:16px}
-.fv-grid{grid-template-columns:1fr}
-table{font-size:12px}th,td{padding:7px 10px!important}
+
+/* ============================================================
+   iOS Glass Dashboard - Bella Ops
+   ============================================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
-html,body{overflow-x:hidden;max-width:100%;}
-.charts{overflow-x:hidden;}
-.bars{overflow-x:auto;flex-wrap:nowrap;}
-.bar-wrap{flex-shrink:0;}
-@media(max-width:640px){.charts{flex-direction:column!important}.chart{width:100%!important;box-sizing:border-box}}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, #0a0a14 0%, #0f0f1f 50%, #0a0f1a 100%);
+  background-attachment: fixed;
+  color: #e5e7eb;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+  padding: 16px 12px 80px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4 {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 12px;
+  color: #f9fafb;
+}
+
+h1 { font-size: 24px; }
+h2 { font-size: 18px; }
+h3 { font-size: 15px; }
+
+a { color: #f472b6; text-decoration: none; }
+a:hover { color: #f9a8d4; }
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 14px;
+}
+
+input, textarea {
+  font-family: inherit;
+  font-size: 14px;
+}
+
+/* ============================================================
+   Glass Utility
+   ============================================================ */
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+/* ============================================================
+   Stats Grid
+   ============================================================ */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+  max-width: 100%;
+}
+
+.stat {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.stat:hover {
+  transform: translateY(-2px);
+  border-color: rgba(244, 114, 182, 0.3);
+}
+
+.stat .label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.stat .value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #f9fafb;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.stat .sub {
+  font-size: 12px;
+  color: #818cf8;
+  margin-top: 2px;
+}
+
+/* ============================================================
+   Charts
+   ============================================================ */
+
+.charts {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+  max-width: 100%;
+}
+
+@media (min-width: 900px) {
+  .charts {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  }
+}
+
+.chart {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border-radius: 16px;
+  padding: 16px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chart-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #d1d5db;
+}
+
+/* Range toggle pills */
+.range-tabs {
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.range-btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #9ca3af;
+  background: transparent;
+  transition: all 0.18s ease;
+}
+
+.range-btn:hover { color: #e5e7eb; }
+
+.range-btn.active {
+  background: linear-gradient(135deg, #f472b6, #818cf8);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(244, 114, 182, 0.3);
+}
+
+/* ============================================================
+   Bars
+   ============================================================ */
+
+.bars {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  max-width: 100%;
+  gap: 8px;
+  padding-bottom: 6px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(244, 114, 182, 0.4) transparent;
+  align-items: flex-end;
+  min-height: 140px;
+}
+
+.bars::-webkit-scrollbar { height: 6px; }
+.bars::-webkit-scrollbar-track { background: transparent; }
+.bars::-webkit-scrollbar-thumb {
+  background: rgba(244, 114, 182, 0.4);
+  border-radius: 3px;
+}
+
+.bar-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 36px;
+  flex: 0 0 auto;
+}
+
+.bar {
+  width: 28px;
+  background: linear-gradient(180deg, #f472b6 0%, #818cf8 100%);
+  border-radius: 6px 6px 2px 2px;
+  min-height: 4px;
+  transition: opacity 0.2s ease;
+  box-shadow: 0 2px 8px rgba(244, 114, 182, 0.25);
+}
+
+.bar:hover { opacity: 0.85; }
+
+.bar-lbl {
+  font-size: 10px;
+  color: #9ca3af;
+  white-space: nowrap;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.bar-val {
+  font-size: 10px;
+  color: #f9fafb;
+  font-weight: 600;
+}
+
+/* Hidden range groups */
+.range-group { display: none; }
+.range-group.active { display: flex; }
+
+/* ============================================================
+   Payment Cards
+   ============================================================ */
+
+.pay-summary {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.pay-amount {
+  font-size: 28px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #f472b6, #818cf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
+}
+
+.pay-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pay-card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  border-radius: 14px;
+  padding: 14px;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+  cursor: pointer;
+}
+
+.pay-card:hover {
+  border-color: rgba(244, 114, 182, 0.3);
+  transform: translateY(-1px);
+}
+
+.pay-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pay-card-name {
+  font-weight: 600;
+  color: #f9fafb;
+  font-size: 14px;
+}
+
+.pay-card-meta {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+.pay-card-amount {
+  font-size: 18px;
+  font-weight: 700;
+  color: #f472b6;
+}
+
+.pay-card-detail {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+  color: #d1d5db;
+  display: none;
+}
+
+.pay-card.expanded .pay-card-detail { display: block; }
+
+/* ============================================================
+   Filter Buttons
+   ============================================================ */
+
+.filter-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.filter-btn {
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #d1d5db;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.filter-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+}
+
+.filter-btn.active {
+  background: linear-gradient(135deg, #f472b6, #818cf8);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(244, 114, 182, 0.35);
+}
+
+/* ============================================================
+   Badges
+   ============================================================ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  background: rgba(129, 140, 248, 0.15);
+  color: #a5b4fc;
+  border: 1px solid rgba(129, 140, 248, 0.25);
+  text-transform: uppercase;
+}
+
+.badge.hot {
+  background: rgba(244, 114, 182, 0.18);
+  color: #f9a8d4;
+  border-color: rgba(244, 114, 182, 0.3);
+}
+
+.badge.warm {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fcd34d;
+  border-color: rgba(251, 191, 36, 0.25);
+}
+
+.badge.cold {
+  background: rgba(148, 163, 184, 0.12);
+  color: #cbd5e1;
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+/* ============================================================
+   Fan Table
+   ============================================================ */
+
+.fan-table-wrap {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border-radius: 16px;
+  padding: 14px;
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+.fan-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  min-width: 480px;
+}
+
+.fan-table thead th {
+  position: sticky;
+  top: 0;
+  background: rgba(15, 15, 31, 0.85);
+  backdrop-filter: blur(10px);
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9ca3af;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.fan-table tbody td {
+  padding: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: #e5e7eb;
+}
+
+.fan-table tbody tr {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.fan-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.fan-table tbody tr:last-child td { border-bottom: none; }
+
+.fan-search {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #f9fafb;
+  margin-bottom: 12px;
+  outline: none;
+  transition: border-color 0.18s ease;
+}
+
+.fan-search:focus {
+  border-color: rgba(244, 114, 182, 0.5);
+}
+
+.fan-search::placeholder { color: #6b7280; }
+
+/* ============================================================
+   Modals
+   ============================================================ */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 20px 12px;
+  z-index: 1000;
+  overflow-y: auto;
+}
+
+.modal.open { display: flex; }
+
+.modal-content {
+  background: rgba(20, 20, 35, 0.85);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 560px;
+  padding: 20px;
+  margin: auto 0;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
+.modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #f9fafb;
+  margin: 0;
+}
+
+.modal-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f9fafb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: background 0.15s ease;
+}
+
+.modal-close:hover { background: rgba(255, 255, 255, 0.15); }
+
+/* Chat bubbles in modal */
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.chat-bubble {
+  max-width: 80%;
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: 13px;
+  line-height: 1.4;
+  word-wrap: break-word;
+}
+
+.chat-bubble.fan {
+  background: rgba(255, 255, 255, 0.08);
+  align-self: flex-start;
+  border-bottom-left-radius: 4px;
+}
+
+.chat-bubble.bella {
+  background: linear-gradient(135deg, #f472b6, #818cf8);
+  color: #fff;
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
+}
+
+.chat-meta {
+  font-size: 10px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+/* ============================================================
+   Accordion
+   ============================================================ */
+
+.accordion-btn {
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: #f9fafb;
+  font-weight: 500;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  transition: background 0.15s ease;
+}
+
+.accordion-btn:hover { background: rgba(255, 255, 255, 0.08); }
+
+.accordion-btn::after {
+  content: '▾';
+  font-size: 12px;
+  color: #9ca3af;
+  transition: transform 0.2s ease;
+}
+
+.accordion-btn.open::after { transform: rotate(180deg); }
+
+.accordion-panel {
+  display: none;
+  padding: 12px 4px 0;
+}
+
+.accordion-panel.open { display: block; }
+
+/* ============================================================
+   Section spacing
+   ============================================================ */
+
+section { margin-bottom: 24px; }
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.load-more {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 11px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: #f9a8d4;
+  font-weight: 500;
+  transition: all 0.18s ease;
+}
+
+.load-more:hover {
+  background: rgba(244, 114, 182, 0.1);
+  border-color: rgba(244, 114, 182, 0.3);
+}
+
+/* ============================================================
+   Mobile tweaks
+   ============================================================ */
+
+@media (max-width: 480px) {
+  body { padding: 12px 10px 60px; font-size: 13px; }
+  h1 { font-size: 20px; }
+  .stat .value { font-size: 20px; }
+  .pay-amount { font-size: 22px; }
+  .modal-content { padding: 16px; border-radius: 16px; }
+  .stats { gap: 8px; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+}
+
 </style>
 <script>setTimeout(()=>location.reload(),60000)</script>
 </head><body>
@@ -1710,7 +2295,15 @@ html,body{overflow-x:hidden;max-width:100%;}
     <button onclick="setRange('month',this)" id="rngmonth" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;border:none;background:#1a1a1a;color:#f0f0f0">MTD</button>
   </div>
 </div>
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px"><span style="font-size:10px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.5px">Revenue Charts</span><div style="display:flex;gap:3px;background:rgba(255,255,255,.04);border-radius:6px;padding:3px"><button onclick="setRange(this,0)" id="rng7d" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;border:none;color:#555;background:none">7D</button><button onclick="setRange(this,1)" id="rng30d" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;border:none;color:#555;background:none">30D</button><button onclick="setRange(this,2)" id="rngmonth" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;border:none;background:#1a1a1a;color:#f0f0f0">MTD</button></div></div><div class="charts" id="charts-container"><div class="chart"><div class="chart-title">Fanvue (<span class="range-lbl">MTD</span>)</div><div id="fvBars0" class="bars range-bars" style="display:none">""" + fv_b7 + """</div><div id="fvBars1" class="bars range-bars" style="display:none">""" + fv_b30 + """</div><div id="fvBars2" class="bars range-bars">""" + fv_bm + """</div></div><div class="chart"><div class="chart-title">GoDaddy (<span class="range-lbl">MTD</span>)</div><div id="gdBars0" class="bars range-bars" style="display:none">""" + gd_b7 + """</div><div id="gdBars1" class="bars range-bars" style="display:none">""" + gd_b30 + """</div><div id="gdBars2" class="bars range-bars">""" + gd_bm + """</div></div><div class="chart"><div class="chart-title">Messages (<span class="range-lbl">MTD</span>)</div><div id="msgBars0" class="bars range-bars" style="display:none">""" + msg_b7 + """</div><div id="msgBars1" class="bars range-bars" style="display:none">""" + msg_b30 + """</div><div id="msgBars2" class="bars range-bars">""" + msg_bm + """</div></div></div>
+<div class="charts" style="max-width:100%">
+  <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">Fanvue daily</div><div class="bars">""" + (fv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
+  <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">GoDaddy — <span id="gdRangeLabel">MTD</span></div>
+    <div class="bars" id="gdBars7d" style="display:none">""" + gd_bars + """</div>
+    <div class="bars" id="gdBars30d" style="display:none">""" + gd_bars_30 + """</div>
+    <div class="bars" id="gdBarsMonth">""" + gd_bars_month + """</div>
+  </div>
+  <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">Messages daily</div><div class="bars">""" + (conv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
+</div>
 
 <h2>💳 GoDaddy Payment Links</h2>
 <div class="stats">
@@ -1830,327 +2423,383 @@ html,body{overflow-x:hidden;max-width:100%;}
 </div>
 
 <script>
-const PAYMENTS = """ + pay_data + """;
-const TOP_PAYERS = """ + payer_data + """;
-const TOP_FANS = """ + json.dumps([{"chat_id":f.get("chat_id"),"name":f.get("name","")} for f in (_fans_list or [])[:50]]) + """;
-const TG_USERS = """ + tg_users_data + """;
-let currentFilter = 'all';
-let visibleRows = [];
-let showCount = 10;
 
-function fmtDate(ts){
-  if(!ts)return"—";
-  const d=new Date(ts);
-  const mo=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()];
-  const hr=d.getHours()%12||12, mn=String(d.getMinutes()).padStart(2,"0"), ampm=d.getHours()<12?"am":"pm";
-  return mo+" "+d.getDate()+" · "+hr+":"+mn+ampm;
-}
+/* ============================================================
+   Bella Ops Dashboard - JS
+   Assumes globals: STATS_URL, PAYMENTS, TOP_FANS, TG_USERS
+   ============================================================ */
 
-function toggleDetail(id){
-  const el=document.getElementById("det-"+id);
-  if(el){el.classList.toggle("open");event.stopPropagation();}
-}
+/* -----------------------------------------------------------
+   Chart range toggles
+   ----------------------------------------------------------- */
+var _chartRange = 2;
+var _rangeLabels = ["7D", "30D", "MTD"];
 
-function buildCard(p,i){
-  const dec=(p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED";
-  const isFv=(p.source||"").startsWith("fanvue");
-  const cls=dec?"declined":isFv?"fanvue":"captured";
-  const icon=dec?"❌":isFv?"🌸":"✅";
-  const amtCls=dec?"declined":isFv?"fanvue":"";
-  const src=p.source||p.event_type||"";
-  const srcLabel=isFv?"Fanvue":(src.includes("gmail")?"GoDaddy Email":"GoDaddy");
-  const rid=(p.resource_id||"").replace(/^gmail-order-/,"Order #").replace(/-[0-9a-f-]{20,}/i,"");
-  const nameKey=(p.name||"").trim().toLowerCase();
-  const tgUser=TG_USERS[nameKey]||"";
-  const note=p.notes?'<div class="pay-detail-row"><span class="pay-detail-lbl">Note</span><span class="pay-detail-val">'+p.notes+'</span></div>':"";
-  const tgLink=p.chat_id?'<div class="pay-detail-row"><span class="pay-detail-lbl">Telegram</span><span class="pay-detail-val">'+(tgUser||'Chat '+p.chat_id)+(tgUser?' <a href="https://t.me/'+tgUser.replace('@','')+'" target="_blank" style="color:#f472b6;margin-left:6px">Open ↗</a>':'')+'</span></div>'
-    :(tgUser?'<div class="pay-detail-row"><span class="pay-detail-lbl">Telegram</span><span class="pay-detail-val"><a href="https://t.me/'+tgUser.replace('@','')+'" target="_blank" style="color:#f472b6">'+tgUser+' ↗</a></span></div>':"");
-  const setUser='<div class="pay-detail-row"><span class="pay-detail-lbl">Set @username</span><span class="pay-detail-val" style="display:flex;gap:6px"><input id="tgu-'+i+'" placeholder="username" value="'+(tgUser||"").replace('@','')+'" style="background:#1a1a1a;border:1px solid #333;color:#f0f0f0;padding:3px 8px;border-radius:5px;font-size:12px;flex:1" onclick="event.stopPropagation()"><button onclick="event.stopPropagation();saveTgUser('+(JSON.stringify(p.name))+','+(JSON.stringify(p.email||""))+','+i+')" style="background:#f472b620;border:1px solid #f472b6;color:#f472b6;padding:3px 8px;border-radius:5px;font-size:11px;cursor:pointer">Save</button></span></div>';
-  return '<div class="pay-card '+cls+'">'
-    +'<div class="pay-summary" onclick="toggleDetail('+i+')" style="cursor:pointer">'
-      +'<div class="pay-icon">'+icon+'</div>'
-      +'<div class="pay-main">'
-        +'<div class="pay-name">'+(p.name||"Unknown")+'</div>'
-        +'<div class="pay-meta">'+fmtDate(p.ts)+' · '+srcLabel+'</div>'
-      +'</div>'
-      +'<div class="pay-amount '+amtCls+'">'+(p.amount_usd||"?")+'</div>'
-    +'</div>'
-    +'<div class="pay-detail" id="det-'+i+'">'
-      +'<div class="pay-detail-row"><span class="pay-detail-lbl">Email</span><span class="pay-detail-val">'+(p.email||'—')+'</span></div>'
-      +'<div class="pay-detail-row"><span class="pay-detail-lbl">Status</span><span class="pay-detail-val">'+(dec?"❌ Declined":"✅ Captured")+'</span></div>'
-      +'<div class="pay-detail-row"><span class="pay-detail-lbl">Date</span><span class="pay-detail-val">'+(p.ts ? new Date(new Date(p.ts).getTime()-5*3600000).toISOString().slice(0,16).replace("T"," ")+" CT" : "—")+'</span></div>'
-      +(rid?'<div class="pay-detail-row"><span class="pay-detail-lbl">Ref</span><span class="pay-detail-val">'+rid+'</span></div>':"")
-      +tgLink+setUser+note
-    +'</div>'
-  +'</div>';
-}
-
-function saveTgUser(name,email,cardIdx){
-  const input=document.getElementById('tgu-'+cardIdx);
-  const username=(input.value||"").trim().replace(/^@/,"");
-  const nameKey=name.trim().toLowerCase();
-  fetch('/set-tg-username',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({token:'bella-admin-2024',name:name,username:username})})
-  .then(r=>r.json()).then(d=>{
-    if(d.ok){
-      // Update local cache for this name AND email (auto-match same email)
-      TG_USERS[nameKey]=username?"@"+username:"";
-      if(email){
-        PAYMENTS.forEach(p=>{
-          if((p.email||"").toLowerCase()===email.toLowerCase()){
-            TG_USERS[(p.name||"").trim().toLowerCase()]=username?"@"+username:"";
-          }
-        });
-      }
-      const btn=input.nextElementSibling;
-      if(btn){btn.textContent='✓ Saved';btn.style.background='#22c55e20';btn.style.borderColor='#22c55e';btn.style.color='#22c55e';}
-      setTimeout(()=>{if(btn){btn.textContent='Save';btn.style.background='';btn.style.borderColor='';btn.style.color='';}},2000);
-    } else {
-      alert('Error: '+d.error);
+function setRange(btn, idx) {
+  _chartRange = idx;
+  // toggle button active state within the same tab group
+  if (btn && btn.parentNode) {
+    var siblings = btn.parentNode.querySelectorAll('.range-btn');
+    for (var i = 0; i < siblings.length; i++) {
+      siblings[i].classList.remove('active');
     }
+    btn.classList.add('active');
+  }
+  // sync all range tab groups across all 3 charts
+  var allTabs = document.querySelectorAll('.range-tabs');
+  for (var t = 0; t < allTabs.length; t++) {
+    var btns = allTabs[t].querySelectorAll('.range-btn');
+    for (var b = 0; b < btns.length; b++) {
+      if (b === idx) btns[b].classList.add('active');
+      else btns[b].classList.remove('active');
+    }
+  }
+  // toggle range-group visibility
+  var groups = document.querySelectorAll('.range-group');
+  for (var g = 0; g < groups.length; g++) {
+    var groupIdx = parseInt(groups[g].getAttribute('data-range'), 10);
+    if (groupIdx === idx) groups[g].classList.add('active');
+    else groups[g].classList.remove('active');
+  }
+  // update labels showing current range
+  var lbls = document.querySelectorAll('.current-range-label');
+  for (var l = 0; l < lbls.length; l++) {
+    lbls[l].textContent = _rangeLabels[idx];
+  }
+}
+
+/* -----------------------------------------------------------
+   Payment filtering (SINGLE declaration)
+   ----------------------------------------------------------- */
+var currentFilter = 'all';
+var showCount = 10;
+var visibleRows = [];
+
+function filterPay(t, btn) {
+  currentFilter = t;
+  showCount = 10;
+  // toggle filter button active state
+  var allBtns = document.querySelectorAll('.filter-btn');
+  for (var i = 0; i < allBtns.length; i++) {
+    allBtns[i].classList.remove('active');
+  }
+  if (btn) btn.classList.add('active');
+
+  var now = Date.now() / 1000;
+  var DAY = 86400;
+  visibleRows = (PAYMENTS || []).filter(function (p) {
+    var ts = p.timestamp || p.created || 0;
+    if (t === 'all') return true;
+    if (t === 'today') return (now - ts) < DAY;
+    if (t === '7d') return (now - ts) < 7 * DAY;
+    if (t === '30d') return (now - ts) < 30 * DAY;
+    if (t === 'tips') return (p.type || '').toLowerCase() === 'tip';
+    if (t === 'subs') {
+      var ty = (p.type || '').toLowerCase();
+      return ty === 'sub' || ty === 'subscription';
+    }
+    if (t === 'ppv') return (p.type || '').toLowerCase() === 'ppv';
+    return true;
   });
-}
 
-function renderPayCards(rows, keepOpen){
-  const list=document.getElementById('payList');
-  if(!rows.length){list.innerHTML='<div style="color:#333;text-align:center;padding:24px">No results</div>';
-    document.getElementById('loadMoreWrap').style.display='none';return;}
-  const shown=rows.slice(0,showCount);
-  list.innerHTML=shown.map((p,i)=>buildCard(p,i)).join("");
-  const wrap=document.getElementById('loadMoreWrap');
-  if(rows.length>showCount){wrap.style.display='block';
-    document.getElementById('loadMoreBtn').textContent='Load more ('+rows.length+' total) ↓';}
-  else{wrap.style.display='none';}
-}
+  // sort newest first
+  visibleRows.sort(function (a, b) {
+    return (b.timestamp || b.created || 0) - (a.timestamp || a.created || 0);
+  });
 
-function loadMore(){showCount+=20;renderPayCards(visibleRows);}
-
-var _chartRange=2;
-var _rangeLabels=["7D","30D","MTD"];
-function setRange(btn,idx){
-  _chartRange=idx;
-  document.querySelectorAll("#rng7d,#rng30d,#rngmonth").forEach(function(b){b.style.background="none";b.style.color="#555";});
-  btn.style.background="#1a1a1a";btn.style.color="#f0f0f0";
-  var lbl=_rangeLabels[idx]||"MTD";
-  document.querySelectorAll(".range-lbl").forEach(function(el){el.textContent=lbl;});
-  document.querySelectorAll(".range-bars").forEach(function(el){el.style.display="none";});
-  document.querySelectorAll("#fvBars"+idx+",#gdBars"+idx+",#msgBars"+idx).forEach(function(el){el.style.display="flex";});
-}
-function filterPay(t,btn){function filterPay(t,btn){
-  currentFilter=t;showCount=10;
-  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
-  if(btn)btn.classList.add('active');
-  visibleRows=PAYMENTS;
-  const q=(document.getElementById('paySearch').value||"").toLowerCase();
-  if(q)visibleRows=visibleRows.filter(p=>(p.name||"").toLowerCase().includes(q)||(p.email||"").toLowerCase().includes(q));
-  if(t==="captured")visibleRows=visibleRows.filter(p=>!((p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED"));
-  else if(t==="declined")visibleRows=visibleRows.filter(p=>(p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED");
-  else if(t==="unmatched")visibleRows=visibleRows.filter(p=>!p.chat_id&&!p.delivered&&!((p.event_type||"").endsWith("DECLINED")||p.status==="DECLINED"));
   renderPayCards(visibleRows);
 }
 
-/* Fan detail modal */
-function openFanModal(chatId,name,msgs,heat,last){
-  document.getElementById('fanModalName').textContent=name;
-  const tgUser=TG_USERS[(name||"").toLowerCase()]||"";
-  const payments=PAYMENTS.filter(p=>p.chat_id==chatId&&p.status==="CAPTURED");
-  const totalPaid=payments.reduce((s,p)=>s+p.amount_cents,0);
-  const statsHtml=
-    '<div class="pay-detail-row"><span class="pay-detail-lbl">Chat ID</span><span class="pay-detail-val">'+chatId+'</span></div>'
-    +(tgUser?'<div class="pay-detail-row"><span class="pay-detail-lbl">Telegram</span><span class="pay-detail-val"><a href="https://t.me/'+tgUser.replace('@','')+'" target="_blank" style="color:#f472b6">'+tgUser+' ↗</a></span></div>':"")
-    +'<div class="pay-detail-row"><span class="pay-detail-lbl">Messages</span><span class="pay-detail-val">'+msgs+'</span></div>'
-    +'<div class="pay-detail-row"><span class="pay-detail-lbl">Heat Level</span><span class="pay-detail-val">'+"🔥".repeat(Math.min(heat,5))+'</span></div>'
-    +'<div class="pay-detail-row"><span class="pay-detail-lbl">Last Active</span><span class="pay-detail-val">'+last+'</span></div>'
-    +(totalPaid?'<div class="pay-detail-row"><span class="pay-detail-lbl">Total Paid</span><span class="pay-detail-val" style="color:#f472b6;font-weight:700">$'+(totalPaid/100).toFixed(2)+'</span></div>':"")
-    +(payments.length?'<div style="margin-top:14px"><div style="font-size:11px;color:#555;text-transform:uppercase;margin-bottom:8px">Payments</div>'
-      +payments.map(p=>'<div class="pay-detail-row"><span class="pay-detail-lbl">'+fmtDate(p.ts)+'</span><span class="pay-detail-val">'+p.amount_usd+'</span></div>').join("")+'</div>':"")
-    +'<button onclick="loadTranscript(\''+chatId+'\')" style="width:100%;margin-top:14px;background:#1a1a1a;border:1px solid #333;color:#888;padding:8px;border-radius:6px;font-size:12px;cursor:pointer">💬 Load chat transcript</button>'
-    +'<div id="transcript-'+chatId+'" style="margin-top:12px"></div>';
-  document.getElementById('fanModalBody').innerHTML=statsHtml;
-  document.getElementById('fanModal').style.display='block';
-  document.body.style.overflow='hidden';
-}
-function loadTranscript(chatId){
-  const el=document.getElementById('transcript-'+chatId);
-  el.innerHTML='<div style="color:#555;font-size:12px;text-align:center;padding:10px">Loading...</div>';
-  const statsUrl='""" + STATS_URL + """';
-  if(!statsUrl){el.innerHTML='<div style="color:#555;font-size:12px">STATS_URL not configured</div>';return;}
-  fetch(statsUrl+'/api/conversation/'+chatId+'?token=bella-admin-2024')
-    .then(r=>r.json()).then(d=>{
-      const msgs=d.messages||[];
-      if(!msgs.length){el.innerHTML='<div style="color:#555;font-size:12px;text-align:center">No messages found</div>';return;}
-      el.innerHTML='<div style="font-size:11px;color:#555;text-transform:uppercase;margin-bottom:8px">Chat transcript ('+msgs.length+' messages)</div>'
-        +'<div style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto">'
-        +msgs.slice(-40).map(m=>{
-          const isBella=m.role==="assistant"||m.role==="owner";
-          return '<div style="display:flex;flex-direction:column;align-items:'+(isBella?'flex-end':'flex-start')+'">'
-            +'<div style="background:'+(isBella?'#f472b620':'#1a1a1a')+';border:1px solid '+(isBella?'#f472b640':'#222')+';border-radius:10px;padding:7px 10px;max-width:85%;font-size:12px;color:#e0e0e0">'
-            +m.content+'</div>'
-            +'<div style="font-size:10px;color:#444;margin-top:2px">'+(isBella?'Bella':'Fan')+(m.ts?' · '+m.ts.slice(11,16):'')+'</div>'
-            +'</div>';
-        }).join('')+'</div>';
-    }).catch(()=>{el.innerHTML='<div style="color:#ef4444;font-size:12px">Failed to load transcript</div>';});
-}
-function closeFanModal(){
-  document.getElementById('fanModal').style.display='none';
-  document.body.style.overflow='';
+function renderPayCards(rows) {
+  var host = document.getElementById('payList');
+  if (!host) return;
+  var shown = rows.slice(0, showCount);
+  var html = '';
+  for (var i = 0; i < shown.length; i++) {
+    html += buildCard(shown[i], i);
+  }
+  host.innerHTML = html;
+
+  // total
+  var totalEl = document.getElementById('payTotal');
+  if (totalEl) {
+    var sum = 0;
+    for (var j = 0; j < rows.length; j++) sum += parseFloat(rows[j].amount || 0);
+    totalEl.textContent = '$' + sum.toFixed(2);
+  }
+  var countEl = document.getElementById('payCount');
+  if (countEl) countEl.textContent = rows.length + ' payments';
+
+  // load more
+  var lm = document.getElementById('loadMoreBtn');
+  if (lm) lm.style.display = rows.length > showCount ? 'block' : 'none';
 }
 
-/* Fanvue refresh */
-function refreshFanvue(btn){
-  btn.textContent='Refreshing…';btn.disabled=true;
-  fetch('/update-fanvue',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({token:'bella-admin-2024'})})
-  .then(()=>{setTimeout(()=>location.reload(),1500);});
+function buildCard(p, i) {
+  var amount = parseFloat(p.amount || 0).toFixed(2);
+  var name = escHtml(p.name || p.fan_name || p.email || 'Unknown');
+  var email = escHtml(p.email || '');
+  var type = escHtml(p.type || 'payment');
+  var ts = p.timestamp || p.created || 0;
+  var date = ts ? new Date(ts * 1000).toLocaleString() : '';
+  var safeEmail = (p.email || '').replace(/'/g, "\\'");
+  return '<div class="pay-card" onclick="this.classList.toggle(\'expanded\')">' +
+    '<div class="pay-card-head">' +
+      '<div>' +
+        '<div class="pay-card-name">' + name + '</div>' +
+        '<div class="pay-card-meta">' +
+          '<span class="badge">' + type + '</span> ' + date +
+        '</div>' +
+      '</div>' +
+      '<div class="pay-card-amount">$' + amount + '</div>' +
+    '</div>' +
+    '<div class="pay-card-detail">' +
+      '<div>Email: ' + email + '</div>' +
+      (p.note ? '<div>Note: ' + escHtml(p.note) + '</div>' : '') +
+      '<div style="margin-top:8px"><button class="filter-btn" onclick="event.stopPropagation();openPayerDetail(\'' + safeEmail + '\')">View payer history</button></div>' +
+    '</div>' +
+  '</div>';
 }
 
-function filterFans(){
-  const q=(document.getElementById('fanSearch').value||"").toLowerCase();
-  document.querySelectorAll('#fanBody tr').forEach(tr=>{tr.style.display=(!q||tr.textContent.toLowerCase().includes(q))?"":"none"});
-}
-filterPay('all',document.querySelector('.filter-btn.active'));
-
-/* Subscriber modal logic */
-let ALL_SUBS=[], subFilter='all', subShowCount=10;
-fetch('/api/subscribers?token=bella-admin-2024')
-  .then(r=>r.json()).then(d=>{
-    ALL_SUBS=d.subscribers||[];
-    const active=ALL_SUBS.filter(s=>!s.bounced);
-    const conv=ALL_SUBS.filter(s=>s.converted);
-    const rate=active.length?Math.round((conv.length/active.length)*100):0;
-    document.getElementById('subTotal').textContent=active.length;
-    document.getElementById('subConverted').textContent=conv.length;
-    document.getElementById('subRate').textContent=rate+'%';
-  }).catch(()=>{});
-
-function openSubModal(){
-  subShowCount=10; subFilter='all';
-  document.querySelectorAll('#subModal .filter-btn').forEach(b=>b.classList.remove('active'));
-  document.querySelector('#subModal .filter-btn').classList.add('active');
-  renderSubList();
-  document.getElementById('subModal').style.display='block';
-  document.body.style.overflow='hidden';
-}
-function filterSubs(f,btn){
-  subFilter=f; subShowCount=10;
-  document.querySelectorAll('#subModal .filter-btn').forEach(b=>b.classList.remove('active'));
-  if(btn)btn.classList.add('active');
-  renderSubList();
-}
-function renderSubList(){
-  const q=(document.getElementById('subSearch').value||'').toLowerCase();
-  let rows=ALL_SUBS;
-  if(subFilter==='active')rows=rows.filter(s=>!s.bounced&&!s.converted);
-  else if(subFilter==='converted')rows=rows.filter(s=>s.converted);
-  else if(subFilter==='bounced')rows=rows.filter(s=>s.bounced);
-  if(q)rows=rows.filter(s=>s.email.includes(q));
-  const shown=rows.slice(0,subShowCount);
-  document.getElementById('subListBody').innerHTML=shown.map(s=>{
-    const icon=s.bounced?'❌':s.converted?'💰':'✅';
-    const meta=s.bounced?'<span style="color:#ef4444;font-size:10px">bounced</span>':
-               s.converted?'<span style="color:#22c55e;font-size:10px">converted '+(s.conversion_date?s.conversion_date.slice(0,10):'')+'</span>':
-               '<span style="color:#555;font-size:10px">'+s.followed_on+'</span>';
-    return '<div class="fv-row"><span class="fv-row-lbl" style="font-size:12px">'+icon+' '+s.email+'<br>'+meta+'</span></div>';
-  }).join('')||'<div style="color:#333;padding:16px;text-align:center">No results</div>';
-  const wrap=document.getElementById('subLoadWrap');
-  if(rows.length>subShowCount){
-    wrap.style.display='block';
-    document.getElementById('subLoadBtn').textContent='Load more ('+(rows.length-subShowCount)+' more) ↓';
-  } else { wrap.style.display='none'; }
-}
-function subShowMore(){ subShowCount+=20; renderSubList(); }
-async function addManualSub(){
-  const email=document.getElementById('addSubEmail').value.trim();
-  const name=document.getElementById('addSubName').value.trim();
-  if(!email||!email.includes('@')){alert('Enter a valid email'); return;}
-  try{
-    const r=await fetch('/add-subscriber',{method:'POST',headers:{'Content-Type':'application/json','X-Admin-Token':'""" + ADMIN_TOKEN + """'},
-      body:JSON.stringify({email,name,source:'Manual Entry'})});
-    const d=await r.json();
-    if(d.ok){
-      document.getElementById('addSubEmail').value='';
-      document.getElementById('addSubName').value='';
-      // Refresh list
-      ALL_SUBS.unshift({email,followed_on:'Now',source:'Manual Entry',converted:false,bounced:false,status:'active'});
-      renderSubList();
-      alert('✅ Added: '+email);
-    } else { alert('Error: '+(d.error||'unknown')); }
-  } catch(e){ alert('Failed: '+e); }
-}
-function openEmailComposer(){
-  const active=ALL_SUBS.filter(s=>!s.bounced).map(s=>s.email);
-  document.getElementById('bccField').value=active.join(', ');
-  const subject=encodeURIComponent('you left without saying hi 👀');
-  document.getElementById('gmailLink').href='https://mail.google.com/mail/?view=cm&to=bellavistaxo@gmail.com&su='+subject;
-  document.getElementById('emailModal').style.display='block';
-}
-function copyBCC(){
-  const el=document.getElementById('bccField');
-  el.select(); document.execCommand('copy');
-  alert('BCC list copied! Paste it into Gmail BCC field.');
+function loadMore() {
+  showCount += 20;
+  renderPayCards(visibleRows);
 }
 
-// Bar chart tooltips
-document.querySelectorAll('.bar-wrap').forEach(function(w){
-  var lbl=w.querySelector('.bar-lbl');
-  var bar=w.querySelector('.bar');
-  if(!bar||!lbl)return;
-  w.style.position='relative';
-  var tip=document.createElement('div');
-  tip.style.cssText='display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#222;color:#f0f0f0;font-size:10px;padding:3px 7px;border-radius:4px;white-space:nowrap;pointer-events:none;z-index:10;border:1px solid #333';
-  tip.textContent=lbl.textContent.replace(/\n/g,' ');
-  w.appendChild(tip);
-  w.addEventListener('mouseenter',function(){tip.style.display='block';});
-  w.addEventListener('mouseleave',function(){tip.style.display='none';});
-});
+/* -----------------------------------------------------------
+   Fan modal (chat transcript)
+   ----------------------------------------------------------- */
+function openFanModal(chatId, name, msgs, heat, last) {
+  var modal = document.getElementById('fanModal');
+  if (!modal) return;
+  var titleEl = document.getElementById('fanModalTitle');
+  var metaEl = document.getElementById('fanModalMeta');
+  var bodyEl = document.getElementById('fanModalBody');
+  if (titleEl) titleEl.textContent = name || 'Fan';
+  if (metaEl) {
+    metaEl.innerHTML = '<span class="badge">' + (msgs || 0) + ' msgs</span> ' +
+      '<span class="badge ' + heatClass(heat) + '">' + escHtml(heat || 'cold') + '</span> ' +
+      (last ? '<span style="color:#9ca3af;font-size:12px">last: ' + escHtml(last) + '</span>' : '');
+  }
+  if (bodyEl) bodyEl.innerHTML = '<div style="color:#9ca3af;padding:20px;text-align:center">Loading conversation...</div>';
+  modal.classList.add('open');
+  loadFanConversation(chatId, name);
+}
 
-function showDayDetail(dateStr) {
-  var matching = PAYMENTS.filter(function(p){ return p.ts && p.ts.indexOf && (p.ts.includes(dateStr) || (function(){try{var d=new Date(p.ts.replace(/(\/|-)/g,function(m,g){return g||m}));var fmt=(d.getMonth()+1).toString().padStart(2,'0')+'/'+(d.getDate().toString().padStart(2,'0'));return fmt===dateStr;}catch(e){return false;}})()); });
-  if(!matching.length){alert('No captured payments found for '+dateStr);return;}
-  var total=matching.reduce(function(s,p){return s+(p.amount_cents||0);},0);
-  var rows=matching.map(function(p){return '<tr><td>'+((p.name||'?').slice(0,20))+'</td><td>$'+(((p.amount_cents||0)/100).toFixed(2))+'</td><td><span class="badge '+(p.status==='CAPTURED'||p.status===''?'green':'')+'">'+((p.status||'pending').toLowerCase())+'</span></td><td style="color:#555;font-size:11px">'+((p.ts||'').slice(0,19).replace('T',' '))+'</td></tr>';}).join('');
-  var html='<h3 style="margin-bottom:14px;color:#f472b6">📅 Payments on '+dateStr+'</h3>'
-    +'<div style="margin-bottom:12px;font-size:13px;color:#aaa">Total: <strong style="color:#f0f0f0">$'+(total/100).toFixed(2)+'</strong> across '+matching.length+' payment'+( matching.length!==1?'s':'')+'</div>'
-    +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
-    +'<tr style="color:#555;font-size:11px;border-bottom:1px solid #1a1a1a"><th style="text-align:left;padding:6px 8px">Name</th><th>Amount</th><th>Status</th><th>Time</th></tr>'
-    +rows+'</table>';
+function closeFanModal() {
+  var modal = document.getElementById('fanModal');
+  if (modal) modal.classList.remove('open');
+}
+
+function loadFanConversation(chatId, name) {
+  var bodyEl = document.getElementById('fanModalBody');
+  if (!bodyEl) return;
+  var url = STATS_URL + '/api/conversation/' + encodeURIComponent(chatId) + '?token=bella-admin-2024';
+  fetch(url)
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      var msgs = (data && data.messages) ? data.messages : [];
+      if (!msgs.length) {
+        bodyEl.innerHTML = '<div style="color:#9ca3af;padding:20px;text-align:center">No messages yet.</div>';
+        return;
+      }
+      var html = '<div class="chat-log">';
+      for (var i = 0; i < msgs.length; i++) {
+        var m = msgs[i];
+        var who = (m.role === 'assistant' || m.from === 'bella') ? 'bella' : 'fan';
+        var text = escHtml(m.text || m.content || '');
+        var t = m.timestamp ? new Date(m.timestamp * 1000).toLocaleString() : '';
+        html += '<div class="chat-bubble ' + who + '">' + text +
+          (t ? '<div class="chat-meta">' + t + '</div>' : '') +
+          '</div>';
+      }
+      html += '</div>';
+      bodyEl.innerHTML = html;
+      // scroll to bottom
+      var log = bodyEl.querySelector('.chat-log');
+      if (log) log.scrollTop = log.scrollHeight;
+    })
+    .catch(function (err) {
+      bodyEl.innerHTML = '<div style="color:#f9a8d4;padding:20px;text-align:center">Error loading: ' + escHtml(String(err)) + '</div>';
+    });
+}
+
+/* -----------------------------------------------------------
+   Payer detail modal (dynamic)
+   ----------------------------------------------------------- */
+function openPayerDetail(email) {
+  if (!email) return;
+  var rows = (PAYMENTS || []).filter(function (p) {
+    return (p.email || '').toLowerCase() === email.toLowerCase();
+  });
+  rows.sort(function (a, b) {
+    return (b.timestamp || b.created || 0) - (a.timestamp || a.created || 0);
+  });
+
+  var total = 0, tipTotal = 0, subTotal = 0, ppvTotal = 0;
+  for (var i = 0; i < rows.length; i++) {
+    var amt = parseFloat(rows[i].amount || 0);
+    total += amt;
+    var ty = (rows[i].type || '').toLowerCase();
+    if (ty === 'tip') tipTotal += amt;
+    else if (ty === 'sub' || ty === 'subscription') subTotal += amt;
+    else if (ty === 'ppv') ppvTotal += amt;
+  }
+
+  var name = rows.length ? (rows[0].name || rows[0].fan_name || email) : email;
+  var first = rows.length ? rows[rows.length - 1] : null;
+  var last = rows.length ? rows[0] : null;
+
+  var html = '<div class="modal-head">' +
+    '<h3 class="modal-title">' + escHtml(name) + '</h3>' +
+    '<button class="modal-close" onclick="closePayerModal()">&times;</button>' +
+    '</div>' +
+    '<div class="stats" style="margin-bottom:14px">' +
+      '<div class="stat"><div class="label">Total</div><div class="value">$' + total.toFixed(2) + '</div></div>' +
+      '<div class="stat"><div class="label">Payments</div><div class="value">' + rows.length + '</div></div>' +
+      '<div class="stat"><div class="label">Tips</div><div class="value">$' + tipTotal.toFixed(2) + '</div></div>' +
+      '<div class="stat"><div class="label">Subs</div><div class="value">$' + subTotal.toFixed(2) + '</div></div>' +
+    '</div>' +
+    '<div style="font-size:12px;color:#9ca3af;margin-bottom:10px">' +
+      'Email: ' + escHtml(email) +
+      (first && first.timestamp ? ' | First: ' + new Date(first.timestamp * 1000).toLocaleDateString() : '') +
+      (last && last.timestamp ? ' | Last: ' + new Date(last.timestamp * 1000).toLocaleDateString() : '') +
+    '</div>' +
+    '<div class="pay-list">';
+  for (var k = 0; k < rows.length; k++) {
+    html += buildCard(rows[k], k);
+  }
+  html += '</div>';
   openPayerModal(html);
 }
 
 function openPayerModal(html) {
-  var existing=document.getElementById('payerModal');
-  if(existing) existing.remove();
-  var overlay=document.createElement('div');
-  overlay.id='payerModal';
-  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
-  var box=document.createElement('div');
-  box.style.cssText='background:#111;border:1px solid #2a2a2a;border-radius:14px;padding:24px;width:600px;max-width:95vw;max-height:85vh;overflow-y:auto';
-  box.innerHTML=html+'<div style="margin-top:16px;text-align:right"><button onclick="document.getElementById('payerModal').remove()" style="background:#1a1a1a;border:1px solid #333;color:#aaa;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px">Close</button></div>';
-  overlay.appendChild(box);
+  closePayerModal(); // remove existing
+  var overlay = document.createElement('div');
+  overlay.id = 'payerModal';
+  overlay.className = 'modal open';
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) closePayerModal();
+  });
+  var content = document.createElement('div');
+  content.className = 'modal-content';
+  content.innerHTML = html;
+  overlay.appendChild(content);
   document.body.appendChild(overlay);
 }
 
-function openPayerDetail(email) {
-  var pmts=PAYMENTS.filter(function(p){return p.email===email;});
-  if(!pmts.length){alert('No payments found for '+email);return;}
-  var total=pmts.reduce(function(s,p){return s+(p.amount_cents||0);},0);
-  var name=pmts[0].name||email;
-  var rows=pmts.map(function(p){return '<tr><td style="color:#555;font-size:11px">'+((p.ts||'').slice(0,19).replace('T',' '))+'</td><td>$'+((p.amount_cents||0)/100).toFixed(2)+'</td><td><span class="badge '+(p.status==='CAPTURED'?'green':'')+'">'+((p.status||'?').toLowerCase())+'</span></td><td style="color:#555;font-size:11px">'+(p.delivered?'✅ delivered':'—')+'</td></tr>';}).join('');
-  var chatMatch=TOP_FANS.find(function(f){return f.name&&name&&(f.name.toLowerCase().includes(name.split(' ')[0].toLowerCase())||name.toLowerCase().includes((f.name||'').split(' ')[0].toLowerCase()));});
-  var chatBtn=chatMatch?'<button onclick="openFanModal('+chatMatch.chat_id+',''+chatMatch.name.replace(/'/g,"\\'")+'')" style="background:#818cf820;border:1px solid #818cf8;color:#818cf8;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:8px">💬 Open Chat</button>':'';
-  var html='<h3 style="margin-bottom:6px;color:#f472b6">💳 '+name+'</h3>'
-    +'<div style="font-size:12px;color:#555;margin-bottom:14px">'+email+'</div>'
-    +'<div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;align-items:center">'
-    +'<div style="background:#1a1a1a;border-radius:8px;padding:10px 14px"><div style="font-size:22px;font-weight:700;color:#f472b6">$'+(total/100).toFixed(2)+'</div><div style="font-size:10px;color:#555;margin-top:2px">TOTAL SPENT</div></div>'
-    +'<div style="background:#1a1a1a;border-radius:8px;padding:10px 14px"><div style="font-size:22px;font-weight:700;color:#818cf8">'+pmts.length+'</div><div style="font-size:10px;color:#555;margin-top:2px">PAYMENTS</div></div>'
-    +'<div style="background:#1a1a1a;border-radius:8px;padding:10px 14px"><div style="font-size:22px;font-weight:700;color:#69f0ae">$'+((total/100)/pmts.length).toFixed(2)+'</div><div style="font-size:10px;color:#555;margin-top:2px">AVG ORDER</div></div>'
-    +chatBtn+'</div>'
-    +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
-    +'<tr style="color:#555;font-size:11px;border-bottom:1px solid #1a1a1a"><th style="text-align:left;padding:6px 8px">Date</th><th>Amount</th><th>Status</th><th>Delivered</th></tr>'
-    +rows+'</table>';
-  openPayerModal(html);
+function closePayerModal() {
+  var existing = document.getElementById('payerModal');
+  if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
 }
+
+/* -----------------------------------------------------------
+   Fan search
+   ----------------------------------------------------------- */
+function filterFans() {
+  var input = document.getElementById('fanSearch');
+  var q = input ? input.value.toLowerCase().trim() : '';
+  var body = document.getElementById('fanBody');
+  if (!body) return;
+  var rows = body.querySelectorAll('tr');
+  for (var i = 0; i < rows.length; i++) {
+    var txt = rows[i].textContent.toLowerCase();
+    rows[i].style.display = (!q || txt.indexOf(q) !== -1) ? '' : 'none';
+  }
+}
+
+/* -----------------------------------------------------------
+   Fanvue accordion
+   ----------------------------------------------------------- */
+function toggleAccordion(btn) {
+  if (!btn) return;
+  btn.classList.toggle('open');
+  var panel = btn.nextElementSibling;
+  if (panel) panel.classList.toggle('open');
+}
+
+/* -----------------------------------------------------------
+   Fanvue subscriber modal
+   ----------------------------------------------------------- */
+function openSubModal() {
+  var m = document.getElementById('subModal');
+  if (m) m.classList.add('open');
+}
+
+function closeSubModal() {
+  var m = document.getElementById('subModal');
+  if (m) m.classList.remove('open');
+}
+
+/* -----------------------------------------------------------
+   Payment link fan modal (separate from main fan modal)
+   ----------------------------------------------------------- */
+function openFanLinkModal(email) {
+  // alias to payer detail; keeps API distinct
+  openPayerDetail(email);
+}
+
+function closeFanLinkModal() {
+  closePayerModal();
+}
+
+/* -----------------------------------------------------------
+   Helpers
+   ----------------------------------------------------------- */
+function escHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function heatClass(h) {
+  var v = (h || '').toLowerCase();
+  if (v === 'hot') return 'hot';
+  if (v === 'warm') return 'warm';
+  return 'cold';
+}
+
+/* -----------------------------------------------------------
+   Global ESC to close modals
+   ----------------------------------------------------------- */
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') {
+    closeFanModal();
+    closePayerModal();
+    closeSubModal();
+  }
+});
+
+/* -----------------------------------------------------------
+   Click outside to close fan modal
+   ----------------------------------------------------------- */
+(function () {
+  var fm = document.getElementById('fanModal');
+  if (fm) {
+    fm.addEventListener('click', function (e) {
+      if (e.target === fm) closeFanModal();
+    });
+  }
+  var sm = document.getElementById('subModal');
+  if (sm) {
+    sm.addEventListener('click', function (e) {
+      if (e.target === sm) closeSubModal();
+    });
+  }
+})();
+
+/* -----------------------------------------------------------
+   Init - must come AFTER all function definitions
+   ----------------------------------------------------------- */
+filterPay('all', document.querySelector('.filter-btn.active'));
+
+
+// Initialize
+filterPay('all', document.querySelector('.filter-btn.active'));
 
 </script>
 </body></html>"""
