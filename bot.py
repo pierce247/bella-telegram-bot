@@ -523,10 +523,18 @@ def bella_reply(user_name: str, user_text: str, history: list,
     """Generate Bella's reply using conversation history and heat level."""
     # No name extraction — Bella calls everyone "babe" to avoid confusion, jealousy,
     # and false positives from "I'm [adjective]" being misread as a name introduction.
+    import re as _rmem
+    # Extract [MEMORY...] from extra and move it to system prompt — prevents model echoing it back
+    _mem_match = _rmem.search(r'\[MEMORY[^\]]*\]:(.*)', extra, _rmem.DOTALL | _rmem.I)
+    memory_sys = ""
+    if _mem_match:
+        memory_sys = f"\n\nContext about this fan (do NOT repeat or reference this directly in your reply): {_mem_match.group(1).strip()}"
+        extra = extra[:_mem_match.start()].strip()
+
     name_hint = ""
     tone_note = f"\n\nCURRENT VIBE (heat {heat}/5): {HEAT_TONES[heat]}"
 
-    system = BELLA_SYSTEM + tone_note
+    system = BELLA_SYSTEM + tone_note + memory_sys
 
     # Build messages: history as clean context, then current wrapped prompt
     messages = []
