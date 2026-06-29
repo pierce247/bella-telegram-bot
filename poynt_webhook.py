@@ -1409,6 +1409,28 @@ def build_dashboard(payment_stats, conv_stats):
         if amt > 0: _master[key]["converted"] = True
         if not _master[key]["name"] and p.get("name"): _master[key]["name"] = p.get("name","")
     _master_list = sorted(_master.values(), key=lambda x: x["total_paid_cents"], reverse=True)
+    def _master_card(c):
+        em = (c["email"] or "").replace('"', "&quot;")
+        em_raw = (c["email"] or "").replace('"', "%22")
+        name = (c["name"] or c["email"] or "Unknown").replace("<","&lt;").replace(">","&gt;")
+        em_disp = (em[:35] + "\u2026" if len(em)>35 else em) if em else "\u2014"
+        src_lbl = "Linktree" if c["source"]=="linktree" else "GoDaddy"
+        date = str(c["date"] or "")[:10] or "\u2014"
+        paid_lbl = (f'<span style="font-weight:700;color:#22c55e;font-size:14px">${c["total_paid_cents"]/100:.2f}</span>'
+                    if c["total_paid_cents"]>0 else '<span style="font-size:11px;color:#555">free</span>')
+        n_attr = (c["name"] or c["email"] or "").lower().replace('"','&quot;')
+        e_attr = em.lower()
+        gmail = f"https://mail.google.com/mail/?view=cm&to={em_raw}&authuser=bellavistaxo%40gmail.com"
+        return (
+            f'<div class="pay-card captured master-row" data-src="{c["source"]}" data-paid="{1 if c["converted"] else 0}" data-name="{n_attr}" data-email="{e_attr}" style="padding:10px 14px">'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'
+            f'<div style="min-width:0;flex:1"><div class="pay-name">{name}</div>'
+            f'<div style="font-size:11px;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{em_disp}</div>'
+            f'<div style="font-size:10px;color:#555;margin-top:2px">{src_lbl} \u00b7 {date}</div></div>'
+            f'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">{paid_lbl}'
+            f'<a href="{gmail}" target="_blank" style="background:#f472b615;border:1px solid #f472b650;color:#f472b6;padding:4px 8px;border-radius:6px;font-size:11px;text-decoration:none">\u2709\ufe0f</a></div></div></div>'
+        )
+    _master_cards_html = "".join(_master_card(c) for c in _master_list)
 
     # ── Conversation stats — pull from shared Postgres DB ───────────────────
     pg_stats     = get_pg_stats()
@@ -1455,7 +1477,8 @@ def build_dashboard(payment_stats, conv_stats):
     gd_bars_30    = _make_gd_bars(daily_gd_30)
     gd_bars_month = _make_gd_bars(daily_gd_month)
 
-    daily_conv = list(reversed(cs.get("daily_messages",[])))  # oldest left, newest right
+    # daily_messages comes newest-first from conv_stats → reverse to get oldest-left
+    daily_conv = list(reversed(cs.get("daily_messages",[])))
     max_msg  = max((d.get("count",0) for d in daily_conv), default=1) or 1
     conv_bars= "".join(
         '<div class="bar-wrap"><div class="bar conv-bar" style="height:{h}px"></div>'
@@ -1464,7 +1487,8 @@ def build_dashboard(payment_stats, conv_stats):
             d=d.get("date",""),c=d.get("count",0)
         ) for d in daily_conv
     )
-    fv_daily = list(reversed(fv.get("daily_june",[])))  # oldest left, newest right
+    # daily_june comes oldest-first from fanvue_stats → use as-is (oldest left, newest right)
+    fv_daily = fv.get("daily_june",[])
     max_fvd  = max((d.get("gross_cents",0) for d in fv_daily), default=1) or 1
     fv_bars  = "".join(
         '<div class="bar-wrap"><div class="bar" style="height:{h}px;background:#818cf8"></div>'
@@ -2430,11 +2454,11 @@ section { margin-bottom: 24px; }
     </button>
     <div style="display:none;padding:0 14px 12px">
       """ + "".join(
-          f'<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05)">'
-          f'<span style="font-size:13px;color:#aaa;text-transform:capitalize">{k}</span>'
-          f'<span style="font-size:14px;font-weight:700;color:#f0f0f0">{v["gross"]}</span></div>'
+          f'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.05)">'
+          f'<span style="font-size:13px;color:#e5e7eb;text-transform:capitalize">{k}</span>'
+          f'<span style="font-size:14px;font-weight:700;background:linear-gradient(135deg,#f472b6,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">{v["gross"]}</span></div>'
           for k,v in fv_breakdown.items() if v.get("gross_cents",0)>0
-      ) + ("" if fv_breakdown else '<div style="color:#555;font-size:13px;padding:8px 0">No data yet</div>') + """
+      ) + ("" if fv_breakdown else '<div style="color:#555;font-size:13px;padding:8px 12px">No data yet</div>') + """
     </div>
   </div>
 </div>
@@ -2471,64 +2495,26 @@ section { margin-bottom: 24px; }
   <button class="filter-btn" id="loadMoreBtn" onclick="loadMore()" style="padding:8px 24px">Load more ↓</button>
 </div>
 
-<h2>👥 Master Subscriber List</h2>
+<h2>&#128101; Master Contact List</h2>
 <div class="stats">
-  <div class="stat"><div class="val">""" + str(len(_master_list)) + """</div><div class="lbl">Total Contacts</div></div>
-  <div class="stat"><div class="val" style="color:#22c55e">""" + str(sum(1 for c in _master_list if c["converted"])) + """</div><div class="lbl">Converted</div></div>
-  <div class="stat"><div class="val">""" + str(len(_subs_active)) + """</div><div class="lbl">Linktree Subs</div></div>
-  <div class="stat"><div class="val" style="color:#f472b6">""" + str(_subs_rate) + """%</div><div class="lbl">Conv. Rate</div></div>
+  <div class="stat"><div class="val">" + str(len(_master_list)) + "</div><div class="lbl">Total Contacts</div></div>
+  <div class="stat"><div class="val" style="color:#22c55e">" + str(sum(1 for c in _master_list if c["converted"])) + "</div><div class="lbl">Converted</div></div>
+  <div class="stat"><div class="val">" + str(len(_subs_active)) + "</div><div class="lbl">Linktree Subs</div></div>
+  <div class="stat"><div class="val" style="color:#f472b6">" + str(_subs_rate) + "%</div><div class="lbl">Conv. Rate</div></div>
 </div>
-<input class="search-input" id="masterSearch" oninput="filterMaster()" placeholder="Search name or email…" style="margin:8px 0 10px">
-<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
-  <button class="filter-btn active" onclick="filterMasterBy('all',this)">All</button>
-  <button class="filter-btn" onclick="filterMasterBy('converted',this)">💰 Paid</button>
-  <button class="filter-btn" onclick="filterMasterBy('linktree',this)">🔗 Linktree</button>
-  <button class="filter-btn" onclick="filterMasterBy('godaddy',this)">🏪 GoDaddy</button>
+<div style="display:flex;gap:8px;margin:10px 0;flex-wrap:wrap;align-items:center">
+  <input class="search-input" id="masterSearch" oninput="filterMaster()" placeholder="Search name or email..." style="flex:1;min-width:180px;margin:0">
+  <button onclick="masterBCC()" style="background:#818cf820;border:1px solid #818cf8;color:#818cf8;padding:8px 14px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;white-space:nowrap">&#128231; Mass BCC</button>
+</div>
+<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+  <button class="filter-btn active" id="mfAll" onclick="filterMasterBy('all',this)">All</button>
+  <button class="filter-btn" id="mfPaid" onclick="filterMasterBy('converted',this)">&#128176; Paid</button>
+  <button class="filter-btn" id="mfLink" onclick="filterMasterBy('linktree',this)">&#128279; Linktree</button>
+  <button class="filter-btn" id="mfGD" onclick="filterMasterBy('godaddy',this)">&#127978; GoDaddy</button>
 </div>
 <div id="masterList" style="display:flex;flex-direction:column;gap:6px">
-""" + "".join(
-    '<div class="pay-card captured master-row" data-src="{src}" data-paid="{paid}" data-name="{n}" data-email="{em}" style="padding:10px 14px">'
-    '<div style="display:flex;justify-content:space-between;align-items:center">'
-    '<div><div class="pay-name">{name}</div>'
-    '<div style="font-size:11px;color:#6b7280">{em_disp}</div>'
-    '<div style="font-size:10px;color:#444;margin-top:2px">{src_lbl} · {date}</div></div>'
-    '<div style="text-align:right">'
-    '{paid_lbl}'
-    '</div></div></div>'.format(
-        src=c["source"],
-        paid="1" if c["converted"] else "0",
-        n=(c["name"] or c["email"] or "").lower().replace("'","&#39;"),
-        em=(c["email"] or "").lower().replace("'","&#39;"),
-        name=c["name"] or c["email"] or "Unknown",
-        em_disp=(c["email"][:35] + "…" if len(c["email"] or "")>35 else c["email"]) if c["email"] else "—",
-        src_lbl="Linktree" if c["source"]=="linktree" else "GoDaddy",
-        date=c["date"][:10] if c["date"] else "—",
-        paid_lbl=f'<span style="font-weight:700;color:#22c55e;font-size:14px">${c["total_paid_cents"]/100:.2f}</span>' if c["total_paid_cents"]>0 else '<span style="font-size:11px;color:#555">not yet</span>'
-    )
-    for c in _master_list[:50]
-) + """
+" + _master_cards_html + "
 </div>
-""" + (f'<div id="masterHidden" style="display:none">' + "".join(
-    '<div class="pay-card captured master-row" data-src="{src}" data-paid="{paid}" data-name="{n}" data-email="{em}" style="padding:10px 14px">'
-    '<div style="display:flex;justify-content:space-between;align-items:center">'
-    '<div><div class="pay-name">{name}</div>'
-    '<div style="font-size:11px;color:#6b7280">{em_disp}</div>'
-    '<div style="font-size:10px;color:#444;margin-top:2px">{src_lbl} · {date}</div></div>'
-    '<div style="text-align:right">'
-    '{paid_lbl}'
-    '</div></div></div>'.format(
-        src=c["source"],
-        paid="1" if c["converted"] else "0",
-        n=(c["name"] or c["email"] or "").lower().replace("'","&#39;"),
-        em=(c["email"] or "").lower().replace("'","&#39;"),
-        name=c["name"] or c["email"] or "Unknown",
-        em_disp=(c["email"][:35] + "…" if len(c["email"] or "")>35 else c["email"]) if c["email"] else "—",
-        src_lbl="Linktree" if c["source"]=="linktree" else "GoDaddy",
-        date=c["date"][:10] if c["date"] else "—",
-        paid_lbl=f'<span style="font-weight:700;color:#22c55e;font-size:14px">${c["total_paid_cents"]/100:.2f}</span>' if c["total_paid_cents"]>0 else '<span style="font-size:11px;color:#555">not yet</span>'
-    )
-    for c in _master_list[50:]
-) + '</div><div style="text-align:center;margin:10px 0"><button class="filter-btn" onclick="document.getElementById(\'masterHidden\').style.display=\'block\';this.style.display=\'none\'">Load more ({} more) ↓</button></div>'.format(max(0,len(_master_list)-50)) if len(_master_list)>50 else "") + """
 <!-- Add contact form -->
 <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
   <input id="addMasterEmail" placeholder="email@example.com" style="flex:1;min-width:160px;background:#1a1a1a;border:1px solid #333;color:#f0f0f0;padding:8px 12px;border-radius:8px;font-size:13px">
@@ -2987,30 +2973,51 @@ function openSubModal() {
 var _masterFilter = 'all';
 function filterMasterBy(type, btn) {
   _masterFilter = type;
-  document.querySelectorAll('#masterList ~ .filter-btn, #masterList').forEach(function(){});
-  document.querySelectorAll('[onclick*="filterMasterBy"]').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('#mfAll,#mfPaid,#mfLink,#mfGD').forEach(function(b){ b.classList.remove('active'); });
   if(btn) btn.classList.add('active');
   filterMaster();
 }
 function filterMaster() {
-  var q = (document.getElementById('masterSearch') ? document.getElementById('masterSearch').value : '').toLowerCase();
+  var q = (document.getElementById('masterSearch')||{value:''}).value.toLowerCase();
   document.querySelectorAll('.master-row').forEach(function(row) {
-    var n = (row.dataset.name||'').toLowerCase();
-    var e = (row.dataset.email||'').toLowerCase();
-    var src = row.dataset.src||'';
-    var paid = row.dataset.paid||'0';
+    var n = (row.getAttribute('data-name')||'').toLowerCase();
+    var e = (row.getAttribute('data-email')||'').toLowerCase();
+    var src = row.getAttribute('data-src')||'';
+    var paid = row.getAttribute('data-paid')||'0';
     var matchQ = !q || n.includes(q) || e.includes(q);
-    var matchF = _masterFilter==='all' || (_masterFilter==='converted'&&paid==='1') || (_masterFilter==='linktree'&&src==='linktree') || (_masterFilter==='godaddy'&&src==='godaddy');
+    var matchF = _masterFilter==='all'
+      || (_masterFilter==='converted' && paid==='1')
+      || (_masterFilter==='linktree' && src==='linktree')
+      || (_masterFilter==='godaddy' && src==='godaddy');
     row.style.display = (matchQ && matchF) ? '' : 'none';
   });
+}
+function masterBCC() {
+  var emails = [];
+  document.querySelectorAll('.master-row').forEach(function(row) {
+    if(row.style.display==='none') return;
+    var e = row.getAttribute('data-email')||'';
+    if(e && e!=='none' && !emails.includes(e)) emails.push(e);
+  });
+  if(!emails.length){alert('No contacts visible');return;}
+  var bcc = emails.join(',');
+  var url = 'https://mail.google.com/mail/?view=cm&bcc='+encodeURIComponent(bcc)+'&authuser=bellavistaxo%40gmail.com';
+  window.open(url,'_blank');
 }
 function addMasterContact() {
   var email = (document.getElementById('addMasterEmail').value||'').trim().toLowerCase();
   var name = (document.getElementById('addMasterName').value||'').trim();
   if(!email){alert('Email required');return;}
   fetch('/add-subscriber?token=bella-admin-2024', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,name:name,source:'manual'})})
-    .then(r=>r.json()).then(d=>{alert(d.ok?'Added!':('Error: '+(d.error||'?')));if(d.ok){document.getElementById('addMasterEmail').value='';document.getElementById('addMasterName').value='';location.reload();}});
+    .then(function(r){return r.json();}).then(function(d){
+      alert(d.ok?'Added! Reload to see changes.':('Error: '+(d.error||'?')));
+      if(d.ok){document.getElementById('addMasterEmail').value='';document.getElementById('addMasterName').value='';}
+    });
 }
+/* Scroll all bar charts to the right (most recent) on load */
+window.addEventListener('load', function() {
+  document.querySelectorAll('.bars').forEach(function(b) { b.scrollLeft = b.scrollWidth; });
+});
 
 function closeSubModal() {
   var m = document.getElementById('subModal');
