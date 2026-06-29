@@ -1080,13 +1080,15 @@ def build_c360_page():
 
     def _up_items():
         h = ""
-        for p in _upcoming[:20]:
-            img = f'<img src="{p.get("thumb","")}" loading="lazy">' if p.get("thumb") else '<div style="width:34px;height:34px;border-radius:5px;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">📸</div>'
-            cap = p.get("caption","—")[:60] or "—"
+        for p in _upcoming[:40]:
+            img = f'<img src="{p.get("thumb","")}" loading="lazy">' if p.get("thumb") else f'<div class="up-nothumb">{("🎬" if p.get("media_type")=="video" else "📸")}</div>'
+            cap = p.get("caption","—")[:50] or "—"
             mt = p.get("media_type","?")
-            tm = _fmt_date(p.get("scheduled_at",""))
+            sa = p.get("scheduled_at","")
+            date_str = sa[:10] if sa else ""
+            time_str = sa[11:16] if len(sa) > 11 else ""
             pj = _post_json(p)
-            h += f'<div class="upitem" onclick="openM({pj})">{img}<div class="meta"><div class="cap">{cap}</div><div class="tm">{tm}</div></div><span class="cpill {mt}">{mt}</span></div>'
+            h += f'<div class="upcard" onclick="openM({pj})">{img}<div class="upcard-info"><div class="upcard-date">{date_str}</div><div class="upcard-time">{time_str}</div><div class="upcard-cap">{cap}</div><span class="cpill {mt}">{mt}</span></div></div>'
         return h or '<div style="color:#555">No upcoming posts</div>'
 
     def _draft_grid(posts):
@@ -1129,12 +1131,15 @@ h2{{font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-sp
 .cpill.photo{{background:rgba(79,195,247,.15);color:#4fc3f7}}
 .cpill.video{{background:rgba(244,114,182,.15);color:#f472b6}}
 .cpill.text{{background:rgba(105,240,174,.15);color:#69f0ae}}
-.uplist{{display:flex;flex-direction:column;gap:6px}}
-.upitem{{background:#111;border:1px solid #1a1a1a;border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .15s}}
-.upitem:hover{{border-color:#333}}
-.upitem img{{width:34px;height:34px;border-radius:5px;object-fit:cover;flex-shrink:0;background:#1a1a1a}}
-.upitem .meta{{flex:1;min-width:0}}.upitem .cap{{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
-.upitem .tm{{font-size:10px;color:#555;margin-top:1px}}
+.upgrid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:8px}}
+.upcard{{background:#111;border:1px solid #1a1a1a;border-radius:10px;overflow:hidden;cursor:pointer;transition:transform .15s,border-color .15s}}
+.upcard:hover{{transform:translateY(-2px);border-color:#f472b640}}
+.upcard img{{width:100%;aspect-ratio:9/16;object-fit:cover;display:block;background:#1a1a1a}}
+.up-nothumb{{width:100%;aspect-ratio:9/16;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-size:32px}}
+.upcard-info{{padding:8px 9px 10px}}
+.upcard-date{{font-size:11px;font-weight:600;color:#818cf8}}
+.upcard-time{{font-size:13px;font-weight:700;color:#f0f0f0;margin:1px 0 4px}}
+.upcard-cap{{font-size:10px;color:#888;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:5px}}
 .dtabs{{display:flex;gap:3px;background:rgba(255,255,255,.04);border-radius:7px;padding:3px;width:fit-content;margin-bottom:10px}}
 .dtab{{padding:5px 12px;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer;color:#555;border:none;background:none}}
 .dtab.active{{background:#1a1a1a;color:#f0f0f0}}
@@ -1172,7 +1177,7 @@ h2{{font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-sp
 <h2>📅 Scheduled Calendar</h2>
 <div class="cal">{_cal_html()}</div>
 <h2>⏰ Upcoming Posts <span style="font-size:10px;color:#555;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2>
-<div class="uplist">{_up_items()}</div>
+<div class="upgrid">{_up_items()}</div>
 <h2>📦 Drafts <span style="font-size:10px;color:#555;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2>
 <div class="dtabs">
   <button class="dtab active" id="dtvid" onclick="swTab(this,'dpvideo','dpphoto')">🎬 Videos ({_drafts.get("video_total", _dvt.get("video",0))})</button>
