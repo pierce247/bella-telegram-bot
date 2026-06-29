@@ -1175,15 +1175,15 @@ h2{{font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-sp
 <div class="uplist">{_up_items()}</div>
 <h2>📦 Drafts <span style="font-size:10px;color:#555;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2>
 <div class="dtabs">
-  <button class="dtab active" id="dtvid" onclick="swTab(this,'dpvideo','dpphoto')">🎬 Videos ({_dvt.get("video",0)})</button>
-  <button class="dtab" id="dtphoto" onclick="swTab(this,'dpphoto','dpvideo')">📸 Photos ({_dvt.get("photo",0)})</button>
+  <button class="dtab active" id="dtvid" onclick="swTab(this,'dpvideo','dpphoto')">🎬 Videos ({_drafts.get("video_total", _dvt.get("video",0))})</button>
+  <button class="dtab" id="dtphoto" onclick="swTab(this,'dpphoto','dpvideo')">📸 Photos ({_drafts.get("photo_total", _dvt.get("photo",0))})</button>
 </div>
+<div style="font-size:11px;color:#444;margin-bottom:8px">Showing first 40 of each type · <a href="https://app.content360.io" target="_blank" style="color:#818cf8">View all in Content360 →</a></div>
 <div id="dpvideo" class="dgrid">{_vids}</div>
 <div id="dpphoto" class="dgrid" style="display:none">{_photos}</div>
 <div id="modal" onclick="if(event.target===this)closeM()">
   <div id="mbox">
     <h3 id="mtitle">Edit Post</h3>
-    <div id="mplatforms" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px;min-height:22px"></div>
     <div class="mf"><label>Caption</label><textarea id="mcap" rows="3"></textarea></div>
     <div class="mf" id="mschedrow"><label>Scheduled At (UTC)</label><input type="datetime-local" id="msched"></div>
     <div id="mmsg"></div>
@@ -1206,12 +1206,6 @@ function openM(p){{
   _ep=p;
   document.getElementById('mtitle').textContent=p.status==='draft'?'Edit Draft':'Edit Scheduled Post';
   document.getElementById('mcap').value=p.caption||'';
-  var _icons={{instagram_direct:'📸',youtube:'▶️',tiktok:'🎵',twitter:'🐦',facebook_page:'👤',tumblr:'📝',pinterest:'📌',linkedin:'💼',mastodon:'🐘',reddit:'🔴',telegram:'✈️',threads:'🧵'}};
-  var _pEl=document.getElementById('mplatforms');
-  if(_pEl){{
-    var _accts=p.accounts||[];
-    _pEl.innerHTML=_accts.length?_accts.map(function(a){{return '<span style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:5px;padding:2px 7px;font-size:11px;display:inline-flex;align-items:center;gap:4px">'+((_icons[a.provider])||'🌐')+' '+a.provider.replace('_direct','').replace('_page','')+'</span>';}}).join(' '):'<span style="color:#555;font-size:11px">All platforms</span>';
-  }}
   var sr=document.getElementById('mschedrow');
   var si=document.getElementById('msched');
   if(p.scheduled_at){{sr.style.display='block';si.value=p.scheduled_at.replace(' ','T').slice(0,16);}}
