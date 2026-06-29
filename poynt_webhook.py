@@ -1845,7 +1845,7 @@ input, textarea {
   padding: 16px;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .chart-header {
@@ -2465,13 +2465,13 @@ section { margin-bottom: 24px; }
 </div>
 <span style="font-size:10px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:8px">Revenue Charts</span>
 <div class="charts" style="max-width:100%">
-  <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">Fanvue MTD</div><div class="bars" id="fvBarsEl">""" + (fv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
+  <div class="chart" style="min-width:0"><div class="chart-title">Fanvue MTD</div><div class="bars" id="fvBarsEl">""" + (fv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
   <script>(function(){var b=document.getElementById('fvBarsEl');if(b){b.scrollLeft=99999;}})();</script>
-  <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">GoDaddy MTD</div>
+  <div class="chart" style="min-width:0"><div class="chart-title">GoDaddy MTD</div>
     <div class="bars" id="gdBarsEl">""" + gd_bars_month + """</div>
   </div>
   <script>(function(){var b=document.getElementById('gdBarsEl');if(b){b.scrollLeft=99999;}})();</script>
-  <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">Messages MTD</div><div class="bars">""" + (conv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
+  <div class="chart" style="min-width:0"><div class="chart-title">Messages MTD</div><div class="bars">""" + (conv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
 </div>
 
 <h2>💳 GoDaddy Payment Links</h2>
