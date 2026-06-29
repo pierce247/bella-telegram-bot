@@ -1389,6 +1389,27 @@ def build_dashboard(payment_stats, conv_stats):
     _subs_conv   = [s for s in _subs_all if s.get("converted")]
     _subs_rate   = round(len(_subs_conv)/len(_subs_active)*100) if _subs_active else 0
 
+    # ── Master contact list (Linktree + GoDaddy payers, deduped by email) ──────
+    _master = {}  # email -> {name, email, total_paid, source, date}
+    for s in _subs_all:
+        em = (s.get("email","") or "").lower().strip()
+        if not em: continue
+        _master[em] = {"email": em, "name": s.get("name",""), "total_paid_cents": 0,
+                       "source": "linktree", "date": s.get("followed_on",""), "converted": s.get("converted",False)}
+    _all_pay_log = load_json(PAYMENTS_LOG, [])
+    for p in _all_pay_log:
+        em = (p.get("email","") or "").lower().strip()
+        amt = p.get("amount_cents",0) or 0
+        if not em and not p.get("name"): continue
+        key = em or (p.get("name","") or "").lower()
+        if key not in _master:
+            _master[key] = {"email": em, "name": p.get("name",""), "total_paid_cents": 0,
+                            "source": "godaddy", "date": (p.get("ts","") or "")[:10], "converted": True}
+        _master[key]["total_paid_cents"] += amt
+        if amt > 0: _master[key]["converted"] = True
+        if not _master[key]["name"] and p.get("name"): _master[key]["name"] = p.get("name","")
+    _master_list = sorted(_master.values(), key=lambda x: x["total_paid_cents"], reverse=True)
+
     # ── Conversation stats — pull from shared Postgres DB ───────────────────
     pg_stats     = get_pg_stats()
     total_fans   = pg_stats.get("total_fans") or cs.get("total_fans","—")
@@ -2385,28 +2406,21 @@ section { margin-bottom: 24px; }
     </button>
     <div style="display:none;padding:0 14px 12px">
       """ + "".join(
-          f'<div class="fv-row"><span class="fv-row-lbl" style="text-transform:capitalize">{k}</span><span class="fv-row-val">{v["gross"]}</span></div>'
+          f'<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05)">'
+          f'<span style="font-size:13px;color:#aaa;text-transform:capitalize">{k}</span>'
+          f'<span style="font-size:14px;font-weight:700;color:#f0f0f0">{v["gross"]}</span></div>'
           for k,v in fv_breakdown.items() if v.get("gross_cents",0)>0
-      ) + ("" if fv_breakdown else '<div class="fv-row"><span class="fv-row-lbl" style="color:#555">No data yet</span></div>') + """
+      ) + ("" if fv_breakdown else '<div style="color:#555;font-size:13px;padding:8px 0">No data yet</div>') + """
     </div>
   </div>
 </div>
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
-  <span style="font-size:10px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.5px">Revenue Charts</span>
-  <div style="display:flex;gap:3px;background:rgba(255,255,255,.04);border-radius:6px;padding:3px">
-    <button onclick="setRange('7d',this)" id="rng7d" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;border:none;color:#555;background:none">7D</button>
-    <button onclick="setRange('30d',this)" id="rng30d" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;border:none;color:#555;background:none">30D</button>
-    <button onclick="setRange('month',this)" id="rngmonth" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;border:none;background:#1a1a1a;color:#f0f0f0">MTD</button>
-  </div>
-</div>
+<span style="font-size:10px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:8px">Revenue Charts</span>
 <div class="charts" style="max-width:100%">
-  <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">Fanvue daily</div><div class="bars">""" + (fv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
-  <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">GoDaddy — <span id="gdRangeLabel">MTD</span></div>
-    <div class="bars" id="gdBars7d" style="display:none">""" + gd_bars + """</div>
-    <div class="bars" id="gdBars30d" style="display:none">""" + gd_bars_30 + """</div>
-    <div class="bars" id="gdBarsMonth">""" + gd_bars_month + """</div>
+  <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">Fanvue MTD</div><div class="bars">""" + (fv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
+  <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">GoDaddy MTD</div>
+    <div class="bars">""" + gd_bars_month + """</div>
   </div>
-  <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">Messages daily</div><div class="bars">""" + (conv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
+  <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">Messages MTD</div><div class="bars">""" + (conv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
 </div>
 
 <h2>💳 GoDaddy Payment Links</h2>
@@ -2433,11 +2447,69 @@ section { margin-bottom: 24px; }
   <button class="filter-btn" id="loadMoreBtn" onclick="loadMore()" style="padding:8px 24px">Load more ↓</button>
 </div>
 
-<h2>📧 Email Subscribers (Linktree)</h2>
-<div class="stats" id="subStats" style="cursor:pointer" onclick="openSubModal()">
-  <div class="stat"><div class="val" id="subTotal">""" + str(len(_subs_active)) + """</div><div class="lbl">Total Active</div><div class="sub2">tap to view list</div></div>
-  <div class="stat"><div class="val" id="subConverted" style="color:#22c55e">""" + str(len(_subs_conv)) + """</div><div class="lbl">Converted</div></div>
-  <div class="stat"><div class="val" id="subRate">""" + str(_subs_rate) + """%</div><div class="lbl">Conv. Rate</div></div>
+<h2>👥 Master Subscriber List</h2>
+<div class="stats">
+  <div class="stat"><div class="val">""" + str(len(_master_list)) + """</div><div class="lbl">Total Contacts</div></div>
+  <div class="stat"><div class="val" style="color:#22c55e">""" + str(sum(1 for c in _master_list if c["converted"])) + """</div><div class="lbl">Converted</div></div>
+  <div class="stat"><div class="val">""" + str(len(_subs_active)) + """</div><div class="lbl">Linktree Subs</div></div>
+  <div class="stat"><div class="val" style="color:#f472b6">""" + str(_subs_rate) + """%</div><div class="lbl">Conv. Rate</div></div>
+</div>
+<input class="search-input" id="masterSearch" oninput="filterMaster()" placeholder="Search name or email…" style="margin:8px 0 10px">
+<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+  <button class="filter-btn active" onclick="filterMasterBy('all',this)">All</button>
+  <button class="filter-btn" onclick="filterMasterBy('converted',this)">💰 Paid</button>
+  <button class="filter-btn" onclick="filterMasterBy('linktree',this)">🔗 Linktree</button>
+  <button class="filter-btn" onclick="filterMasterBy('godaddy',this)">🏪 GoDaddy</button>
+</div>
+<div id="masterList" style="display:flex;flex-direction:column;gap:6px">
+""" + "".join(
+    '<div class="pay-card captured master-row" data-src="{src}" data-paid="{paid}" data-name="{n}" data-email="{em}" style="padding:10px 14px">'
+    '<div style="display:flex;justify-content:space-between;align-items:center">'
+    '<div><div class="pay-name">{name}</div>'
+    '<div style="font-size:11px;color:#6b7280">{em_disp}</div>'
+    '<div style="font-size:10px;color:#444;margin-top:2px">{src_lbl} · {date}</div></div>'
+    '<div style="text-align:right">'
+    '{paid_lbl}'
+    '</div></div></div>'.format(
+        src=c["source"],
+        paid="1" if c["converted"] else "0",
+        n=(c["name"] or c["email"] or "").lower().replace("'","&#39;"),
+        em=(c["email"] or "").lower().replace("'","&#39;"),
+        name=c["name"] or c["email"] or "Unknown",
+        em_disp=(c["email"][:35] + "…" if len(c["email"] or "")>35 else c["email"]) if c["email"] else "—",
+        src_lbl="Linktree" if c["source"]=="linktree" else "GoDaddy",
+        date=c["date"][:10] if c["date"] else "—",
+        paid_lbl=f'<span style="font-weight:700;color:#22c55e;font-size:14px">${c["total_paid_cents"]/100:.2f}</span>' if c["total_paid_cents"]>0 else '<span style="font-size:11px;color:#555">not yet</span>'
+    )
+    for c in _master_list[:50]
+) + """
+</div>
+""" + (f'<div id="masterHidden" style="display:none">' + "".join(
+    '<div class="pay-card captured master-row" data-src="{src}" data-paid="{paid}" data-name="{n}" data-email="{em}" style="padding:10px 14px">'
+    '<div style="display:flex;justify-content:space-between;align-items:center">'
+    '<div><div class="pay-name">{name}</div>'
+    '<div style="font-size:11px;color:#6b7280">{em_disp}</div>'
+    '<div style="font-size:10px;color:#444;margin-top:2px">{src_lbl} · {date}</div></div>'
+    '<div style="text-align:right">'
+    '{paid_lbl}'
+    '</div></div></div>'.format(
+        src=c["source"],
+        paid="1" if c["converted"] else "0",
+        n=(c["name"] or c["email"] or "").lower().replace("'","&#39;"),
+        em=(c["email"] or "").lower().replace("'","&#39;"),
+        name=c["name"] or c["email"] or "Unknown",
+        em_disp=(c["email"][:35] + "…" if len(c["email"] or "")>35 else c["email"]) if c["email"] else "—",
+        src_lbl="Linktree" if c["source"]=="linktree" else "GoDaddy",
+        date=c["date"][:10] if c["date"] else "—",
+        paid_lbl=f'<span style="font-weight:700;color:#22c55e;font-size:14px">${c["total_paid_cents"]/100:.2f}</span>' if c["total_paid_cents"]>0 else '<span style="font-size:11px;color:#555">not yet</span>'
+    )
+    for c in _master_list[50:]
+) + '</div><div style="text-align:center;margin:10px 0"><button class="filter-btn" onclick="document.getElementById(\'masterHidden\').style.display=\'block\';this.style.display=\'none\'">Load more ({} more) ↓</button></div>'.format(max(0,len(_master_list)-50)) if len(_master_list)>50 else "") + """
+<!-- Add contact form -->
+<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+  <input id="addMasterEmail" placeholder="email@example.com" style="flex:1;min-width:160px;background:#1a1a1a;border:1px solid #333;color:#f0f0f0;padding:8px 12px;border-radius:8px;font-size:13px">
+  <input id="addMasterName" placeholder="Name (optional)" style="width:130px;background:#1a1a1a;border:1px solid #333;color:#f0f0f0;padding:8px 12px;border-radius:8px;font-size:13px">
+  <button onclick="addMasterContact()" style="background:#22c55e20;border:1px solid #22c55e;color:#22c55e;padding:8px 14px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;white-space:nowrap">+ Add</button>
 </div>
 
 <!-- Subscriber modal -->
@@ -2885,6 +2957,35 @@ function toggleAccordion(btn) {
 function openSubModal() {
   var m = document.getElementById('subModal');
   if(m){m.style.display='block';}
+}
+
+/* Master list filter */
+var _masterFilter = 'all';
+function filterMasterBy(type, btn) {
+  _masterFilter = type;
+  document.querySelectorAll('#masterList ~ .filter-btn, #masterList').forEach(function(){});
+  document.querySelectorAll('[onclick*="filterMasterBy"]').forEach(function(b){ b.classList.remove('active'); });
+  if(btn) btn.classList.add('active');
+  filterMaster();
+}
+function filterMaster() {
+  var q = (document.getElementById('masterSearch') ? document.getElementById('masterSearch').value : '').toLowerCase();
+  document.querySelectorAll('.master-row').forEach(function(row) {
+    var n = (row.dataset.name||'').toLowerCase();
+    var e = (row.dataset.email||'').toLowerCase();
+    var src = row.dataset.src||'';
+    var paid = row.dataset.paid||'0';
+    var matchQ = !q || n.includes(q) || e.includes(q);
+    var matchF = _masterFilter==='all' || (_masterFilter==='converted'&&paid==='1') || (_masterFilter==='linktree'&&src==='linktree') || (_masterFilter==='godaddy'&&src==='godaddy');
+    row.style.display = (matchQ && matchF) ? '' : 'none';
+  });
+}
+function addMasterContact() {
+  var email = (document.getElementById('addMasterEmail').value||'').trim().toLowerCase();
+  var name = (document.getElementById('addMasterName').value||'').trim();
+  if(!email){alert('Email required');return;}
+  fetch('/add-subscriber?token=bella-admin-2024', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,name:name,source:'manual'})})
+    .then(r=>r.json()).then(d=>{alert(d.ok?'Added!':('Error: '+(d.error||'?')));if(d.ok){document.getElementById('addMasterEmail').value='';document.getElementById('addMasterName').value='';location.reload();}});
 }
 
 function closeSubModal() {
