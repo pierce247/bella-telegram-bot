@@ -1405,9 +1405,11 @@ def build_dashboard(payment_stats, conv_stats):
 
     fv_breakdown = fv.get("breakdown",{})
     fv_bd_rows = "".join(
-        f'<tr><td style="text-transform:capitalize">{k}</td><td>{v["gross"]}</td></tr>'
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.05);">'
+        f'<span style="font-size:13px;color:#e5e7eb;text-transform:capitalize">{k}</span>'
+        f'<span style="font-size:14px;font-weight:700;background:linear-gradient(135deg,#f472b6,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">{v["gross"]}</span></div>'
         for k,v in fv_breakdown.items() if v.get("gross_cents",0)>0
-    ) or '<tr><td colspan=2 class="empty">—</td></tr>'
+    ) or '<div style="color:#555;padding:12px">No breakdown data</div>'
 
     # ── Daily revenue charts (7d, 30d, month) ─────────────────────────────────
     daily_gd       = ps.get("daily", [])
@@ -2558,11 +2560,10 @@ function filterPay(t,btn){
   currentFilter=t; showCount=10;
   document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('active');});
   if(btn) btn.classList.add('active');
-  visibleRows=PAYMENTS||[];
+  visibleRows=(PAYMENTS||[]).slice();
   var q=(document.getElementById('paySearch')||{}).value;
-  if(q) q=q.toLowerCase();
-  if(q) visibleRows=visibleRows.filter(function(p){return (p.name||'').toLowerCase().includes(q)||(p.email||'').toLowerCase().includes(q);});
-  if(t==='captured') visibleRows=visibleRows.filter(function(p){return p.status==='CAPTURED'||p.status==='AUTHORIZED'||p.status==='COMPLETED';});
+  if(q){ q=q.toLowerCase(); visibleRows=visibleRows.filter(function(p){return (p.name||'').toLowerCase().includes(q)||(p.email||'').toLowerCase().includes(q);}); }
+  if(t==='captured') visibleRows=visibleRows.filter(function(p){return ['CAPTURED','AUTHORIZED','COMPLETED'].indexOf(p.status)>=0;});
   else if(t==='declined') visibleRows=visibleRows.filter(function(p){return p.status==='DECLINED'||(p.event_type||'').endsWith('DECLINED');});
   else if(t==='unmatched') visibleRows=visibleRows.filter(function(p){return !p.chat_id&&!p.delivered&&p.status!=='DECLINED';});
   renderPayCards(visibleRows);
@@ -2920,7 +2921,7 @@ filterPay('all', document.querySelector('.filter-btn.active'));
 
 // Initialize
 filterPay('all', document.querySelector('.filter-btn.active'));
-// Charts already show newest first (no scroll needed)
+setTimeout(function(){ document.querySelectorAll('.bars').forEach(function(b){ b.scrollLeft=b.scrollWidth; }); }, 500);
 
 </script>
 </body></html>"""
