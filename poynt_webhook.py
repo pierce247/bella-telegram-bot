@@ -1497,6 +1497,33 @@ def build_dashboard(payment_stats, conv_stats):
     all_p_sorted = sorted(all_p, key=lambda p: p.get("ts",""), reverse=True)
     pay_data = json.dumps(all_p_sorted, default=str)
     payer_data = json.dumps(top_payers, default=str)
+    # Pre-render payment list for direct HTML injection (no JS needed)
+    def _pay_card(p):
+        dec = (p.get('event_type','').endswith('DECLINED') or p.get('status')=='DECLINED')
+        amt = f"${p.get('amount_cents',0)/100:.2f}"
+        ts = str(p.get('ts',''))[:16]
+        name = p.get('name') or 'Unknown'
+        email = p.get('email') or '—'
+        status = str(p.get('status','?')).lower()
+        cls = 'declined' if dec else 'captured'
+        return (
+            f'<div class="pay-card {cls}" data-status="{cls}" data-name="{name.lower()}" data-email="{email.lower()}" onclick="this.querySelector(\'.pay-detail\').style.display=this.querySelector(\'.pay-detail\').style.display===\'none\'?\'block\':\'none\'" style="cursor:pointer">'
+            f'<div class="pay-summary">'
+            f'<div style="flex-shrink:0;font-size:16px">{"❌" if dec else "✅"}</div>'
+            f'<div class="pay-main">'
+            f'<div class="pay-name">{name}</div>'
+            f'<div class="pay-meta">{email}</div>'
+            f'<div style="font-size:10px;color:#6b7280">{ts}</div>'
+            f'</div>'
+            f'<div class="pay-amount {cls}">{amt}</div>'
+            f'</div>'
+            f'<div class="pay-detail" style="display:none;padding:10px;border-top:1px solid rgba(255,255,255,0.05)">'
+            f'<div>Status: {status}</div>'
+            f'<div>Delivered: {"Yes" if p.get("delivered") else "No"}</div>'
+            f'</div>'
+            f'</div>'
+        )
+    payment_list_html = "".join(_pay_card(p) for p in all_p_sorted[:50])
     tg_users_data = json.dumps(tg_usernames)
 
     # ── Fan table: prefer cs.top_fans, fall back to direct get_pg_fans() ───────
@@ -2387,7 +2414,7 @@ section { margin-bottom: 24px; }
   <button class="filter-btn" onclick="filterPay('unmatched',this)">📬 Unmatched (""" + str(gd_unmatched) + """)</button>
 </div>
 <input class="search-input" id="paySearch" oninput="filterPay(currentFilter,null)" placeholder="Search name / email…" style="margin-bottom:10px">
-<div class="pay-list" id="payList"></div>
+<div class="pay-list" id="payList">""" + payment_list_html + """</div>
 <div id="loadMoreWrap" style="text-align:center;margin:12px 0;display:none">
   <button class="filter-btn" id="loadMoreBtn" onclick="loadMore()" style="padding:8px 24px">Load more ↓</button>
 </div>
@@ -2593,31 +2620,31 @@ function renderPayCards(rows) {
   if (lm) lm.style.display = rows.length > showCount ? 'block' : 'none';
 }
 
-function buildCard(p,i){
-  var dec=(p.event_type||'').endsWith('DECLINED')||p.status==='DECLINED';
-  var isFv=(p.source||'').startsWith('fanvue');
-  var cls=dec?'declined':(isFv?'fanvue':'captured');
-  var amt=((p.amount_cents||0)/100).toFixed(2);
-  var ts=(p.ts||'').replace('T',' ').slice(0,16);
-  var rid=(p.resource_id||'').replace(/^gmail-order-/,'Order #').replace(/-[0-9a-f-]{20,}/i,'');
-  var h='<div class="pay-card '+cls+'" onclick="togglePayCard(this)" style="cursor:pointer">';
-  h+='<div class="pay-summary">';
-  h+='<div style="flex-shrink:0;font-size:18px">'+(dec?'DECLINED':(isFv?'Fanvue':'OK'))+'</div>';
-  h+='<div class="pay-main">';
-  h+='<div class="pay-name">'+(p.name||'Unknown')+'</div>';
-  h+='<div class="pay-meta">'+(p.email||'&mdash;')+'</div>';
-  h+='<div style="font-size:10px;color:#6b7280">'+ts+(rid?' &middot; '+rid:'')+'</div>';
-  h+='</div>';
-  h+='<div class="pay-amount '+cls+'">$'+amt+'</div>';
-  h+='</div>';
-  h+='<div class="pay-detail" style="display:none">';
-  h+='<div>Status: '+((p.status||'?').toLowerCase())+'</div>';
-  h+='<div>Delivered: '+(p.delivered?'Yes':'No')+'</div>';
-  if(p.notes) h+='<div>Note: '+p.notes+'</div>';
-  h+='</div></div>';
-  return h;
+function buildCard(p, i) {
+  var amount = parseFloat(p.amount || 0).toFixed(2);
+  var name = escHtml(p.name || p.fan_name || p.email || 'Unknown');
+  var email = escHtml(p.email || '');
+  var type = escHtml(p.type || 'payment');
+  var ts = p.timestamp || p.created || 0;
+  var date = ts ? new Date(ts * 1000).toLocaleString() : '';
+  var safeEmail = (p.email || '').replace(/'/g, "\\'");
+  return '<div class="pay-card" onclick="this.classList.toggle(\'expanded\')">' +
+    '<div class="pay-card-head">' +
+      '<div>' +
+        '<div class="pay-card-name">' + name + '</div>' +
+        '<div class="pay-card-meta">' +
+          '<span class="badge">' + type + '</span> ' + date +
+        '</div>' +
+      '</div>' +
+      '<div class="pay-card-amount">$' + amount + '</div>' +
+    '</div>' +
+    '<div class="pay-card-detail">' +
+      '<div>Email: ' + email + '</div>' +
+      (p.note ? '<div>Note: ' + escHtml(p.note) + '</div>' : '') +
+      '<div style="margin-top:8px"><button class="filter-btn" onclick="event.stopPropagation();openPayerDetail(\'' + safeEmail + '\')">View payer history</button></div>' +
+    '</div>' +
+  '</div>';
 }
-function togglePayCard(el){ var d=el.querySelector('.pay-detail'); if(d) d.style.display=d.style.display==='none'?'block':'none'; }
 
 function loadMore() {
   showCount += 20;
