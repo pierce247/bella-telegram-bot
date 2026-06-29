@@ -3768,6 +3768,48 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
         length=int(self.headers.get("Content-Length",0))
         body=self.rfile.read(length); p=urlparse(self.path)
 
+        if p.path == "/c360-action":
+            if self.require_admin(p) != ADMIN_TOKEN:
+                self.send_json(401,{"error":"unauthorized"}); return
+            import urllib.request as _ureq_c360a, urllib.error as _uerr_c360a
+            body_c360 = json.loads(body) if body else {}
+            c360_uuid_a = os.environ.get("CONTENT360_WORKSPACE_UUID","")
+            c360_tok_a  = os.environ.get("CONTENT360_ACCESS_TOKEN","")
+            _c360_over  = load_json(os.path.join(DATA_DIR,"c360_token.json"),{})
+            if _c360_over.get("tok"): c360_tok_a = _c360_over["tok"]
+            if _c360_over.get("uuid"): c360_uuid_a = _c360_over["uuid"]
+            if not c360_uuid_a or not c360_tok_a:
+                self.send_json(500,{"ok":False,"error":"C360 credentials not configured"}); return
+            post_uuid_c360 = body_c360.get("post_uuid","")
+            action_c360    = body_c360.get("action","")
+            base_url       = f"https://app.content360.io/os/api/{c360_uuid_a}/posts/{post_uuid_c360}"
+            hdrs           = {"Authorization":f"Bearer {c360_tok_a}","Accept":"application/json","Content-Type":"application/json"}
+            try:
+                if action_c360 == "delete":
+                    req = _ureq_c360a.Request(base_url, method="DELETE", headers=hdrs)
+                    with _ureq_c360a.urlopen(req, timeout=15): pass
+                    self.send_json(200,{"ok":True})
+                elif action_c360 == "edit":
+                    # Fetch current post to preserve fields
+                    req_get = _ureq_c360a.Request(base_url, headers=hdrs)
+                    with _ureq_c360a.urlopen(req_get, timeout=15) as r: cur = json.loads(r.read())
+                    v = cur.get("versions",[{}])[0]
+                    content = v.get("content",[{}])
+                    if content: content[0]["body"] = body_c360.get("caption","")
+                    acct_ids = body_c360.get("accounts") or [a["id"] for a in cur.get("accounts",[])]
+                    payload = {"accounts":acct_ids,"tags":[t["id"] if isinstance(t,dict) else t for t in cur.get("tags",[])],"versions":[dict(v,content=content)],"status":cur.get("status","draft")}
+                    if body_c360.get("scheduled_at"): payload["scheduled_at"] = body_c360["scheduled_at"]
+                    req_put = _ureq_c360a.Request(base_url, data=json.dumps(payload).encode(), method="PUT", headers=hdrs)
+                    with _ureq_c360a.urlopen(req_put, timeout=15): pass
+                    self.send_json(200,{"ok":True})
+                else:
+                    self.send_json(400,{"ok":False,"error":"unknown action"})
+            except _uerr_c360a.HTTPError as e:
+                self.send_json(500,{"ok":False,"error":f"C360 API {e.code}: {e.read().decode()[:200]}"})
+            except Exception as exc:
+                self.send_json(500,{"ok":False,"error":str(exc)[:200]})
+            return
+
         if p.path == "/update-c360-cache":
             if self.require_admin(p) != ADMIN_TOKEN:
                 self.send_json(401,{"error":"unauthorized"}); return
