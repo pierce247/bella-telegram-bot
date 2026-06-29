@@ -1182,10 +1182,20 @@ h2{{font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-sp
 <div id="dpvideo" class="dgrid">{_vids}</div>
 <div id="dpphoto" class="dgrid" style="display:none">{_photos}</div>
 <div id="modal" onclick="if(event.target===this)closeM()">
-  <div id="mbox">
-    <h3 id="mtitle">Edit Post</h3>
+  <div id="mbox" style="width:540px">
+    <div style="display:flex;gap:14px;margin-bottom:16px;align-items:flex-start">
+      <div id="mthumb" style="flex-shrink:0;width:72px;height:128px;background:#1a1a1a;border-radius:8px;overflow:hidden;display:none"><img id="mthumb_img" style="width:100%;height:100%;object-fit:cover"></div>
+      <div style="flex:1;min-width:0">
+        <h3 id="mtitle" style="font-size:14px;font-weight:700;margin-bottom:10px">Edit Post</h3>
+        <div id="mplatforms" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px"></div>
+      </div>
+    </div>
     <div class="mf"><label>Caption</label><textarea id="mcap" rows="3"></textarea></div>
     <div class="mf" id="mschedrow"><label>Scheduled At (UTC)</label><input type="datetime-local" id="msched"></div>
+    <div class="mf">
+      <label>Platforms</label>
+      <div id="mplatform_checks" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:4px"></div>
+    </div>
     <div id="mmsg"></div>
     <div class="mactions">
       <button class="mbtn primary" id="msave" onclick="saveP()">Save</button>
@@ -1202,6 +1212,20 @@ function swTab(btn,show,hide){{
   document.getElementById(show).style.display='grid';
   document.getElementById(hide).style.display='none';
 }}
+var _ALL_PLATFORMS=[
+  {{id:156936,provider:'instagram_direct',label:'Instagram',icon:'📸'}},
+  {{id:154462,provider:'youtube',label:'YouTube',icon:'▶️'}},
+  {{id:153708,provider:'tumblr',label:'Tumblr',icon:'📝'}},
+  {{id:153560,provider:'twitter',label:'Twitter/X',icon:'🐦'}},
+  {{id:152696,provider:'tiktok',label:'TikTok',icon:'🎵'}},
+  {{id:150344,provider:'pinterest',label:'Pinterest',icon:'📌'}},
+  {{id:150343,provider:'linkedin',label:'LinkedIn',icon:'💼'}},
+  {{id:150310,provider:'mastodon',label:'Mastodon',icon:'🐘'}},
+  {{id:150304,provider:'reddit',label:'Reddit',icon:'🔴'}},
+  {{id:150303,provider:'telegram',label:'Telegram',icon:'✈️'}},
+  {{id:150300,provider:'threads',label:'Threads',icon:'🧵'}},
+  {{id:150298,provider:'facebook_page',label:'Facebook',icon:'👤'}}
+];
 function openM(p){{
   _ep=p;
   document.getElementById('mtitle').textContent=p.status==='draft'?'Edit Draft':'Edit Scheduled Post';
@@ -1210,17 +1234,47 @@ function openM(p){{
   var si=document.getElementById('msched');
   if(p.scheduled_at){{sr.style.display='block';si.value=p.scheduled_at.replace(' ','T').slice(0,16);}}
   else{{sr.style.display='none';si.value='';}}
+  // Thumbnail
+  var mthumb=document.getElementById('mthumb');
+  var mimg=document.getElementById('mthumb_img');
+  if(p.thumb){{mthumb.style.display='block';mimg.src=p.thumb;}}
+  else{{mthumb.style.display='none';}}
+  // Platform badges (current)
+  var accts=p.accounts||[];
+  var activeIds=accts.map(function(a){{return a.id;}});
+  document.getElementById('mplatforms').innerHTML=accts.map(function(a){{
+    var pl=_ALL_PLATFORMS.find(function(x){{return x.id===a.id;}});
+    return '<span style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:5px;padding:2px 7px;font-size:11px">'+(pl?pl.icon:'🌐')+' '+(pl?pl.label:a.provider)+'</span>';
+  }}).join('');
+  // Platform checkboxes
+  document.getElementById('mplatform_checks').innerHTML=_ALL_PLATFORMS.map(function(pl){{
+    var checked=activeIds.indexOf(pl.id)>=0?'checked':'';
+    return '<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;padding:4px 6px;background:#111;border:1px solid '+(checked?'#f472b640':'#1a1a1a')+';border-radius:6px;transition:border-color .15s" id="pllbl_'+pl.id+'">'
+      +'<input type="checkbox" '+checked+' value="'+pl.id+'" onchange="updatePlatformBadge('+pl.id+',this)" style="cursor:pointer">'
+      +pl.icon+' '+pl.label+'</label>';
+  }}).join('');
   document.getElementById('mmsg').className='';
   document.getElementById('mmsg').textContent='';
   document.getElementById('modal').classList.add('open');
+}}
+function updatePlatformBadge(id,cb){{
+  var lbl=document.getElementById('pllbl_'+id);
+  if(lbl) lbl.style.borderColor=cb.checked?'#f472b640':'#1a1a1a';
 }}
 function closeM(){{document.getElementById('modal').classList.remove('open');}}
 function saveP(){{
   if(!_ep)return;
   var b=document.getElementById('msave');b.disabled=true;b.textContent='Saving...';
+  // Collect selected platforms
+  var selected=[];
+  document.querySelectorAll('#mplatform_checks input[type=checkbox]:checked').forEach(function(cb){{
+    selected.push(parseInt(cb.value));
+  }});
   fetch('/c360-action?token=bella-admin-2024',{{method:'POST',headers:{{'Content-Type':'application/json'}},
-    body:JSON.stringify({{action:'edit',post_uuid:_ep.uuid,caption:document.getElementById('mcap').value.trim(),
-    scheduled_at:document.getElementById('msched').value?document.getElementById('msched').value.replace('T',' '):null}})
+    body:JSON.stringify({{action:'edit',post_uuid:_ep.uuid,
+      caption:document.getElementById('mcap').value.trim(),
+      scheduled_at:document.getElementById('msched').value?document.getElementById('msched').value.replace('T',' '):null,
+      accounts:selected.length?selected:null}})
   }}).then(function(r){{return r.json();}}).then(function(d){{
     b.disabled=false;b.textContent='Save';
     if(d.ok){{setMsg('ok','Saved! Reloading...');setTimeout(function(){{location.reload();}},900);}}
@@ -2207,7 +2261,9 @@ class Handler(BaseHTTPRequestHandler):
                 v_c360=cur_c360.get("versions",[{}])[0]
                 content_c360=v_c360.get("content",[{}])
                 if content_c360: content_c360[0]["body"]=caption_c360
-                payload_c360={"accounts":[a["id"] for a in cur_c360.get("accounts",[])],"tags":[t["id"] if isinstance(t,dict) else t for t in cur_c360.get("tags",[])],"versions":[dict(v_c360,content=content_c360)],"status":cur_c360.get("status","draft")}
+                _new_accounts_c360=body_c360.get("accounts")  # optional account override
+                _acct_ids_c360=_new_accounts_c360 if _new_accounts_c360 else [a["id"] for a in cur_c360.get("accounts",[])]
+                payload_c360={"accounts":_acct_ids_c360,"tags":[t["id"] if isinstance(t,dict) else t for t in cur_c360.get("tags",[])],"versions":[dict(v_c360,content=content_c360)],"status":cur_c360.get("status","draft")}
                 if sched_at_c360: payload_c360["scheduled_at"]=sched_at_c360
                 put_url_c360=("https://app.content360.io/os/api/"+c360_uuid_a+"/posts/"+post_uuid_c360)
                 req_put_c360=_ureq_c360a.Request(put_url_c360,data=json.dumps(payload_c360).encode(),method="PUT",headers={"Authorization":"Bearer "+c360_tok_a,"Accept":"application/json","Content-Type":"application/json"})
@@ -2314,7 +2370,9 @@ class Handler(BaseHTTPRequestHandler):
                 v_c360=cur_c360.get("versions",[{}])[0]
                 content_c360=v_c360.get("content",[{}])
                 if content_c360: content_c360[0]["body"]=caption_c360
-                payload_c360={"accounts":[a["id"] for a in cur_c360.get("accounts",[])],"tags":[t["id"] if isinstance(t,dict) else t for t in cur_c360.get("tags",[])],"versions":[dict(v_c360,content=content_c360)],"status":cur_c360.get("status","draft")}
+                _new_accounts_c360=body_c360.get("accounts")  # optional account override
+                _acct_ids_c360=_new_accounts_c360 if _new_accounts_c360 else [a["id"] for a in cur_c360.get("accounts",[])]
+                payload_c360={"accounts":_acct_ids_c360,"tags":[t["id"] if isinstance(t,dict) else t for t in cur_c360.get("tags",[])],"versions":[dict(v_c360,content=content_c360)],"status":cur_c360.get("status","draft")}
                 if sched_at_c360: payload_c360["scheduled_at"]=sched_at_c360
                 put_url_c360="https://app.content360.io/os/api/"+c360_uuid_a+"/posts/"+post_uuid_c360
                 req_put_c360=_ureq_c360a.Request(put_url_c360,data=json.dumps(payload_c360).encode(),method="PUT",headers={"Authorization":"Bearer "+c360_tok_a,"Accept":"application/json","Content-Type":"application/json"})
