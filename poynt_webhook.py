@@ -2614,32 +2614,31 @@ function renderPayCards(rows) {
   if (lm) lm.style.display = rows.length > showCount ? 'block' : 'none';
 }
 
-function buildCard(p,i){
-  var dec=(p.event_type||'').endsWith('DECLINED')||p.status==='DECLINED';
-  var isFv=(p.source||'').startsWith('fanvue');
-  var cls=dec?'declined':isFv?'fanvue':'captured';
-  var amt=((p.amount_cents||0)/100).toFixed(2);
-  var ts=(p.ts||'').replace('T',' ').slice(0,16);
-  var rid=(p.resource_id||'').replace(/^gmail-order-/,'Order #').replace(/-[0-9a-f-]{20,}/i,'');
-  var badge=dec?'<span style="color:#ef4444">DECLINED</span>':isFv?'<span style="color:#818cf8">FANVUE</span>':'<span style="color:#22c55e">'+((p.status||'OK').toLowerCase())+'</span>';
-  var h='<div class="pay-card '+cls+'" onclick="togglePayCard(this)" style="cursor:pointer">';
-  h+='<div class="pay-summary">';
-  h+='<div style="flex-shrink:0;font-size:20px">'+(dec?'❌':isFv?'🌸':'✅')+'</div>';
-  h+='<div class="pay-main">';
-  h+='<div class="pay-name">'+(p.name||'Unknown')+'</div>';
-  h+='<div class="pay-meta">'+(p.email||'&mdash;')+'</div>';
-  h+='<div style="font-size:10px;color:#6b7280">'+ts+(rid?' &middot; '+rid:'')+'</div>';
-  h+='</div>';
-  h+='<div class="pay-amount '+cls+'">$'+amt+'</div>';
-  h+='</div>';
-  h+='<div class="pay-detail" style="display:none">';
-  h+='<div class="pay-detail-row"><span class="pay-detail-lbl">Status</span><span class="pay-detail-val">'+badge+'</span></div>';
-  h+='<div class="pay-detail-row"><span class="pay-detail-lbl">Delivered</span><span class="pay-detail-val">'+(p.delivered?'Yes':'No')+'</span></div>';
-  if(p.notes) h+='<div class="pay-detail-row"><span class="pay-detail-lbl">Note</span><span class="pay-detail-val">'+p.notes+'</span></div>';
-  h+='</div></div>';
-  return h;
+function buildCard(p, i) {
+  var amount = parseFloat(p.amount || 0).toFixed(2);
+  var name = escHtml(p.name || p.fan_name || p.email || 'Unknown');
+  var email = escHtml(p.email || '');
+  var type = escHtml(p.type || 'payment');
+  var ts = p.timestamp || p.created || 0;
+  var date = ts ? new Date(ts * 1000).toLocaleString() : '';
+  var safeEmail = (p.email || '').replace(/'/g, "\\'");
+  return '<div class="pay-card" onclick="this.classList.toggle(\'expanded\')">' +
+    '<div class="pay-card-head">' +
+      '<div>' +
+        '<div class="pay-card-name">' + name + '</div>' +
+        '<div class="pay-card-meta">' +
+          '<span class="badge">' + type + '</span> ' + date +
+        '</div>' +
+      '</div>' +
+      '<div class="pay-card-amount">$' + amount + '</div>' +
+    '</div>' +
+    '<div class="pay-card-detail">' +
+      '<div>Email: ' + email + '</div>' +
+      (p.note ? '<div>Note: ' + escHtml(p.note) + '</div>' : '') +
+      '<div style="margin-top:8px"><button class="filter-btn" onclick="event.stopPropagation();openPayerDetail(\'' + safeEmail + '\')">View payer history</button></div>' +
+    '</div>' +
+  '</div>';
 }
-function togglePayCard(el){ var d=el.querySelector('.pay-detail'); if(d) d.style.display=d.style.display==='none'?'block':'none'; }
 
 function loadMore() {
   showCount += 20;
@@ -2663,12 +2662,13 @@ function openFanModal(chatId, name, msgs, heat, last) {
   }
   if (bodyEl) bodyEl.innerHTML = '<div style="color:#9ca3af;padding:20px;text-align:center">Loading conversation...</div>';
   modal.classList.add('open');
+  modal.style.display = 'block';
   loadFanConversation(chatId, name);
 }
 
 function closeFanModal() {
   var modal = document.getElementById('fanModal');
-  if (modal) modal.classList.remove('open');
+  if (modal) modal.classList.remove('open'); modal.style.display = 'none';
 }
 
 function loadFanConversation(chatId, name) {
@@ -2865,12 +2865,12 @@ function toggleAccordion(btn) {
    ----------------------------------------------------------- */
 function openSubModal() {
   var m = document.getElementById('subModal');
-  if (m) { m.style.display='block'; m.style.overflow='auto'; }
+  if (m) m.classList.add('open');
 }
 
 function closeSubModal() {
   var m = document.getElementById('subModal');
-  if (m) m.style.display='none';
+  if (m) m.classList.remove('open');
 }
 
 /* -----------------------------------------------------------
