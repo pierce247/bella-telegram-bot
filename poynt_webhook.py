@@ -2465,10 +2465,12 @@ section { margin-bottom: 24px; }
 </div>
 <span style="font-size:10px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:8px">Revenue Charts</span>
 <div class="charts" style="max-width:100%">
-  <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">Fanvue MTD</div><div class="bars">""" + (fv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
+  <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">Fanvue MTD</div><div class="bars" id="fvBarsEl">""" + (fv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
+  <script>(function(){var b=document.getElementById('fvBarsEl');if(b){b.scrollLeft=99999;}})();</script>
   <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">GoDaddy MTD</div>
-    <div class="bars">""" + gd_bars_month + """</div>
+    <div class="bars" id="gdBarsEl">""" + gd_bars_month + """</div>
   </div>
+  <script>(function(){var b=document.getElementById('gdBarsEl');if(b){b.scrollLeft=99999;}})();</script>
   <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">Messages MTD</div><div class="bars">""" + (conv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
 </div>
 
@@ -3091,12 +3093,16 @@ filterPay('all', document.querySelector('.filter-btn.active'));
 
 // Initialize
 filterPay('all', document.querySelector('.filter-btn.active'));
-// Scroll Fanvue and GoDaddy bar charts to the right (newest date) — runs after full DOM parse
-(function() {
-  document.querySelectorAll('.chart .bars').forEach(function(b) {
-    b.scrollLeft = b.scrollWidth;
+// Scroll Fanvue+GoDaddy bar charts to right (newest date visible by default)
+function _snapBars() {
+  ['fvBarsEl','gdBarsEl'].forEach(function(id) {
+    var b = document.getElementById(id);
+    if (b) b.scrollLeft = 99999;
   });
-})();
+}
+_snapBars();
+requestAnimationFrame(function(){ requestAnimationFrame(_snapBars); });
+setTimeout(_snapBars, 300);
 
 </script>
 </body></html>"""
