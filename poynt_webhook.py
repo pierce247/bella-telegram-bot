@@ -1135,7 +1135,7 @@ def build_c360_page():
                    f'<div style="font-size:11px;color:#444;margin-bottom:16px">Last updated: {_age_str} &nbsp;·&nbsp; <a href="/content360?token=bella-admin-2024" style="color:#818cf8">↻ Reload</a></div>')
 
     return f"""<!DOCTYPE html><html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0a0a14"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>📅 Bella Content360</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -1559,17 +1559,21 @@ html, body {
   padding: 0;
   max-width: 100vw;
   overflow-x: hidden;
+  background: #0a0a14;
 }
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: linear-gradient(135deg, #0a0a14 0%, #0f0f1f 50%, #0a0f1a 100%);
   background-attachment: fixed;
+  overscroll-behavior: none;
   color: #e5e7eb;
   font-size: 14px;
   line-height: 1.5;
   min-height: 100vh;
   padding: 16px 12px 80px;
+  padding-bottom: max(80px, env(safe-area-inset-bottom, 0px));
+  padding-top: max(16px, env(safe-area-inset-top, 0px));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
