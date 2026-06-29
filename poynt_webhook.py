@@ -984,7 +984,7 @@ def get_payment_stats():
     tz_sec = TZ_OFFSET * 3600  # seconds offset from UTC
     ct_now = time.time() + tz_sec
     ct_day_start = ct_now - (ct_now % 86400)  # CT midnight of today
-    for i in range(0, 7, 1):  # newest first
+    for i in range(6,-1,-1):  # oldest first (matches Fanvue)
         d_start = (ct_day_start - (i+1)*86400) - tz_sec   # convert back to UTC for comparison
         d_end   = (ct_day_start - i*86400) - tz_sec
         d_rev=0; d_cnt=0
@@ -1002,7 +1002,7 @@ def get_payment_stats():
     # ── Extended date ranges for chart ─────────────────────────────────────
     def _make_daily(days):
         result = []
-        for j in range(0, days, 1):  # newest first
+        for j in range(days-1, -1, -1):  # oldest first (matches Fanvue)
             d_start = (ct_day_start - (j+1)*86400) - tz_sec
             d_end   = (ct_day_start - j*86400) - tz_sec
             d_rev = 0; d_cnt = 0
