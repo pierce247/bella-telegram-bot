@@ -336,6 +336,9 @@ def clean_reply(text: str) -> str:
         text = _rec.sub(pattern, replacement, text, flags=_rec.I)
     # Strip markdown code blocks (```...``` or ``` prefix leaking in)
     text = _rec.sub(r'```[a-z]*\n?', '', text).strip()
+    # Strip leaked internal memory/context markers before further processing
+    text = _rec.sub(r'\[MEMORY[^\]]*\].*', '', text, flags=_rec.I | _rec.DOTALL).strip()
+    text = _rec.sub(r'\[Context[^\]]*\].*', '', text, flags=_rec.I | _rec.DOTALL).strip()
       # Fix model garbage: non-ASCII bleed (Turkish/Lithuanian/etc.)
     # e.g. 'that!vieshWhat' -> 'that! What'
     text = _rec.sub(r'[a-z]{0,6}[^\x00-\x7F\s]+([A-Z][a-zA-Z]*)', r' \1', text)
@@ -394,7 +397,7 @@ def clean_reply(text: str) -> str:
     result = _rec.sub(r'\s*\(heat[^)]*\)', '', result, flags=_rec.I).strip()
     result = _rec.sub(r'\bheat\s+(?:level\s+)?\d\b[^.]*', '', result, flags=_rec.I).strip()
     # Hard bail — dead AI giveaways: discard and let fallback handle it
-    _bot_tells = ["as an ai", "language model", "i'm programmed", "my guidelines",
+    _bot_tells = ["[memory about this fan]", "[context:", "as an ai", "language model", "i'm programmed", "my guidelines",
                   "bella would", "bella should", "[assistant]",
                   "i am an ai", "i'm an ai model", "since i'm an ai",
                   "this is where i have to leave", "i have to leave things",
