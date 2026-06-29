@@ -984,7 +984,7 @@ def get_payment_stats():
     tz_sec = TZ_OFFSET * 3600  # seconds offset from UTC
     ct_now = time.time() + tz_sec
     ct_day_start = ct_now - (ct_now % 86400)  # CT midnight of today
-    for i in range(0, 7, 1):  # newest first
+    for i in range(6,-1,-1):
         d_start = (ct_day_start - (i+1)*86400) - tz_sec   # convert back to UTC for comparison
         d_end   = (ct_day_start - i*86400) - tz_sec
         d_rev=0; d_cnt=0
@@ -1002,7 +1002,7 @@ def get_payment_stats():
     # ── Extended date ranges for chart ─────────────────────────────────────
     def _make_daily(days):
         result = []
-        for j in range(0, days, 1):  # newest first
+        for j in range(days-1, -1, -1):
             d_start = (ct_day_start - (j+1)*86400) - tz_sec
             d_end   = (ct_day_start - j*86400) - tz_sec
             d_rev = 0; d_cnt = 0
@@ -1405,9 +1405,9 @@ def build_dashboard(payment_stats, conv_stats):
 
     fv_breakdown = fv.get("breakdown",{})
     fv_bd_rows = "".join(
-        f'<tr><td style="text-transform:capitalize">{k}</td><td>{v["gross"]}</td></tr>'
+        f'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="font-size:13px;color:#e5e7eb;text-transform:capitalize">{k}</span><span style="font-size:14px;font-weight:700;background:linear-gradient(135deg,#f472b6,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">{v["gross"]}</span></div>'
         for k,v in fv_breakdown.items() if v.get("gross_cents",0)>0
-    ) or '<tr><td colspan=2 class="empty">—</td></tr>'
+    ) or '<tr><td colspan=2 class="empty">—</span></div>'
 
     # ── Daily revenue charts (7d, 30d, month) ─────────────────────────────────
     daily_gd       = ps.get("daily", [])
@@ -1760,7 +1760,7 @@ input, textarea {
 /* Range toggle pills */
 .range-tabs {
   display: inline-flex;
-  background: rgba(20, 20, 35, 0.85);
+  background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 10px;
   padding: 3px;
@@ -2072,7 +2072,7 @@ input, textarea {
 }
 
 .fan-table tbody tr:hover {
-  background: rgba(20, 20, 35, 0.85);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .fan-table tbody tr:last-child td { border-bottom: none; }
@@ -2873,7 +2873,13 @@ filterPay('all', document.querySelector('.filter-btn.active'));
 
 // Initialize
 filterPay('all', document.querySelector('.filter-btn.active'));
-// Charts already show newest first (no scroll needed)
+// Scroll chart bars to most recent (rightmost) - newest date always visible
+function scrollChartsToEnd() {
+  document.querySelectorAll('.bars').forEach(function(b) { b.scrollLeft = 99999; });
+}
+scrollChartsToEnd();
+setTimeout(scrollChartsToEnd, 300);
+setTimeout(scrollChartsToEnd, 800);
 
 </script>
 </body></html>"""
