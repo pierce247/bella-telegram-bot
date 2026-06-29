@@ -1397,45 +1397,58 @@ def build_dashboard(payment_stats, conv_stats):
         for k,v in fv_breakdown.items() if v.get("gross_cents",0)>0
     ) or '<tr><td colspan=2 class="empty">—</td></tr>'
 
-    # ── Daily revenue charts (7d, 30d, month) ─────────────────────────────────
+    # ── Daily revenue charts (7D/30D/MTD for all 3 charts) ──────────────────
+    def _clean_date(dt_str):
+        """Convert 06/01 -> 6/1, 06/29 -> 6/29"""
+        try:
+            m, d = dt_str.split("/")
+            return str(int(m)) + "/" + str(int(d))
+        except: return dt_str
+
+    def _make_bars(data, color="#f472b6", onclick_prefix="showDayDetail"):
+        mx = max((d.get("revenue_cents",0) for d in data), default=1) or 1
+        return "".join(
+            '<div class="bar-wrap" title="{d}: ${a:.0f}" onclick="{fn}(\'{d}\')">'
+            '<div class="bar" style="height:{h}px;background:{c}"></div>'
+            '<div class="bar-lbl">{sd}<br><small>${a:.0f}</small></div></div>'.format(
+                h=max(4, int(d.get("revenue_cents",0)/mx*80)),
+                d=d.get("date",""), sd=_clean_date(d.get("date","")),
+                a=d.get("revenue_cents",0)/100, c=color, fn=onclick_prefix
+            ) for d in data
+        ) or '<div style="color:#333;padding:10px;text-align:center;font-size:11px">No data</div>'
+
+    def _make_msg_bars(data):
+        mx = max((d.get("count",0) for d in data), default=1) or 1
+        return "".join(
+            '<div class="bar-wrap"><div class="bar conv-bar" style="height:{h}px"></div>'
+            '<div class="bar-lbl">{sd}<br><small>{c}</small></div></div>'.format(
+                h=max(4, int(d.get("count",0)/mx*80)),
+                sd=_clean_date(d.get("date","")), c=d.get("count",0)
+            ) for d in data
+        ) or '<div style="color:#333;padding:10px;text-align:center;font-size:11px">No data</div>'
+
+    # GoDaddy bars for 3 ranges
     daily_gd       = ps.get("daily", [])
     daily_gd_30    = ps.get("daily_30d", daily_gd)
     daily_gd_month = ps.get("daily_month", daily_gd)
+    gd_b7   = _make_bars(daily_gd,       "#f472b6")
+    gd_b30  = _make_bars(daily_gd_30,    "#f472b6")
+    gd_bm   = _make_bars(daily_gd_month, "#f472b6")
 
-    def _make_gd_bars(data):
-        mx = max((d.get("revenue_cents",0) for d in data), default=1) or 1
-        return "".join(
-            '<div class="bar-wrap" onclick="showDayDetail(\'{d}\')" style="cursor:pointer" title="${a:.0f} on {d}">'
-            '<div class="bar" style="height:{h}px;background:#f472b6"></div>'
-            '<div class="bar-lbl">{d}<br><small>${a:.0f}</small></div></div>'.format(
-                h=max(4, int(d.get("revenue_cents",0)/mx*80)),
-                d=d.get("date",""), a=d.get("revenue_cents",0)/100
-            ) for d in data
-        ) or '<div style="color:#333;padding:20px;text-align:center;font-size:12px">No data</div>'
-
-    gd_bars       = _make_gd_bars(daily_gd)
-    gd_bars_30    = _make_gd_bars(daily_gd_30)
-    gd_bars_month = _make_gd_bars(daily_gd_month)
-
-    daily_conv = cs.get("daily_messages",[])
-    max_msg  = max((d.get("count",0) for d in daily_conv), default=1) or 1
-    conv_bars= "".join(
-        '<div class="bar-wrap"><div class="bar conv-bar" style="height:{h}px"></div>'
-        '<div class="bar-lbl">{d}<br><small>{c}</small></div></div>'.format(
-            h=max(4,int(d.get("count",0)/max_msg*80)),
-            d=d.get("date",""),c=d.get("count",0)
-        ) for d in daily_conv
-    )
+    # Fanvue bars
     fv_daily = fv.get("daily_june",[])
-    max_fvd  = max((d.get("gross_cents",0) for d in fv_daily), default=1) or 1
-    fv_bars  = "".join(
-        '<div class="bar-wrap"><div class="bar" style="height:{h}px;background:#818cf8"></div>'
-        '<div class="bar-lbl">{d}<br><small>${a:.0f}</small></div></div>'.format(
-            h=max(4,int(d.get("gross_cents",0)/max_fvd*80)),
-            d=d.get("date",""), a=d.get("gross_cents",0)/100
-        ) for d in fv_daily
-    )
+    def _fv_bar(d):
+        return {"date": d.get("date",""), "revenue_cents": d.get("gross_cents",0)}
+    fv_data = [_fv_bar(d) for d in fv_daily]
+    fv_b7   = _make_bars(fv_data[-7:]  if len(fv_data)>=7  else fv_data, "#818cf8")
+    fv_b30  = _make_bars(fv_data[-30:] if len(fv_data)>=30 else fv_data, "#818cf8")
+    fv_bm   = _make_bars(fv_data,                                         "#818cf8")
 
+    # Message bars
+    daily_conv = cs.get("daily_messages",[])
+    msg_b7   = _make_msg_bars(daily_conv[-7:]  if len(daily_conv)>=7  else daily_conv)
+    msg_b30  = _make_msg_bars(daily_conv[-30:] if len(daily_conv)>=30 else daily_conv)
+    msg_bm   = _make_msg_bars(daily_conv)
 
     # ── Payer aggregation (key by name+email to avoid merging different people) ──
     from collections import defaultdict
@@ -1620,6 +1633,11 @@ h1{font-size:18px}h2{font-size:12px}
 .fv-grid{grid-template-columns:1fr}
 table{font-size:12px}th,td{padding:7px 10px!important}
 }
+html,body{overflow-x:hidden;max-width:100%;}
+.charts{overflow-x:hidden;}
+.bars{overflow-x:auto;flex-wrap:nowrap;}
+.bar-wrap{flex-shrink:0;}
+@media(max-width:640px){.charts{flex-direction:column!important}.chart{width:100%!important;box-sizing:border-box}}
 </style>
 <script>setTimeout(()=>location.reload(),60000)</script>
 </head><body>
@@ -1692,15 +1710,7 @@ table{font-size:12px}th,td{padding:7px 10px!important}
     <button onclick="setRange('month',this)" id="rngmonth" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;border:none;background:#1a1a1a;color:#f0f0f0">MTD</button>
   </div>
 </div>
-<div class="charts" style="max-width:100%">
-  <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">Fanvue daily</div><div class="bars">""" + (fv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
-  <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">GoDaddy — <span id="gdRangeLabel">MTD</span></div>
-    <div class="bars" id="gdBars7d" style="display:none">""" + gd_bars + """</div>
-    <div class="bars" id="gdBars30d" style="display:none">""" + gd_bars_30 + """</div>
-    <div class="bars" id="gdBarsMonth">""" + gd_bars_month + """</div>
-  </div>
-  <div class="chart" style="min-width:0;overflow:hidden"><div class="chart-title">Messages daily</div><div class="bars">""" + (conv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
-</div>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px"><span style="font-size:10px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.5px">Revenue Charts</span><div style="display:flex;gap:3px;background:rgba(255,255,255,.04);border-radius:6px;padding:3px"><button onclick="setRange(this,0)" id="rng7d" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;border:none;color:#555;background:none">7D</button><button onclick="setRange(this,1)" id="rng30d" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;border:none;color:#555;background:none">30D</button><button onclick="setRange(this,2)" id="rngmonth" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;border:none;background:#1a1a1a;color:#f0f0f0">MTD</button></div></div><div class="charts" id="charts-container"><div class="chart"><div class="chart-title">Fanvue (<span class="range-lbl">MTD</span>)</div><div id="fvBars0" class="bars range-bars" style="display:none">""" + fv_b7 + """</div><div id="fvBars1" class="bars range-bars" style="display:none">""" + fv_b30 + """</div><div id="fvBars2" class="bars range-bars">""" + fv_bm + """</div></div><div class="chart"><div class="chart-title">GoDaddy (<span class="range-lbl">MTD</span>)</div><div id="gdBars0" class="bars range-bars" style="display:none">""" + gd_b7 + """</div><div id="gdBars1" class="bars range-bars" style="display:none">""" + gd_b30 + """</div><div id="gdBars2" class="bars range-bars">""" + gd_bm + """</div></div><div class="chart"><div class="chart-title">Messages (<span class="range-lbl">MTD</span>)</div><div id="msgBars0" class="bars range-bars" style="display:none">""" + msg_b7 + """</div><div id="msgBars1" class="bars range-bars" style="display:none">""" + msg_b30 + """</div><div id="msgBars2" class="bars range-bars">""" + msg_bm + """</div></div></div>
 
 <h2>💳 GoDaddy Payment Links</h2>
 <div class="stats">
@@ -1915,16 +1925,18 @@ function renderPayCards(rows, keepOpen){
 
 function loadMore(){showCount+=20;renderPayCards(visibleRows);}
 
-function setRange(r,btn){
-  document.querySelectorAll('#rng7d,#rng30d,#rngmonth').forEach(function(b){b.style.background='none';b.style.color='#555';});
-  btn.style.background='#1a1a1a';btn.style.color='#f0f0f0';
-  var lbl={'7d':'7D','30d':'30D','month':'MTD'};
-  var el=document.getElementById('gdRangeLabel');if(el)el.textContent=lbl[r]||r;
-  document.getElementById('gdBars7d').style.display=(r==='7d'?'flex':'none');
-  document.getElementById('gdBars30d').style.display=(r==='30d'?'flex':'none');
-  document.getElementById('gdBarsMonth').style.display=(r==='month'?'flex':'none');
+var _chartRange=2;
+var _rangeLabels=["7D","30D","MTD"];
+function setRange(btn,idx){
+  _chartRange=idx;
+  document.querySelectorAll("#rng7d,#rng30d,#rngmonth").forEach(function(b){b.style.background="none";b.style.color="#555";});
+  btn.style.background="#1a1a1a";btn.style.color="#f0f0f0";
+  var lbl=_rangeLabels[idx]||"MTD";
+  document.querySelectorAll(".range-lbl").forEach(function(el){el.textContent=lbl;});
+  document.querySelectorAll(".range-bars").forEach(function(el){el.style.display="none";});
+  document.querySelectorAll("#fvBars"+idx+",#gdBars"+idx+",#msgBars"+idx).forEach(function(el){el.style.display="flex";});
 }
-function filterPay(t,btn){
+function filterPay(t,btn){function filterPay(t,btn){
   currentFilter=t;showCount=10;
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
   if(btn)btn.classList.add('active');
