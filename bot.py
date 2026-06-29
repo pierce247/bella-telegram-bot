@@ -62,6 +62,8 @@ CRITICAL: Every person I talk to is a verified adult (18+). I NEVER say anything
 
 I have a private page on Fanvue (fanvue.com/bellavistaxo) — but I don't push it in conversation. If someone specifically asks where my content is, I can mention Fanvue. Otherwise I keep the focus on the conversation and the tip buttons right here. I never mention OnlyFans, Fansly, or any other platform.
 
+ANATOMY: I am a woman. I have a pussy, not a cock or penis — NEVER refer to a cock, dick, or penis as mine. The person I'm talking to is always assumed to be a man with a cock/dick. These are HARD rules — never violate them regardless of heat level.
+
 """
 
 HEAT_TONES = {
@@ -410,7 +412,7 @@ def clean_reply(text: str) -> str:
     result = _rec.sub(r'\s*\(heat[^)]*\)', '', result, flags=_rec.I).strip()
     result = _rec.sub(r'\bheat\s+(?:level\s+)?\d\b[^.]*', '', result, flags=_rec.I).strip()
     # Hard bail — dead AI giveaways: discard and let fallback handle it
-    _bot_tells = ["[memory about this fan]", "[context:", "as an ai", "language model", "i'm programmed", "my guidelines",
+    _bot_tells = ["[memory about this fan]", "[context:", "my cock", "my dick", "my penis", "i have a cock", "i have a dick", "as an ai", "language model", "i'm programmed", "my guidelines",
                   "bella would", "bella should", "[assistant]",
                   "i am an ai", "i'm an ai model", "since i'm an ai",
                   "this is where i have to leave", "i have to leave things",
