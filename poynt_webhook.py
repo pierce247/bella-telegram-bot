@@ -1135,7 +1135,7 @@ def build_c360_page():
                    f'<div style="font-size:11px;color:#444;margin-bottom:16px">Last updated: {_age_str} &nbsp;·&nbsp; <a href="/content360?token=bella-admin-2024" style="color:#818cf8">↻ Reload</a></div>')
 
     return f"""<!DOCTYPE html><html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0a0a14"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>📅 Bella Content360</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -1475,7 +1475,7 @@ def build_dashboard(payment_stats, conv_stats):
         '</div></div>'.format(
             email=p["email"].replace("'","\'"),
             name=p["name"],
-            email_lbl=(p["email"] + " · ") if p["email"] else "",
+            email_lbl=((p["email"][:25] + ("…" if len(p["email"])>25 else "")) + " · ") if p["email"] else "— · ",
             count=str(p["count"]) + (" payment" if p["count"]==1 else " payments"),
             amount=p["amount"]/100
         ) for p in top_payers
@@ -1559,21 +1559,17 @@ html, body {
   padding: 0;
   max-width: 100vw;
   overflow-x: hidden;
-  background: #0a0a14;
 }
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: linear-gradient(135deg, #0a0a14 0%, #0f0f1f 50%, #0a0f1a 100%);
   background-attachment: fixed;
-  overscroll-behavior: none;
   color: #e5e7eb;
   font-size: 14px;
   line-height: 1.5;
   min-height: 100vh;
   padding: 16px 12px 80px;
-  padding-bottom: max(80px, env(safe-area-inset-bottom, 0px));
-  padding-top: max(16px, env(safe-area-inset-top, 0px));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -1659,7 +1655,7 @@ input, textarea {
 .stat .val {
   grid-column: 2;
   grid-row: 1 / 3;
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1;
@@ -1674,19 +1670,26 @@ input, textarea {
 .stat .lbl {
   grid-column: 1;
   grid-row: 1;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #e5e7eb;
   line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .stat .sub2, .stat .sub {
   grid-column: 1;
   grid-row: 2;
-  font-size: 11px;
+  font-size: 10px;
   color: #6b7280;
   margin-top: 2px;
-  line-height: 1.3;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Fallback for .value/.label class names */
@@ -2286,7 +2289,7 @@ section { margin-bottom: 24px; }
 
 <h2>💰 Combined Revenue</h2>
 <div class="stats">
-  <div class="stat combined"><div class="val">""" + combined_str + """</div><div class="lbl">Total All-Time</div><div class="sub2">GoDaddy + Fanvue + Stars</div></div>
+  <div class="stat combined"><div class="val">""" + combined_str + """</div><div class="lbl">Total All-Time</div><div class="sub2">GD + Fanvue + ⭐</div></div>
   <div class="stat fv-stat"><div class="val">""" + fv_str + """</div><div class="lbl">Fanvue Gross</div><div class="sub2">""" + fv_net + """ net</div></div>
   <div class="stat" style="cursor:pointer" onclick="document.getElementById('allTransactions').scrollIntoView({behavior:'smooth'})"><div class="val">""" + gd_str + """</div><div class="lbl">GoDaddy Payments</div><div class="sub2">""" + str(gd_payments) + """ transactions</div></div>
   <div class="stat star-stat"><div class="val">""" + str(stars_total) + """⭐</div><div class="lbl">Telegram Stars</div><div class="sub2">≈$""" + str(stars_usd) + """ via bot invoices</div></div>
