@@ -1348,7 +1348,7 @@ def build_dashboard(payment_stats, conv_stats):
     # Real Stars balance from MTProto
     _sb = cs.get("_stars_balance",{})
     if _sb and "personal" in _sb and "error" not in _sb:
-        _total_real = sum(v.get("stars",0) for k,v in _sb.items() if isinstance(v,dict))
+        _total_real = sum(v.get("stars",0) for k,v in _sb.items() if isinstance(v,dict) and k != "queried_at")
         stars_usd = round(_total_real * 0.013, 2)
         stars_total = _total_real
 
@@ -1684,7 +1684,11 @@ table{font-size:12px}th,td{padding:7px 10px!important}
     </div>
   </div>
 </div>
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px"><span style="font-size:11px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.5px">Revenue Charts</span><div style="display:flex;gap:4px;background:rgba(255,255,255,.04);border-radius:6px;padding:3px"><button onclick="setRange('7d',this)" id="rng7d" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;border:none;color:#555;background:none">7D</button><button onclick="setRange('30d',this)" id="rng30d" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;border:none;color:#555;background:none">30D</button><button onclick="setRange('month',this)" id="rngmonth" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;border:none;background:#1a1a1a;color:#f0f0f0">MTD</button></div></div><div class="charts" style="width:100%;box-sizing:border-box;overflow:hidden"><div class="chart"><div class="chart-title">Fanvue daily</div><div class="bars">""" + (fv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div><div class="chart"><div class="chart-title">GoDaddy daily (<span id=\"gdRangeLabel\">MTD</span>)</div><div class="bars" id="gdBars7d" style="display:none">""" + (gd_bars or '') + """</div><div class="bars" id="gdBars30d" style="display:none">""" + (gd_bars_30 or '') + """</div><div class="bars" id="gdBarsMonth">""" + (gd_bars_month or '') + """</div></div><div class="chart"><div class="chart-title">Messages daily</div><div class="bars">""" + (conv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div></div>
+<div class="charts">
+  <div class="chart"><div class="chart-title">Fanvue daily (June)</div><div class="bars">""" + (fv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
+  <div class="chart"><div class="chart-title">GoDaddy daily (7d)</div><div class="bars">""" + (gd_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
+  <div class="chart"><div class="chart-title">Messages daily (7d)</div><div class="bars">""" + (conv_bars or '<div style="color:#333;margin:auto">No data</div>') + """</div></div>
+</div>
 
 <h2>💳 GoDaddy Payment Links</h2>
 <div class="stats">
@@ -1899,15 +1903,6 @@ function renderPayCards(rows, keepOpen){
 
 function loadMore(){showCount+=20;renderPayCards(visibleRows);}
 
-function setRange(r,btn){
-  document.querySelectorAll('#rng7d,#rng30d,#rngmonth').forEach(function(b){b.style.background='none';b.style.color='#555';});
-  btn.style.background='#1a1a1a';btn.style.color='#f0f0f0';
-  var labels={'7d':'7D','30d':'30D','month':'MTD'};
-  var el=document.getElementById('gdRangeLabel');if(el)el.textContent=labels[r]||r;
-  document.getElementById('gdBars7d').style.display=(r==='7d'?'flex':'none');
-  document.getElementById('gdBars30d').style.display=(r==='30d'?'flex':'none');
-  document.getElementById('gdBarsMonth').style.display=(r==='month'?'flex':'none');
-}
 function filterPay(t,btn){
   currentFilter=t;showCount=10;
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
