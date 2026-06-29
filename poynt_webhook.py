@@ -1555,13 +1555,10 @@ def build_dashboard(payment_stats, conv_stats):
 }
 
 html, body {
-  margin: 0;
+  margin: 0 auto;
   padding: 0;
-  max-width: 100vw;
+  max-width: 1440px;
   overflow-x: hidden;
-}
-
-body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: linear-gradient(135deg, #0a0a14 0%, #0f0f1f 50%, #0a0f1a 100%);
   background-attachment: fixed;
@@ -2423,6 +2420,12 @@ section { margin-bottom: 24px; }
 </div>
 
 <script>
+var STATS_URL=""" + (STATS_URL or "") + """;
+var PAYMENTS=""" + pay_data + """;
+var TOP_PAYERS=""" + payer_data + """;
+var TOP_FANS=""" + json.dumps([{"chat_id":f.get("chat_id"),"name":f.get("name","")} for f in (_fans_list or [])[:100]]) + """;
+var TG_USERS=""" + tg_users_data + """;
+
 
 /* ============================================================
    Bella Ops Dashboard - JS
