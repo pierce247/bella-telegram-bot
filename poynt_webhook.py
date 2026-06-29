@@ -984,7 +984,7 @@ def get_payment_stats():
     tz_sec = TZ_OFFSET * 3600  # seconds offset from UTC
     ct_now = time.time() + tz_sec
     ct_day_start = ct_now - (ct_now % 86400)  # CT midnight of today
-    for i in range(6,-1,-1):  # oldest first (matches Fanvue)
+    for i in range(6,-1,-1):  # oldest first, newest on right
         d_start = (ct_day_start - (i+1)*86400) - tz_sec   # convert back to UTC for comparison
         d_end   = (ct_day_start - i*86400) - tz_sec
         d_rev=0; d_cnt=0
@@ -1002,7 +1002,7 @@ def get_payment_stats():
     # ── Extended date ranges for chart ─────────────────────────────────────
     def _make_daily(days):
         result = []
-        for j in range(days-1, -1, -1):  # oldest first (matches Fanvue)
+        for j in range(days-1, -1, -1):  # oldest first, newest on right
             d_start = (ct_day_start - (j+1)*86400) - tz_sec
             d_end   = (ct_day_start - j*86400) - tz_sec
             d_rev = 0; d_cnt = 0
@@ -2954,6 +2954,8 @@ document.addEventListener('keydown', function (e) {
    Init - must come AFTER all function definitions
    ----------------------------------------------------------- */
 filterPay('all', document.querySelector('.filter-btn.active'));
+// Scroll GoDaddy chart to show newest (right side) on load
+setTimeout(function(){ document.querySelectorAll('.bars').forEach(function(b){ b.scrollLeft=b.scrollWidth; }); }, 400);
 
 
 // Initialize
