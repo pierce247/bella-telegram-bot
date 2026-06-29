@@ -1139,685 +1139,55 @@ def build_c360_page():
 <title>📅 Bella Content360</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-
-/* ============================================================
-   iOS Glass Dashboard - Bella Ops
-   ============================================================ */
-
-*, *::before, *::after {{
-  box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
-}}
-
-html, body {{
-  margin: 0;
-  padding: 0;
-  max-width: 100vw;
-  overflow-x: hidden;
-}}
-
-body {{
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: linear-gradient(135deg, #0a0a14 0%, #0f0f1f 50%, #0a0f1a 100%);
-  background-attachment: fixed;
-  color: #e5e7eb;
-  font-size: 14px;
-  line-height: 1.5;
-  min-height: 100vh;
-  padding: 16px 12px 80px;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}}
-
-h1, h2, h3, h4 {{
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  margin: 0 0 12px;
-  color: #f9fafb;
-}}
-
-h1 {{ font-size: 24px; }}
-h2 {{ font-size: 18px; }}
-h3 {{ font-size: 15px; }}
-
-a {{ color: #f472b6; text-decoration: none; }}
-a:hover {{ color: #f9a8d4; }}
-
-button {{
-  font-family: inherit;
-  cursor: pointer;
-  border: none;
-  background: none;
-  color: inherit;
-  font-size: 14px;
-}}
-
-input, textarea {{
-  font-family: inherit;
-  font-size: 14px;
-}}
-
-/* ============================================================
-   Glass Utility
-   ============================================================ */
-
-.glass-card {{
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  border-radius: 16px;
-  padding: 16px;
-}}
-
-/* ============================================================
-   Stats Grid
-   ============================================================ */
-
-.stats {{
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
-  max-width: 100%;
-}}
-
-.stat {{
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  border-radius: 16px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-  transition: transform 0.2s ease, border-color 0.2s ease;
-}}
-
-.stat:hover {{
-  transform: translateY(-2px);
-  border-color: rgba(244, 114, 182, 0.3);
-}}
-
-.stat .label {{
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #9ca3af;
-  font-weight: 500;
-}}
-
-.stat .value {{
-  font-size: 24px;
-  font-weight: 700;
-  color: #f9fafb;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-}}
-
-.stat .sub {{
-  font-size: 12px;
-  color: #818cf8;
-  margin-top: 2px;
-}}
-
-/* ============================================================
-   Charts
-   ============================================================ */
-
-.charts {{
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
-  margin-bottom: 20px;
-  max-width: 100%;
-}}
-
-@media (min-width: 900px) {{
-  .charts {{
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  }}
-}}
-
-.chart {{
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  border-radius: 16px;
-  padding: 16px;
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-}}
-
-.chart-header {{
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-  gap: 8px;
-}}
-
-.chart-title {{
-  font-size: 13px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #d1d5db;
-}}
-
-/* Range toggle pills */
-.range-tabs {{
-  display: inline-flex;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 10px;
-  padding: 3px;
-  gap: 2px;
-}}
-
-.range-btn {{
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #9ca3af;
-  background: transparent;
-  transition: all 0.18s ease;
-}}
-
-.range-btn:hover {{ color: #e5e7eb; }}
-
-.range-btn.active {{
-  background: linear-gradient(135deg, #f472b6, #818cf8);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(244, 114, 182, 0.3);
-}}
-
-/* ============================================================
-   Bars
-   ============================================================ */
-
-.bars {{
-  display: flex;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  max-width: 100%;
-  gap: 8px;
-  padding-bottom: 6px;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(244, 114, 182, 0.4) transparent;
-  align-items: flex-end;
-  min-height: 140px;
-}}
-
-.bars::-webkit-scrollbar {{ height: 6px; }}
-.bars::-webkit-scrollbar-track {{ background: transparent; }}
-.bars::-webkit-scrollbar-thumb {{
-  background: rgba(244, 114, 182, 0.4);
-  border-radius: 3px;
-}}
-
-.bar-wrap {{
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  min-width: 36px;
-  flex: 0 0 auto;
-}}
-
-.bar {{
-  width: 28px;
-  background: linear-gradient(180deg, #f472b6 0%, #818cf8 100%);
-  border-radius: 6px 6px 2px 2px;
-  min-height: 4px;
-  transition: opacity 0.2s ease;
-  box-shadow: 0 2px 8px rgba(244, 114, 182, 0.25);
-}}
-
-.bar:hover {{ opacity: 0.85; }}
-
-.bar-lbl {{
-  font-size: 10px;
-  color: #9ca3af;
-  white-space: nowrap;
-  text-align: center;
-  line-height: 1.2;
-}}
-
-.bar-val {{
-  font-size: 10px;
-  color: #f9fafb;
-  font-weight: 600;
-}}
-
-/* Hidden range groups */
-.range-group {{ display: none; }}
-.range-group.active {{ display: flex; }}
-
-/* ============================================================
-   Payment Cards
-   ============================================================ */
-
-.pay-summary {{
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}}
-
-.pay-amount {{
-  font-size: 28px;
-  font-weight: 700;
-  background: linear-gradient(135deg, #f472b6, #818cf8);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  letter-spacing: -0.02em;
-}}
-
-.pay-list {{
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}}
-
-.pay-card {{
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  border-radius: 14px;
-  padding: 14px;
-  transition: transform 0.18s ease, border-color 0.18s ease;
-  cursor: pointer;
-}}
-
-.pay-card:hover {{
-  border-color: rgba(244, 114, 182, 0.3);
-  transform: translateY(-1px);
-}}
-
-.pay-card-head {{
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}}
-
-.pay-card-name {{
-  font-weight: 600;
-  color: #f9fafb;
-  font-size: 14px;
-}}
-
-.pay-card-meta {{
-  font-size: 12px;
-  color: #9ca3af;
-  margin-top: 2px;
-}}
-
-.pay-card-amount {{
-  font-size: 18px;
-  font-weight: 700;
-  color: #f472b6;
-}}
-
-.pay-card-detail {{
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 12px;
-  color: #d1d5db;
-  display: none;
-}}
-
-.pay-card.expanded .pay-card-detail {{ display: block; }}
-
-/* ============================================================
-   Filter Buttons
-   ============================================================ */
-
-.filter-row {{
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
-}}
-
-.filter-btn {{
-  padding: 7px 14px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #d1d5db;
-  font-size: 12px;
-  font-weight: 500;
-  transition: all 0.18s ease;
-  white-space: nowrap;
-}}
-
-.filter-btn:hover {{
-  background: rgba(255, 255, 255, 0.09);
-  color: #fff;
-}}
-
-.filter-btn.active {{
-  background: linear-gradient(135deg, #f472b6, #818cf8);
-  color: #fff;
-  border-color: transparent;
-  box-shadow: 0 4px 14px rgba(244, 114, 182, 0.35);
-}}
-
-/* ============================================================
-   Badges
-   ============================================================ */
-
-.badge {{
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 9px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  background: rgba(129, 140, 248, 0.15);
-  color: #a5b4fc;
-  border: 1px solid rgba(129, 140, 248, 0.25);
-  text-transform: uppercase;
-}}
-
-.badge.hot {{
-  background: rgba(244, 114, 182, 0.18);
-  color: #f9a8d4;
-  border-color: rgba(244, 114, 182, 0.3);
-}}
-
-.badge.warm {{
-  background: rgba(251, 191, 36, 0.15);
-  color: #fcd34d;
-  border-color: rgba(251, 191, 36, 0.25);
-}}
-
-.badge.cold {{
-  background: rgba(148, 163, 184, 0.12);
-  color: #cbd5e1;
-  border-color: rgba(148, 163, 184, 0.2);
-}}
-
-/* ============================================================
-   Fan Table
-   ============================================================ */
-
-.fan-table-wrap {{
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  border-radius: 16px;
-  padding: 14px;
-  overflow-x: auto;
-  max-width: 100%;
-  -webkit-overflow-scrolling: touch;
-}}
-
-.fan-table {{
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  font-size: 13px;
-  min-width: 480px;
-}}
-
-.fan-table thead th {{
-  position: sticky;
-  top: 0;
-  background: rgba(15, 15, 31, 0.85);
-  backdrop-filter: blur(10px);
-  padding: 10px 12px;
-  text-align: left;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #9ca3af;
-  font-weight: 600;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}}
-
-.fan-table tbody td {{
-  padding: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  color: #e5e7eb;
-}}
-
-.fan-table tbody tr {{
-  cursor: pointer;
-  transition: background 0.15s ease;
-}}
-
-.fan-table tbody tr:hover {{
-  background: rgba(255, 255, 255, 0.04);
-}}
-
-.fan-table tbody tr:last-child td {{ border-bottom: none; }}
-
-.fan-search {{
-  width: 100%;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #f9fafb;
-  margin-bottom: 12px;
-  outline: none;
-  transition: border-color 0.18s ease;
-}}
-
-.fan-search:focus {{
-  border-color: rgba(244, 114, 182, 0.5);
-}}
-
-.fan-search::placeholder {{ color: #6b7280; }}
-
-/* ============================================================
-   Modals
-   ============================================================ */
-
-.modal {{
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  display: none;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 20px 12px;
-  z-index: 1000;
-  overflow-y: auto;
-}}
-
-.modal.open {{ display: flex; }}
-
-.modal-content {{
-  background: rgba(20, 20, 35, 0.85);
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
-  border-radius: 20px;
-  width: 100%;
-  max-width: 560px;
-  padding: 20px;
-  margin: auto 0;
-  max-height: calc(100vh - 40px);
-  overflow-y: auto;
-}}
-
-.modal-head {{
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  gap: 12px;
-}}
-
-.modal-title {{
-  font-size: 18px;
-  font-weight: 600;
-  color: #f9fafb;
-  margin: 0;
-}}
-
-.modal-close {{
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #f9fafb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  transition: background 0.15s ease;
-}}
-
-.modal-close:hover {{ background: rgba(255, 255, 255, 0.15); }}
-
-/* Chat bubbles in modal */
-.chat-log {{
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 50vh;
-  overflow-y: auto;
-  padding: 4px;
-}}
-
-.chat-bubble {{
-  max-width: 80%;
-  padding: 10px 14px;
-  border-radius: 16px;
-  font-size: 13px;
-  line-height: 1.4;
-  word-wrap: break-word;
-}}
-
-.chat-bubble.fan {{
-  background: rgba(255, 255, 255, 0.08);
-  align-self: flex-start;
-  border-bottom-left-radius: 4px;
-}}
-
-.chat-bubble.bella {{
-  background: linear-gradient(135deg, #f472b6, #818cf8);
-  color: #fff;
-  align-self: flex-end;
-  border-bottom-right-radius: 4px;
-}}
-
-.chat-meta {{
-  font-size: 10px;
-  color: #6b7280;
-  margin-top: 2px;
-}}
-
-/* ============================================================
-   Accordion
-   ============================================================ */
-
-.accordion-btn {{
-  width: 100%;
-  text-align: left;
-  padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  color: #f9fafb;
-  font-weight: 500;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 10px;
-  transition: background 0.15s ease;
-}}
-
-.accordion-btn:hover {{ background: rgba(255, 255, 255, 0.08); }}
-
-.accordion-btn::after {{
-  content: '▾';
-  font-size: 12px;
-  color: #9ca3af;
-  transition: transform 0.2s ease;
-}}
-
-.accordion-btn.open::after {{ transform: rotate(180deg); }}
-
-.accordion-panel {{
-  display: none;
-  padding: 12px 4px 0;
-}}
-
-.accordion-panel.open {{ display: block; }}
-
-/* ============================================================
-   Section spacing
-   ============================================================ */
-
-section {{ margin-bottom: 24px; }}
-
-.section-head {{
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-  gap: 8px;
-}}
-
-.load-more {{
-  display: block;
-  width: 100%;
-  margin-top: 12px;
-  padding: 11px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  color: #f9a8d4;
-  font-weight: 500;
-  transition: all 0.18s ease;
-}}
-
-.load-more:hover {{
-  background: rgba(244, 114, 182, 0.1);
-  border-color: rgba(244, 114, 182, 0.3);
-}}
-
-/* ============================================================
-   Mobile tweaks
-   ============================================================ */
-
-@media (max-width: 480px) {{
-  body {{ padding: 12px 10px 60px; font-size: 13px; }}
-  h1 {{ font-size: 20px; }}
-  .stat .value {{ font-size: 20px; }}
-  .pay-amount {{ font-size: 22px; }}
-  .modal-content {{ padding: 16px; border-radius: 16px; }}
-  .stats {{ gap: 8px; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }}
-}}
-
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{font-family:'Inter',sans-serif;background:#0a0a0a;color:#f0f0f0;padding:20px;max-width:1400px;margin:0 auto}}
+.hdr{{display:flex;align-items:center;gap:12px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #1a1a1a}}
+.back{{font-size:13px;color:#555;text-decoration:none;padding:5px 10px;border:1px solid #222;border-radius:6px}}
+.back:hover{{color:#aaa;border-color:#333}}
+h1{{font-size:20px;font-weight:700;flex:1}}
+.stats{{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:28px}}
+.stat{{background:#111;border:1px solid #1a1a1a;border-radius:10px;padding:16px}}
+.stat .val{{font-size:30px;font-weight:700;letter-spacing:-1px}}
+.stat .lbl{{font-size:11px;color:#555;margin-top:4px;text-transform:uppercase;letter-spacing:.5px}}
+.stat .sub{{font-size:11px;color:#444;margin-top:3px}}
+h2{{font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;margin-top:24px}}
+.cal{{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:8px}}
+.cday{{background:#111;border:1px solid #1a1a1a;border-radius:8px;padding:10px}}
+.cday .dn{{font-size:10px;color:#444}}.cday .dd{{font-size:16px;font-weight:700;margin:2px 0 5px}}
+.cpill{{font-size:10px;padding:1px 5px;border-radius:4px;font-weight:600;display:inline-block;margin:1px}}
+.cpill.photo{{background:rgba(79,195,247,.15);color:#4fc3f7}}
+.cpill.video{{background:rgba(244,114,182,.15);color:#f472b6}}
+.cpill.text{{background:rgba(105,240,174,.15);color:#69f0ae}}
+.upgrid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:8px}}
+.upcard{{background:#111;border:1px solid #1a1a1a;border-radius:10px;overflow:hidden;cursor:pointer;transition:transform .15s,border-color .15s}}
+.upcard:hover{{transform:translateY(-2px);border-color:#f472b640}}
+.upcard img{{width:100%;aspect-ratio:9/16;object-fit:cover;display:block;background:#1a1a1a}}
+.up-nothumb{{width:100%;aspect-ratio:9/16;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-size:32px}}
+.upcard-info{{padding:8px 9px 10px}}
+.upcard-date{{font-size:11px;font-weight:600;color:#818cf8}}
+.upcard-time{{font-size:13px;font-weight:700;color:#f0f0f0;margin:1px 0 4px}}
+.upcard-cap{{font-size:10px;color:#888;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:5px}}
+.dtabs{{display:flex;gap:3px;background:rgba(255,255,255,.04);border-radius:7px;padding:3px;width:fit-content;margin-bottom:10px}}
+.dtab{{padding:5px 12px;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer;color:#555;border:none;background:none}}
+.dtab.active{{background:#1a1a1a;color:#f0f0f0}}
+.dgrid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}}
+.dcard{{background:#111;border:1px solid #1a1a1a;border-radius:8px;overflow:hidden;cursor:pointer;transition:transform .15s,border-color .15s}}
+.dcard:hover{{transform:translateY(-2px);border-color:#f472b640}}
+.dcard img{{width:100%;aspect-ratio:9/16;object-fit:cover;display:block;background:#1a1a1a}}
+.dcard .di{{padding:6px 8px 8px}}.dcard .dc{{font-size:10px;color:#888;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}}
+#modal{{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;align-items:center;justify-content:center}}
+#modal.open{{display:flex}}
+#mbox{{background:#111;border:1px solid #2a2a2a;border-radius:14px;padding:24px;width:460px;max-width:95vw;max-height:90vh;overflow-y:auto}}
+#mbox h3{{font-size:14px;font-weight:700;margin-bottom:14px}}
+.mf{{margin-bottom:12px}}.mf label{{display:block;font-size:11px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}}
+.mf textarea,.mf input{{width:100%;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:7px;padding:7px 9px;color:#f0f0f0;font-size:13px;resize:vertical;font-family:inherit}}
+.mactions{{display:flex;gap:8px;margin-top:14px}}
+.mbtn{{padding:7px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none}}
+.mbtn.primary{{background:#f472b6;color:#fff}}.mbtn.danger{{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.2)}}
+.mbtn.cancel{{background:#1a1a1a;color:#aaa}}.mbtn:disabled{{opacity:.5;cursor:default}}
+#mmsg{{font-size:11px;margin-top:8px;padding:5px 8px;border-radius:5px;display:none}}
+#mmsg.ok{{background:rgba(105,240,174,.1);color:#69f0ae;display:block}}
+#mmsg.err{{background:rgba(239,68,68,.1);color:#ef4444;display:block}}
 </style></head><body>
 <div class="hdr">
   <a href="/dashboard?token=bella-admin-2024" class="back">← Back</a>
@@ -2265,11 +1635,14 @@ input, textarea {
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   border-radius: 16px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  padding: 14px 18px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 0 14px;
+  align-items: center;
   min-width: 0;
+  min-height: 68px;
   transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
@@ -2278,27 +1651,43 @@ input, textarea {
   border-color: rgba(244, 114, 182, 0.3);
 }
 
-.stat .label {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #9ca3af;
-  font-weight: 500;
-}
-
-.stat .value {
-  font-size: 24px;
+/* Match HTML class names: .val, .lbl, .sub2 */
+.stat .val {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  font-size: 26px;
   font-weight: 700;
-  color: #f9fafb;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  text-align: right;
+  background: linear-gradient(135deg, #f472b6 0%, #c084fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  white-space: nowrap;
 }
 
-.stat .sub {
+.stat .lbl {
+  grid-column: 1;
+  grid-row: 1;
   font-size: 12px;
-  color: #818cf8;
-  margin-top: 2px;
+  font-weight: 600;
+  color: #e5e7eb;
+  line-height: 1.3;
 }
+
+.stat .sub2, .stat .sub {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 2px;
+  line-height: 1.3;
+}
+
+/* Fallback for .value/.label class names */
+.stat .value { grid-column: 2; grid-row: 1 / 3; font-size: 26px; font-weight: 700; letter-spacing: -0.03em; text-align: right; background: linear-gradient(135deg, #f472b6, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.stat .label { grid-column: 1; grid-row: 1; font-size: 12px; font-weight: 600; color: #e5e7eb; }
 
 /* ============================================================
    Charts
@@ -2445,9 +1834,28 @@ input, textarea {
 
 .pay-summary {
   display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: nowrap;
+  align-items: center;
+  min-width: 0;
+}
+
+.pay-summary .pay-main {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pay-summary .pay-main .pay-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pay-summary .pay-right {
+  flex-shrink: 0;
+  text-align: right;
 }
 
 .pay-amount {
@@ -3053,12 +2461,6 @@ section { margin-bottom: 24px; }
 </div>
 
 <script>
-var STATS_URL=""" + (STATS_URL or "") + """;
-var PAYMENTS=""" + pay_data + """;
-var TOP_PAYERS=""" + payer_data + """;
-var TOP_FANS=""" + json.dumps([{"chat_id":f.get("chat_id"),"name":f.get("name","")} for f in (_fans_list or [])[:100]]) + """;
-var TG_USERS=""" + tg_users_data + """;
-
 
 /* ============================================================
    Bella Ops Dashboard - JS
