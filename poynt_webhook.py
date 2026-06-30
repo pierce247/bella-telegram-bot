@@ -4029,36 +4029,69 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 self.send_json(200,{"ok":True})
 
         elif p.path == "/zapier-payment":
-            # Called by Zapier when a new GoDaddy payment arrives (structured fields, no parsing needed)
+            # Called by Zapier when a new GoDaddy payment arrives
             try:
                 data = json.loads(body)
+                print(f"[zapier] incoming fields: {list(data.keys())} values: { {k:str(v)[:40] for k,v in data.items() if k!='token'} }")
                 token = data.get("token","") or self.headers.get("X-Admin-Token","")
                 if token != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
-                raw_amt = str(data.get("amount","0")).replace("$","").replace(",","").strip()
-                amt_cents = int(float(raw_amt)*100) if raw_amt else 0
-                order_id = str(data.get("order_id","")).strip() or "zap"
-                resource_id = f"gmail-order-{order_id}" if order_id != "zap" else f"zapier-{int(time.time())}"
+
+                # Handle all common GoDaddy/Zapier field name variants
+                def _first(*keys):
+                    for k in keys:
+                        v = data.get(k,"")
+                        if v and str(v).strip() not in ("","0","0.0","None","null"): return str(v).strip()
+                    return ""
+
+                # Amount — try every variant GoDaddy emails use
+                raw_amt = _first("amount","total","grand_total","amount_total","total_amount",
+                                  "subtotal","price","payment_amount","Amount","Total") or "0"
+                raw_amt = raw_amt.replace("$","").replace(",","").strip()
+                try: amt_cents = int(round(float(raw_amt)*100))
+                except: amt_cents = 0
+
+                # Name
+                customer_name = (_first("name","customer_name","billing_name","full_name",
+                                        "customer","payer_name","cardholder","Name","Customer Name") or "Unknown").strip()
+
+                # Email
+                customer_email = (_first("email","customer_email","billing_email",
+                                         "payer_email","Email") or "").lower().strip()
+
+                # Order ID
+                order_id = _first("order_id","order_number","order","order_num",
+                                   "Order Number","Order #","confirmation","transaction_id") or ""
+                # Strip leading # if present
+                order_id = order_id.lstrip("#").strip()
+                resource_id = f"gmail-order-{order_id}" if order_id else f"zapier-{int(time.time())}"
+
+                # Note from customer
+                note = _first("note","customer_note","message","note_from_customer","Note from customer")
+
                 log2 = load_json(PAYMENTS_LOG, [])
-                if any(e.get("resource_id") == resource_id for e in log2):
+                if order_id and any(e.get("resource_id") == resource_id for e in log2):
                     self.send_json(200, {"ok": True, "added": 0, "duplicate": True}); return
+
                 entry = {
-                    "ts": data.get("ts","") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "ts": _first("ts","date","payment_date","Date") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                     "event_type": "ZAPIER_PAYMENT",
                     "resource_id": resource_id,
-                    "name": (data.get("name","") or "Unknown").strip(),
-                    "email": (data.get("email","") or "").lower().strip(),
+                    "name": customer_name,
+                    "email": customer_email,
                     "amount_cents": amt_cents,
                     "amount_usd": f"${amt_cents/100:.2f}",
                     "status": "CAPTURED",
+                    "notes": note,
                     "chat_id": None,
                     "delivered": False,
                     "source": "zapier"
                 }
                 log2.insert(0, entry)
                 save_json(PAYMENTS_LOG, log2)
-                print(f"[zapier] New payment: {entry['name']} ${raw_amt} (Order #{order_id})")
-                # Notify owner
-                msg = f"\U0001f4b0 New Zapier payment!\n\U0001f464 {entry['name']}\n\U0001f4b5 ${raw_amt}\n\U0001f4e7 {entry['email']}\n\U0001f4e6 Order #{order_id}"
+                print(f"[zapier] Logged: {customer_name} ${raw_amt} order={order_id} email={customer_email}")
+                # Notify owner via Telegram
+                msg = f"\U0001f4b0 New GoDaddy payment!\n\U0001f464 {customer_name}\n\U0001f4b5 ${raw_amt}\n\U0001f4e7 {customer_email}\n\U0001f4e6 Order #{order_id}"
+                if note: msg += f"\n\U0001f4ac \"{note}\""
                 for oid in OWNER_CHAT_IDS: send_telegram(oid, msg)
                 self.send_json(200, {"ok": True, "added": 1, "total": len(log2)})
             except Exception as ez:
