@@ -185,9 +185,10 @@ def poynt_get(path):
 
 
 # ── Telegram ─────────────────────────────────────────────────────────────────
-def send_telegram(chat_id, text, biz=""):
+def send_telegram(chat_id, text, biz="", reply_markup=None):
     p = {"chat_id": int(chat_id), "text": text}
     if biz: p["business_connection_id"] = biz
+    if reply_markup: p["reply_markup"] = reply_markup
     data = json.dumps(p).encode()
     req  = urllib.request.Request(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
            data=data, headers={"Content-Type":"application/json"})
@@ -4703,7 +4704,9 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                         if _fan_uuid2 and _fan_uuid2 != _my_uuid and _msg_text2:
                             print(f"[fanvue_webhook] direct_msg from {_fan_name2}: {_msg_text2[:60]}")
                             preview2 = _msg_text2[:80] + ("\u2026" if len(_msg_text2) > 80 else "")
-                            for oid in OWNER_CHAT_IDS: send_telegram(oid, f"\U0001f4ac Fanvue DM\n\U0001f464 {_fan_name2}\n{preview2}")
+                            _fv_url = f"https://www.fanvue.com/messages/{_fan_uuid2}"
+                            _fv_markup = {"inline_keyboard": [[{"text": "💬 Open Chat on Fanvue", "url": _fv_url}]]}
+                            for oid in OWNER_CHAT_IDS: send_telegram(oid, f"\U0001f4ac Fanvue DM\n\U0001f464 {_fan_name2}\n{preview2}", reply_markup=_fv_markup)
                             _fvt.Thread(target=handle_fanvue_message,
                                         args=(_fan_uuid2, _fan_name2, _msg_text2), daemon=True).start()
 
