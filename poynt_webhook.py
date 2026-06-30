@@ -830,16 +830,24 @@ async def _fetch_gift_catalog():
 
 
 async def _send_star_gift(chat_id: int, gift_name: str) -> dict:
-    """Send an animated star gift to a fan via Telethon MTProto."""
+    """Request a star gift from a fan via Telethon MTProto Stars invoice.
+    
+    Telegram's MTProto API does not support requesting regular (non-unique) star gifts
+    directly. Instead we send a Stars invoice from Bella's account to the fan —
+    when the fan pays, Bella receives the Stars. The invoice title/description
+    makes it clear it's a gift request.
+    """
     if not _client:
         return {"ok": False, "error": "Telethon not connected"}
     try:
-        from telethon.tl.functions.payments import GetPaymentFormRequest, SendStarsFormRequest
-        from telethon.tl.types import InputInvoiceStarGift
-    except ImportError:
-        return {"ok": False, "error": "GetPaymentFormRequest not available — upgrade Telethon"}
+        from telethon.tl.functions.messages import SendMediaRequest
+        from telethon.tl.types import (
+            InputMediaInvoice, Invoice, LabeledPrice, DataJSON, InputPeerEmpty
+        )
+    except ImportError as ie:
+        return {"ok": False, "error": f"Import error: {ie}"}
     try:
-        # Load gift catalog cache to find gift ID by name
+        # Load gift catalog cache to find gift price in Stars
         cache_file = os.path.join(DATA_DIR, "gift_catalog_cache.json")
         catalog = load_json(cache_file, {}) if os.path.exists(cache_file) else {}
         gifts = catalog.get("gifts", [])
@@ -848,7 +856,6 @@ async def _send_star_gift(chat_id: int, gift_name: str) -> dict:
         if not gift:
             gift = next((g for g in gifts if gn_lower in g.get("title","").lower()), None)
         if not gift:
-            # Refresh catalog and retry
             fresh = await _fetch_gift_catalog()
             gifts = fresh.get("gifts", [])
             if gifts:
@@ -856,14 +863,31 @@ async def _send_star_gift(chat_id: int, gift_name: str) -> dict:
             gift = next((g for g in gifts if g.get("title","").lower() == gn_lower), None)
             if not gift:
                 gift = next((g for g in gifts if gn_lower in g.get("title","").lower()), None)
-        if not gift:
-            return {"ok": False, "error": f"Gift '{gift_name}' not found in catalog ({len(gifts)} gifts loaded)"}
-        gift_id = gift["id"]
+        # Fallback Star amounts for common gifts if catalog empty
+        FALLBACK_STARS = {"rose": 15, "diamond ring": 2500, "ring": 2500,
+                          "teddy bear": 75, "birthday cake": 75, "cake": 75,
+                          "bouquet": 350, "kiss": 50, "heart": 30}
+        stars = int(gift.get("stars", 0)) if gift else FALLBACK_STARS.get(gn_lower, 50)
+        emoji = gift.get("emoji", "") if gift else ""
+        title = f"{emoji} {gift_name}".strip() if emoji else gift_name
         peer = await _client.get_input_entity(chat_id)
-        invoice = InputInvoiceStarGift(peer=peer, gift_id=gift_id)
-        form = await asyncio.wait_for(_client(GetPaymentFormRequest(invoice=invoice)), timeout=15)
-        await asyncio.wait_for(_client(SendStarsFormRequest(form_id=form.form_id, invoice=invoice)), timeout=15)
-        return {"ok": True, "gift": gift_name, "gift_id": gift_id, "stars": gift.get("stars")}
+        invoice = InputMediaInvoice(
+            title=f"Gift Request: {title}",
+            description=f"Send Bella a {title} gift! 🩷 ({stars} ⭐)",
+            invoice=Invoice(
+                currency="XTR",
+                prices=[LabeledPrice(label=f"{title} Gift", amount=stars)],
+            ),
+            payload=f"gift-{gift_name.lower().replace(' ','-')}".encode(),
+            provider="",
+            provider_data=DataJSON(data="{}"),
+        )
+        result = await asyncio.wait_for(
+            _client(SendMediaRequest(peer=peer, media=invoice, message="", random_id=int.from_bytes(os.urandom(8),"big",signed=True))),
+            timeout=15
+        )
+        print(f"[gift] Stars invoice sent for {title} ({stars}⭐) to {chat_id}")
+        return {"ok": True, "gift": gift_name, "stars": stars, "type": "invoice"}
     except Exception as e:
         print(f"[gift] _send_star_gift error: {type(e).__name__}: {e}")
         return {"ok": False, "error": str(e)}
