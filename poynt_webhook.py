@@ -3151,6 +3151,11 @@ class Handler(BaseHTTPRequestHandler):
         if p.path == "/health":
             self.send_json(200,{"status":"ok","version":"v3.1"})
 
+        elif p.path == "/fanvue-webhook":
+            # Fanvue endpoint health-check (GET ping to verify endpoint is alive)
+            print(f"[fanvue_webhook] GET ping received — endpoint alive")
+            self.send_json(200, {"ok": True, "endpoint": "fanvue-webhook", "status": "ready"})
+
         elif p.path == "/fanvue-auth-url":
             # Generate a fresh Fanvue OAuth URL using Railway's actual FANVUE_CLIENT_ID
             import secrets as _sec, hashlib as _hs, base64 as _b64u, urllib.parse as _up2
