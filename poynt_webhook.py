@@ -1162,6 +1162,13 @@ def build_c360_page():
     _status_msg = (f'<div style="background:#1a0a0a;border:1px solid #2a1a1a;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:#ef4444">⚠️ No Content360 data cached yet. This refreshes automatically via Bella Manager.</div>' if _no_data else
                    f'<div style="font-size:11px;color:#444;margin-bottom:16px">Last updated: {_age_str} &nbsp;·&nbsp; <a href="/content360?token=bella-admin-2024" style="color:#818cf8">↻ Reload</a></div>')
 
+    # Inject credentials for direct browser→C360 calls (bypasses Railway IP block)
+    _c360_uuid_pg = os.environ.get("CONTENT360_WORKSPACE_UUID","")
+    _c360_tok_pg  = os.environ.get("CONTENT360_ACCESS_TOKEN","")
+    _c360_ovr_pg  = load_json(os.path.join(DATA_DIR, "c360_token.json"), {})
+    if _c360_ovr_pg.get("tok"):  _c360_tok_pg  = _c360_ovr_pg["tok"]
+    if _c360_ovr_pg.get("uuid"): _c360_uuid_pg = _c360_ovr_pg["uuid"]
+
     return f"""<!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Bella Content360</title>
@@ -1267,6 +1274,9 @@ h2{{font-size:10px;font-weight:600;color:#555;text-transform:uppercase;letter-sp
   </div>
 </div>
 <script>
+var _C360_UUID="{_c360_uuid_pg}";
+var _C360_TOK="{_c360_tok_pg}";
+var _C360_BASE="https://app.content360.io/os/api/"+_C360_UUID+"/posts/";
 var _ep=null;
 function swTab(btn,show,hide){{
   document.querySelectorAll('.dtab').forEach(function(b){{b.classList.remove('active');}});
@@ -1324,35 +1334,35 @@ function updatePlatformBadge(id,cb){{
   if(lbl) lbl.style.borderColor=cb.checked?'#f472b640':'#1a1a1a';
 }}
 function closeM(){{document.getElementById('modal').classList.remove('open');}}
+function _c360H(){{return{{'Authorization':'Bearer '+_C360_TOK,'Content-Type':'application/json','Accept':'application/json'}};}}
 function saveP(){{
   if(!_ep)return;
   var b=document.getElementById('msave');b.disabled=true;b.textContent='Saving...';
-  // Collect selected platforms
-  var selected=[];
-  document.querySelectorAll('#mplatform_checks input[type=checkbox]:checked').forEach(function(cb){{
-    selected.push(parseInt(cb.value));
-  }});
-  fetch('/c360-action?token=bella-admin-2024',{{method:'POST',headers:{{'Content-Type':'application/json'}},
-    body:JSON.stringify({{action:'edit',post_uuid:_ep.uuid,
-      caption:document.getElementById('mcap').value.trim(),
-      scheduled_at:document.getElementById('msched').value?document.getElementById('msched').value.replace('T',' '):null,
-      accounts:selected.length?selected:null}})
-  }}).then(function(r){{return r.json();}}).then(function(d){{
-    b.disabled=false;b.textContent='Save';
-    if(d.ok){{setMsg('ok','Saved! Reloading...');setTimeout(function(){{location.reload();}},900);}}
-    else setMsg('err','Error: '+(d.error||'?'));
-  }}).catch(function(){{b.disabled=false;b.textContent='Save';setMsg('err','Network error');}});
+  var sel=[];
+  document.querySelectorAll('#mplatform_checks input[type=checkbox]:checked').forEach(function(cb){{sel.push(parseInt(cb.value));}});
+  var cap=document.getElementById('mcap').value.trim();
+  var sched=document.getElementById('msched').value?document.getElementById('msched').value.replace('T',' '):null;
+  fetch(_C360_BASE+_ep.uuid,{{headers:_c360H()}})
+    .then(function(r){{return r.json();}})
+    .then(function(cur){{
+      var v=(cur.versions||[{{}}])[0]||{{}};
+      var ct=(v.content||[{{}}]).slice();
+      if(ct[0]) ct[0].body=cap;
+      var accts=sel.length?sel:(cur.accounts||[]).map(function(a){{return a.id;}});
+      var tags=(cur.tags||[]).map(function(t){{return t.id!==undefined?t.id:t;}});
+      var pl={{accounts:accts,tags:tags,versions:[Object.assign({{}},v,{{content:ct}})],status:cur.status||'draft'}};
+      if(sched) pl.scheduled_at=sched;
+      return fetch(_C360_BASE+_ep.uuid,{{method:'PUT',headers:_c360H(),body:JSON.stringify(pl)}});
+    }})
+    .then(function(r){{b.disabled=false;b.textContent='Save';if(r.ok){{setMsg('ok','Saved!');setTimeout(function(){{location.reload();}},900);}}else r.text().then(function(t){{setMsg('err','Error '+r.status+': '+t.slice(0,120));}});}})
+    .catch(function(e){{b.disabled=false;b.textContent='Save';setMsg('err',''+e);}});
 }}
 function delP(){{
-  if(!_ep||!confirm('Delete?'))return;
+  if(!_ep||!confirm('Delete this post?'))return;
   var b=document.getElementById('mdel');b.disabled=true;b.textContent='Deleting...';
-  fetch('/c360-action?token=bella-admin-2024',{{method:'POST',headers:{{'Content-Type':'application/json'}},
-    body:JSON.stringify({{action:'delete',post_uuid:_ep.uuid}})
-  }}).then(function(r){{return r.json();}}).then(function(d){{
-    b.disabled=false;b.textContent='Delete';
-    if(d.ok){{setMsg('ok','Deleted!');setTimeout(function(){{closeM();location.reload();}},800);}}
-    else setMsg('err','Error: '+(d.error||'?'));
-  }}).catch(function(){{b.disabled=false;b.textContent='Delete';setMsg('err','Network error');}});
+  fetch(_C360_BASE+_ep.uuid,{{method:'DELETE',headers:_c360H()}})
+    .then(function(r){{b.disabled=false;b.textContent='Delete';if(r.ok||r.status===204){{setMsg('ok','Deleted!');setTimeout(function(){{closeM();location.reload();}},800);}}else r.text().then(function(t){{setMsg('err','Error '+r.status+': '+t.slice(0,120));}});}})
+    .catch(function(e){{b.disabled=false;b.textContent='Delete';setMsg('err',''+e);}});
 }}
 function setMsg(t,m){{var el=document.getElementById('mmsg');el.className=t;el.textContent=m;}}
 </script></body></html>"""
