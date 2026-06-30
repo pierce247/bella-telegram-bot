@@ -4469,6 +4469,10 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                                     if fan_text:
                                         f_name2 = (m2.get("sender",{}) or {}).get("displayName","Fan")
                                         print(f"[fanvue_webhook] chat_update from {f_name2}: {fan_text[:60]}")
+                                        # Notify Pierce via Telegram
+                                        preview = fan_text[:80] + ("…" if len(fan_text) > 80 else "")
+                                        notif = f"💬 Fanvue DM from {f_name2}:\n\"{preview}\""
+                                        for oid in OWNER_CHAT_IDS: send_telegram(oid, notif)
                                         handle_fanvue_message(cuuid, f_name2, fan_text)
                                     break
                         except Exception as ex2:
@@ -4477,8 +4481,17 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
 
                 # Fanvue canonical event names (from webhook API)
                 elif etype in ("message.received", "message_received") and fan_uuid and msg_text:
+                    # Notify Pierce and auto-reply
+                    preview = msg_text[:80] + ("…" if len(msg_text) > 80 else "")
+                    notif = f"💬 Fanvue DM from {fan_name}:\n\"{preview}\""
+                    for oid in OWNER_CHAT_IDS: send_telegram(oid, notif)
                     _fvt.Thread(target=handle_fanvue_message,
                                 args=(fan_uuid, fan_name, msg_text), daemon=True).start()
+
+                elif etype in ("follower.new", "new_follower", "follow"):
+                    msg = f"👀 New Fanvue follower!\n👤 {fan_name}"
+                    for oid in OWNER_CHAT_IDS: send_telegram(oid, msg)
+                    _fvt.Thread(target=fanvue_refresh_stats, daemon=True).start()
 
                 elif etype in ("subscription.new", "new_subscriber", "subscription_started", "subscribe"):
                     _fvt.Thread(target=handle_fanvue_new_subscriber,
