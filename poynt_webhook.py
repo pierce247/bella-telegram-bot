@@ -830,7 +830,7 @@ async def _send_star_gift(chat_id: int, gift_name: str) -> dict:
     if not _client:
         return {"ok": False, "error": "Telethon not connected"}
     try:
-        from telethon.tl.functions.payments import GetPaymentFormRequest, SendPaymentFormRequest
+        from telethon.tl.functions.payments import GetPaymentFormRequest, SendStarsFormRequest
         from telethon.tl.types import InputInvoiceStarGift
     except ImportError:
         return {"ok": False, "error": "GetPaymentFormRequest not available — upgrade Telethon"}
@@ -856,9 +856,9 @@ async def _send_star_gift(chat_id: int, gift_name: str) -> dict:
             return {"ok": False, "error": f"Gift '{gift_name}' not found in catalog ({len(gifts)} gifts loaded)"}
         gift_id = gift["id"]
         peer = await _client.get_input_entity(chat_id)
-        invoice = InputInvoiceStarGift(peer=peer, gift_id=gift_id)
+        invoice = InputInvoiceStarGift(user_id=peer, gift_id=gift_id)
         form = await asyncio.wait_for(_client(GetPaymentFormRequest(invoice=invoice)), timeout=15)
-        await asyncio.wait_for(_client(SendPaymentFormRequest(form_id=form.form_id, invoice=invoice)), timeout=15)
+        await asyncio.wait_for(_client(SendStarsFormRequest(form_id=form.form_id, invoice=invoice)), timeout=15)
         return {"ok": True, "gift": gift_name, "gift_id": gift_id, "stars": gift.get("stars")}
     except Exception as e:
         print(f"[gift] _send_star_gift error: {type(e).__name__}: {e}")
@@ -4589,6 +4589,20 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                         except Exception as ex2:
                             print(f"[fanvue_webhook] chat_update error: {ex2}")
                     _fvt.Thread(target=_handle_chat_update, args=(counterpart_uuid,), daemon=True).start()
+
+                # Direct message payload: Fanvue sends {messageUuid, sender, message, ...} with no event/type
+                elif not etype and event.get("messageUuid") and event.get("sender"):
+                    _sender = event.get("sender",{}) or {}
+                    _fan_uuid2 = _sender.get("uuid","") or ""
+                    _fan_name2 = _sender.get("displayName","Fan") or _sender.get("handle","Fan")
+                    _msg_text2 = str(event.get("message","") or event.get("text","") or "").strip()
+                    _my_uuid = "759d4266-e8d6-416d-9e59-da6b41f458f1"
+                    if _fan_uuid2 and _fan_uuid2 != _my_uuid and _msg_text2:
+                        print(f"[fanvue_webhook] direct_msg from {_fan_name2}: {_msg_text2[:60]}")
+                        preview2 = _msg_text2[:80] + ("\u2026" if len(_msg_text2) > 80 else "")
+                        for oid in OWNER_CHAT_IDS: send_telegram(oid, f"\U0001f4ac Fanvue DM from {_fan_name2}:\n\"{preview2}\"")
+                        _fvt.Thread(target=handle_fanvue_message,
+                                    args=(_fan_uuid2, _fan_name2, _msg_text2), daemon=True).start()
 
                 # Fanvue canonical event names (from webhook API)
                 elif etype in ("message.received", "message_received") and fan_uuid and msg_text:
