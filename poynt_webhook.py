@@ -15,6 +15,10 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 from urllib.parse import urlparse, parse_qs
 
+# ── Fanvue message dedup (module-level) ──────────────────────────────────────
+_fv_seen_msgs: set = set()
+_fv_seen_msgs_order: list = []
+
 # ── Postgres connection (shared with bella-bot) ───────────────────────────────
 _pg_conn = None
 _pg_lock = threading.Lock()
@@ -4592,17 +4596,27 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
 
                 # Direct message payload: Fanvue sends {messageUuid, sender, message, ...} with no event/type
                 elif not etype and event.get("messageUuid") and event.get("sender"):
-                    _sender = event.get("sender",{}) or {}
-                    _fan_uuid2 = _sender.get("uuid","") or ""
-                    _fan_name2 = _sender.get("displayName","Fan") or _sender.get("handle","Fan")
-                    _msg_text2 = str(event.get("message","") or event.get("text","") or "").strip()
-                    _my_uuid = "759d4266-e8d6-416d-9e59-da6b41f458f1"
-                    if _fan_uuid2 and _fan_uuid2 != _my_uuid and _msg_text2:
-                        print(f"[fanvue_webhook] direct_msg from {_fan_name2}: {_msg_text2[:60]}")
-                        preview2 = _msg_text2[:80] + ("\u2026" if len(_msg_text2) > 80 else "")
-                        for oid in OWNER_CHAT_IDS: send_telegram(oid, f"\U0001f4ac Fanvue DM from {_fan_name2}:\n\"{preview2}\"")
-                        _fvt.Thread(target=handle_fanvue_message,
-                                    args=(_fan_uuid2, _fan_name2, _msg_text2), daemon=True).start()
+                    _msg_uuid = event.get("messageUuid","")
+                    if _msg_uuid and _msg_uuid in _fv_seen_msgs:
+                        pass  # duplicate delivery — skip
+                    else:
+                        if _msg_uuid:
+                            _fv_seen_msgs.add(_msg_uuid)
+                            _fv_seen_msgs_order.append(_msg_uuid)
+                            if len(_fv_seen_msgs_order) > 1000:
+                                _fv_seen_msgs.discard(_fv_seen_msgs_order.pop(0))
+                        _sender = event.get("sender",{}) or {}
+                        _fan_uuid2 = _sender.get("uuid","") or ""
+                        _fan_name2 = _sender.get("displayName","Fan") or _sender.get("handle","Fan")
+                        _msg_raw = event.get("message","") or event.get("text","") or ""
+                        _msg_text2 = str(_msg_raw.get("text","") if isinstance(_msg_raw, dict) else _msg_raw).strip()
+                        _my_uuid = "759d4266-e8d6-416d-9e59-da6b41f458f1"
+                        if _fan_uuid2 and _fan_uuid2 != _my_uuid and _msg_text2:
+                            print(f"[fanvue_webhook] direct_msg from {_fan_name2}: {_msg_text2[:60]}")
+                            preview2 = _msg_text2[:80] + ("\u2026" if len(_msg_text2) > 80 else "")
+                            for oid in OWNER_CHAT_IDS: send_telegram(oid, f"\U0001f4ac Fanvue DM\n\U0001f464 {_fan_name2}\n{preview2}")
+                            _fvt.Thread(target=handle_fanvue_message,
+                                        args=(_fan_uuid2, _fan_name2, _msg_text2), daemon=True).start()
 
                 # Fanvue canonical event names (from webhook API)
                 elif etype in ("message.received", "message_received") and fan_uuid and msg_text:
