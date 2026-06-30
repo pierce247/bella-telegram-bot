@@ -308,6 +308,14 @@ GIFT_CATALOG = {
     "sexy":      (999,  "🔥 Feeling Sexy",          "you have no idea what you just started 😈",  "bella_gift_sexy"),
     "high":      (420,  "🌿 Get Me High",            "on good vibes only 😏✨",                    "bella_gift_high"),
     "69":        (69,   "😈 You Know What This Is",  "I don't need to explain 😏",                "bella_gift_69"),
+    "111":       (111,  "🕯️ Light My Candle",       "one eleven energy tonight 🌙",               "bella_gift_111"),
+    "222":       (222,  "👯 Dynamic Duo",            "just you and me, the way it should be 🩷",  "bella_gift_222"),
+    "333":       (333,  "✨ Angel Numbers",          "the universe said spoil me 😇",              "bella_gift_333"),
+    "444":       (444,  "🔮 Protected Energy",       "good things happen when you listen to me 😏", "bella_gift_444"),
+    "555":       (555,  "🌪️ Change Is Coming",       "and it starts with you spoiling me 💕",      "bella_gift_555"),
+    "666":       (666,  "😈 Devil's Favorite",       "you already know what this means 🔥",        "bella_gift_666"),
+    "1234":      (1234, "🎯 One Two Three Four",     "count it up, you know what to do 😏",        "bella_gift_1234"),
+    "6969":      (6969, "😈 Need I Say More",        "I'm not gonna explain this one either 🔥",   "bella_gift_6969"),
 }
 
 def send_gift_invoice(chat_id: int, gift_key: str, biz: str = "") -> bool:
