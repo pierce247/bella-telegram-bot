@@ -1234,7 +1234,7 @@ h2{{font-size:10px;font-weight:600;color:#555;text-transform:uppercase;letter-sp
 {_status_msg}
 <div class="stats">
   <div class="stat"><div class="val">{_stats.get("scheduled_total",0)}</div><div class="lbl">Scheduled</div><div class="sub">{_stats.get("days_covered",0)} days covered</div></div>
-  <div class="stat"><div class="val">{_stats.get("draft_total",0)}</div><div class="lbl">Drafts</div><div class="sub">{_dvt.get("video",0)} video · {_dvt.get("photo",0)} photo</div></div>
+  <div class="stat"><div class="val">{_stats.get("draft_total",0)}</div><div class="lbl">Drafts</div><div class="sub">{_dvt.get("video",0)}v · {_dvt.get("photo",0)}p · {_dvt.get("text",0)}t</div></div>
   <div class="stat"><div class="val">{_daysLeft}d</div><div class="lbl">Coverage Left</div><div class="sub">Until {_maxDate or "—"}</div></div>
   <div class="stat"><div class="val" style="font-size:22px">{(_fmt_date(_nxt["scheduled_at"]).split("·")[1].strip() if _nxt and "·" in _fmt_date(_nxt.get("scheduled_at","")) else "--")}</div><div class="lbl">Next Post</div><div class="sub">{(_fmt_date(_nxt["scheduled_at"]).split("·")[0].strip() if _nxt else "Nothing scheduled")}</div></div>
 </div>
