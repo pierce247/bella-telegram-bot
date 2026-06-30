@@ -1244,8 +1244,8 @@ h2{{font-size:10px;font-weight:600;color:#555;text-transform:uppercase;letter-sp
 <div class="upgrid">{_up_items()}</div>
 <h2>📦 Drafts <span style="font-size:10px;color:#555;font-weight:400;text-transform:none;letter-spacing:0">(click to edit)</span></h2>
 <div class="dtabs">
-  <button class="dtab active" id="dtvid" onclick="swTab(this,'dpvideo','dpphoto')">🎬 Videos ({_drafts.get("video_total", _dvt.get("video",0))})</button>
-  <button class="dtab" id="dtphoto" onclick="swTab(this,'dpphoto','dpvideo')">📸 Photos ({_drafts.get("photo_total", _dvt.get("photo",0))})</button>
+  <button class="dtab active" id="dtvid" onclick="swTab(this,'dpvideo','dpphoto')">🎬 Videos ({_drafts.get("video_total", _dvt.get("video",0)) if isinstance(_drafts,dict) else _dvt.get("video",0)})</button>
+  <button class="dtab" id="dtphoto" onclick="swTab(this,'dpphoto','dpvideo')">📸 Photos ({_drafts.get("photo_total", _dvt.get("photo",0)) if isinstance(_drafts,dict) else _dvt.get("photo",0)})</button>
 </div>
 <div style="font-size:11px;color:#444;margin-bottom:8px">Showing first 40 of each type · <a href="https://app.content360.io" target="_blank" style="color:#818cf8">View all in Content360 →</a></div>
 <div id="dpvideo" class="dgrid">{_vids}</div>
