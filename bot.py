@@ -304,6 +304,10 @@ GIFT_CATALOG = {
     "diamond":   (5000, "💍 Diamond Energy",        "only for the ones who really see me 💎",   "bella_gift_diamond"),
     "fantasy":   (7777, "🦋 Make It a Fantasy",    "you already know 😈",                       "bella_gift_fantasy"),
     "everything":(9999, "🌟 Give Me Everything",   "no explanation needed. just do it.",         "bella_gift_everything"),
+    # ── Special ─────────────────────────────────────────────────────────────────
+    "sexy":      (999,  "🔥 Feeling Sexy",          "you have no idea what you just started 😈",  "bella_gift_sexy"),
+    "high":      (420,  "🌿 Get Me High",            "on good vibes only 😏✨",                    "bella_gift_high"),
+    "69":        (69,   "😈 You Know What This Is",  "I don't need to explain 😏",                "bella_gift_69"),
 }
 
 def send_gift_invoice(chat_id: int, gift_key: str, biz: str = "") -> bool:
