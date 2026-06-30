@@ -829,65 +829,130 @@ async def _fetch_gift_catalog():
         return {"error": str(e), "gifts": []}
 
 
-async def _send_star_gift(chat_id: int, gift_name: str) -> dict:
-    """Request a star gift from a fan via Telethon MTProto Stars invoice.
+async def _fetch_collectible_catalog(gift_id: int = 0, limit: int = 20) -> list:
+    """Fetch collectible (unique) star gifts with slugs via GetResaleStarGiftsRequest.
     
-    Telegram's MTProto API does not support requesting regular (non-unique) star gifts
-    directly. Instead we send a Stars invoice from Bella's account to the fan —
-    when the fan pays, Bella receives the Stars. The invoice title/description
-    makes it clear it's a gift request.
+    These are the NFT-style gifts that have unique slugs. Used for SendStarGiftOfferRequest.
+    If gift_id=0, fetches across all gift types using the regular gift catalog IDs.
+    """
+    if not _client:
+        return []
+    try:
+        from telethon.tl.functions.payments import GetResaleStarGiftsRequest, GetStarGiftsRequest
+        from telethon.tl.types import StarGiftUnique
+    except ImportError:
+        return []
+    collectibles = []
+    try:
+        if gift_id == 0:
+            # Get regular gift IDs first
+            reg = await asyncio.wait_for(_client(GetStarGiftsRequest(hash=0)), timeout=15)
+            gift_ids = [g.id for g in getattr(reg, "gifts", [])[:10]]
+        else:
+            gift_ids = [gift_id]
+        for gid in gift_ids:
+            try:
+                result = await asyncio.wait_for(
+                    _client(GetResaleStarGiftsRequest(gift_id=gid, offset="", limit=limit)),
+                    timeout=15
+                )
+                for g in getattr(result, "gifts", []):
+                    if isinstance(g, StarGiftUnique) and g.slug:
+                        collectibles.append({
+                            "slug": g.slug,
+                            "title": g.title,
+                            "num": g.num,
+                            "gift_id": g.gift_id,
+                            "resell_amount": [
+                                {"amount": a.amount, "nanos": a.nanos}
+                                for a in (getattr(g, "resell_amount", None) or [])
+                            ],
+                        })
+            except Exception:
+                continue
+    except Exception as e:
+        print(f"[gift] collectible catalog error: {e}")
+    return collectibles[:limit]
+
+
+async def _send_star_gift(chat_id: int, gift_name: str) -> dict:
+    """Request a gift from a fan using SendStarGiftOfferRequest.
+    
+    gift_name can be:
+    - A collectible slug like "CrimsonGlobe-12345" (direct offer request)
+    - A regular gift name like "rose" (will find a collectible of that type or use slug directly)
+    
+    The fan sees a gift request message and can accept by paying Stars.
     """
     if not _client:
         return {"ok": False, "error": "Telethon not connected"}
     try:
-        from telethon.tl.functions.messages import SendMediaRequest
-        from telethon.tl.types import (
-            InputMediaInvoice, Invoice, LabeledPrice, DataJSON, InputPeerEmpty
-        )
+        from telethon.tl.functions.payments import SendStarGiftOfferRequest
+        from telethon.tl.types import StarsAmount
     except ImportError as ie:
         return {"ok": False, "error": f"Import error: {ie}"}
     try:
-        # Load gift catalog cache to find gift price in Stars
-        cache_file = os.path.join(DATA_DIR, "gift_catalog_cache.json")
-        catalog = load_json(cache_file, {}) if os.path.exists(cache_file) else {}
-        gifts = catalog.get("gifts", [])
-        gn_lower = gift_name.lower()
-        gift = next((g for g in gifts if g.get("title","").lower() == gn_lower), None)
-        if not gift:
-            gift = next((g for g in gifts if gn_lower in g.get("title","").lower()), None)
-        if not gift:
-            fresh = await _fetch_gift_catalog()
-            gifts = fresh.get("gifts", [])
-            if gifts:
-                save_json(cache_file, fresh)
-            gift = next((g for g in gifts if g.get("title","").lower() == gn_lower), None)
-            if not gift:
-                gift = next((g for g in gifts if gn_lower in g.get("title","").lower()), None)
-        # Fallback Star amounts for common gifts if catalog empty
-        FALLBACK_STARS = {"rose": 15, "diamond ring": 2500, "ring": 2500,
-                          "teddy bear": 75, "birthday cake": 75, "cake": 75,
-                          "bouquet": 350, "kiss": 50, "heart": 30}
-        stars = int(gift.get("stars", 0)) if gift else FALLBACK_STARS.get(gn_lower, 50)
-        emoji = gift.get("emoji", "") if gift else ""
-        title = f"{emoji} {gift_name}".strip() if emoji else gift_name
         peer = await _client.get_input_entity(chat_id)
-        invoice = InputMediaInvoice(
-            title=f"Gift Request: {title}",
-            description=f"Send Bella a {title} gift! 🩷 ({stars} ⭐)",
-            invoice=Invoice(
-                currency="XTR",
-                prices=[LabeledPrice(label=f"{title} Gift", amount=stars)],
-            ),
-            payload=f"gift-{gift_name.lower().replace(' ','-')}".encode(),
-            provider="",
-            provider_data=DataJSON(data="{}"),
-        )
+
+        # Determine slug and price
+        # If gift_name looks like a slug (contains a hyphen-number pattern), use directly
+        import re as _re
+        is_slug = bool(_re.search(r"-\d+$", gift_name)) or "-" in gift_name
+
+        if is_slug:
+            slug = gift_name
+            # Try to get price from unique gift info
+            price_stars = 50  # fallback
+            try:
+                from telethon.tl.functions.payments import GetUniqueStarGiftRequest
+                info = await asyncio.wait_for(_client(GetUniqueStarGiftRequest(slug=slug)), timeout=10)
+                resell = getattr(getattr(info, "gift", None), "resell_amount", None) or []
+                if resell:
+                    price_stars = resell[0].amount
+            except Exception:
+                pass
+        else:
+            # Regular gift name — fetch collectible catalog and find one
+            FALLBACK_STARS = {
+                "rose": 15, "diamond ring": 2500, "ring": 2500,
+                "teddy bear": 75, "birthday cake": 75, "cake": 75,
+                "bouquet": 350, "heart": 30,
+            }
+            price_stars = FALLBACK_STARS.get(gift_name.lower(), 50)
+            # Load regular gift catalog to find gift_id
+            cache_file = os.path.join(DATA_DIR, "gift_catalog_cache.json")
+            catalog = load_json(cache_file, {}) if os.path.exists(cache_file) else {}
+            gifts = catalog.get("gifts", [])
+            gn_lower = gift_name.lower()
+            reg_gift = next((g for g in gifts if g.get("title","").lower() == gn_lower), None)
+            if not reg_gift:
+                reg_gift = next((g for g in gifts if gn_lower in g.get("title","").lower()), None)
+            if reg_gift:
+                price_stars = int(reg_gift.get("stars", price_stars))
+                # Try to find a collectible of this gift type
+                collectibles = await _fetch_collectible_catalog(gift_id=reg_gift["id"], limit=5)
+                if collectibles:
+                    slug = collectibles[0]["slug"]
+                    c_price = (collectibles[0].get("resell_amount") or [{}])[0].get("amount", price_stars)
+                    price_stars = c_price
+                else:
+                    # No collectibles found — use gift title as slug (may or may not work)
+                    slug = gift_name.lower().replace(" ", "-")
+            else:
+                slug = gift_name.lower().replace(" ", "-")
+
+        print(f"[gift] Requesting gift: slug={slug} price={price_stars}⭐ from chat {chat_id}")
         result = await asyncio.wait_for(
-            _client(SendMediaRequest(peer=peer, media=invoice, message="", random_id=int.from_bytes(os.urandom(8),"big",signed=True))),
+            _client(SendStarGiftOfferRequest(
+                peer=peer,
+                slug=slug,
+                price=StarsAmount(amount=price_stars, nanos=0),
+                duration=86400,  # 24 hour offer window
+            )),
             timeout=15
         )
-        print(f"[gift] Stars invoice sent for {title} ({stars}⭐) to {chat_id}")
-        return {"ok": True, "gift": gift_name, "stars": stars, "type": "invoice"}
+        print(f"[gift] SendStarGiftOfferRequest OK: {slug} -> {chat_id}")
+        return {"ok": True, "gift": gift_name, "slug": slug, "stars": price_stars}
     except Exception as e:
         print(f"[gift] _send_star_gift error: {type(e).__name__}: {e}")
         return {"ok": False, "error": str(e)}
