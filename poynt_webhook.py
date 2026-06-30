@@ -4060,7 +4060,8 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
             # Called by Zapier when a new GoDaddy payment arrives
             try:
                 data = json.loads(body)
-                print(f"[zapier] incoming fields: {list(data.keys())} values: { {k:str(v)[:40] for k,v in data.items() if k!='token'} }")
+                print(f"[zapier] incoming fields: {list(data.keys())}")
+                print(f"[zapier] values: { {k:str(v)[:80] for k,v in data.items() if k not in ('token','html','body','body_plain','Body Plain')} }")
                 token = data.get("token","") or self.headers.get("X-Admin-Token","")
                 if token != ADMIN_TOKEN: self.send_json(401,{"error":"unauthorized"}); return
 
@@ -4071,9 +4072,10 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                         if v and str(v).strip() not in ("","0","0.0","None","null"): return str(v).strip()
                     return ""
 
-                # If Zapier is sending raw email body (body/subject/date), parse it like gmail-payment
-                email_body_raw = data.get("body","") or data.get("html","") or ""
-                email_html_raw = data.get("html","") or ""
+                # If Zapier is sending raw email body, parse it — check all common field names
+                email_body_raw = (data.get("body_plain") or data.get("Body Plain") or data.get("body_text") or
+                                  data.get("body") or data.get("Body") or data.get("html") or "")
+                email_html_raw = data.get("html","") or data.get("body_html","") or ""
                 is_raw_email = bool(email_body_raw) and not _first("amount","total","name","customer_name")
                 if is_raw_email:
                     import re as _re_zap
@@ -4089,8 +4091,9 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                         _re_zap.search(r'Order\s+Number[:\s]+(\d+)', full_body, _re_zap.I)
                     )
                     name_match = (
-                        _re_zap.search(r'([A-Z][a-zA-Z]+(?: [A-Z][a-zA-Z]+)+)\s+\*{4}\d{4}', full_body) or
-                        _re_zap.search(r'(?:Name|Customer|Buyer)[:\s]+([A-Z][a-z]+(?: [A-Z][a-z]+)+)', full_body, _re_zap.I)
+                        _re_zap.search(r'([A-Za-z][a-zA-Z]+(?: [A-Za-z][a-zA-Z]+)+)\s+\*{4}\d{4}', full_body) or
+                        _re_zap.search(r'([a-zA-Z][a-zA-Z]+(?: [a-zA-Z][a-zA-Z]+)+)\s*(?:Visa|Mastercard|Debit|Credit|Amex)', full_body, _re_zap.I) or
+                        _re_zap.search(r'(?:Name|Customer|Buyer)[:\s]+([A-Za-z][a-z]+(?: [A-Za-z][a-z]+)+)', full_body, _re_zap.I)
                     )
                     email_matches = _re_zap.findall(r'[\w.+-]+@[\w-]+\.[\w.]+', full_body)
                     cust_email = next((e for e in email_matches if 'godaddy' not in e.lower() and 'noreply' not in e.lower()), "")
