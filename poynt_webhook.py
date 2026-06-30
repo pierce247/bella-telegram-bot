@@ -4704,8 +4704,7 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                         if _fan_uuid2 and _fan_uuid2 != _my_uuid and _msg_text2:
                             print(f"[fanvue_webhook] direct_msg from {_fan_name2}: {_msg_text2[:60]}")
                             preview2 = _msg_text2[:80] + ("\u2026" if len(_msg_text2) > 80 else "")
-                            _fv_url = f"https://www.fanvue.com/messages/{_fan_uuid2}"
-                            _fv_markup = {"inline_keyboard": [[{"text": "💬 Open Chat on Fanvue", "url": _fv_url}]]}
+                            _fv_markup = {"inline_keyboard": [[{"text": "Open Chat", "url": "https://www.fanvue.com/messages"}]]}
                             for oid in OWNER_CHAT_IDS: send_telegram(oid, f"\U0001f4ac Fanvue DM\n\U0001f464 {_fan_name2}\n{preview2}", reply_markup=_fv_markup)
                             _fvt.Thread(target=handle_fanvue_message,
                                         args=(_fan_uuid2, _fan_name2, _msg_text2), daemon=True).start()
