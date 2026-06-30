@@ -316,6 +316,20 @@ GIFT_CATALOG = {
     "666":       (666,  "😈 Devil's Favorite",       "you already know what this means 🔥",        "bella_gift_666"),
     "1234":      (1234, "🎯 One Two Three Four",     "count it up, you know what to do 😏",        "bella_gift_1234"),
     "6969":      (6969, "😈 Need I Say More",        "I'm not gonna explain this one either 🔥",   "bella_gift_6969"),
+    # ── 3-Digit Numeric Aliases ────────────────────────────────────────────────
+    "777":       (777,  "🍀 777",                    "lucky number, lucky girl 😏",                 "bella_gift_777"),
+    "888":       (888,  "🌅 888",                    "abundance energy, and I want it 💕",          "bella_gift_888"),
+    "999":       (999,  "🔥 999",                    "endings become beginnings... start here 😈",  "bella_gift_999"),
+    # ── 4-Digit Repeaters ───────────────────────────────────────────────────────
+    "1111":      (1111, "🌸 1111",                   "make a wish. right now. 🩷",                  "bella_gift_1111"),
+    "2222":      (2222, "👁️ 2222",                   "everything in perfect balance... including us 💕", "bella_gift_2222"),
+    "3333":      (3333, "💎 3333",                   "triple the energy, triple the spoiling ✨",   "bella_gift_3333"),
+    "4444":      (4444, "🌙 4444",                   "protected, guided, and absolutely worth it 🚀", "bella_gift_4444"),
+    "5555":      (5555, "🌪️ 5555",                   "big change. big energy. big spoiling. 💫",    "bella_gift_5555"),
+    "6666":      (6666, "😈 6666",                   "quadruple threat. you know what to do 🔥",    "bella_gift_6666"),
+    "7777":      (7777, "🦋 7777",                   "the jackpot. for when you feel lucky 😏",     "bella_gift_7777"),
+    "8888":      (8888, "♾️ 8888",         "infinite energy, infinite Bella 🩷",          "bella_gift_8888"),
+    "9999":      (9999, "🌟 9999",                   "one step away from everything. take it.",     "bella_gift_9999"),
 }
 
 def send_gift_invoice(chat_id: int, gift_key: str, biz: str = "") -> bool:
