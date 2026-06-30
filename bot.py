@@ -305,7 +305,7 @@ GIFT_CATALOG = {
     "fantasy":   (7777, "🦋 Make It a Fantasy",    "you already know 😈",                       "bella_gift_fantasy"),
     "everything":(9999, "🌟 Give Me Everything",   "no explanation needed. just do it.",         "bella_gift_everything"),
     # ── Special ─────────────────────────────────────────────────────────────────
-    "sexy":      (999,  "🔥 Feeling Sexy",          "you have no idea what you just started 😈",  "bella_gift_sexy"),
+    "sexy":      (999,  "🔥 Feeling Sexy",          "are you ready for this? 🥵",                "bella_gift_sexy"),
     "high":      (420,  "🌿 Get Me High",            "on good vibes only 😏✨",                    "bella_gift_high"),
     "69":        (69,   "😈 You Know What This Is",  "I don't need to explain 😏",                "bella_gift_69"),
     "111":       (111,  "🕯️ Light My Candle",       "one eleven energy tonight 🌙",               "bella_gift_111"),
@@ -330,6 +330,8 @@ GIFT_CATALOG = {
     "7777":      (7777, "🦋 7777",                   "the jackpot. for when you feel lucky 😏",     "bella_gift_7777"),
     "8888":      (8888, "♾️ 8888",         "infinite energy, infinite Bella 🩷",          "bella_gift_8888"),
     "9999":      (9999, "🌟 9999",                   "one step away from everything. take it.",     "bella_gift_9999"),
+    "1818":      (1818, "🔞 18+ Only",               "must be 18+ to view content",                 "bella_gift_1818"),
+    "1010":      (1010, "🌱 New Beginnings",         "everything starts somewhere 💫",       "bella_gift_1010"),
     # ── Spicy Content Requests ──────────────────────────────────────────────────
     "balls":     (150,  "🎱 One Squeeze",            "just one. make it count 😈",                  "bella_gift_balls"),
     "dick":      (500,  "📸 Dick Pic Fee",           "I don't look for free babe 😏",               "bella_gift_dick"),
@@ -338,9 +340,9 @@ GIFT_CATALOG = {
     "booty":     (1250, "🍑 Booty Pic",              "earned, not given 💕",                        "bella_gift_booty"),
     "feet":      (300,  "🦶 Feet Pics",              "you already know what you want 😏",            "bella_gift_feet"),
     "sext":      (999,  "💬 Sexting Fee",            "I charge for that energy babe 😈",            "bella_gift_sext"),
-    "nude":      (1500, "📵 Fully Nude",             "this one's reserved for serious spenders 🔥", "bella_gift_nude"),
-    "love":      (831,  "🩷 Do You Love Me?",        "prove it 😏",                         "bella_gift_love"),
-    "kiss":      (369,  "😘 Kiss Me Already",        "stop waiting 💕",                     "bella_gift_kiss"),
+    "nude":      (1500, "📵 Fully Nude",             "must be 18+ to view content",                        "bella_gift_nude"),
+    "love":      (831,  "🩷 Do You Love Me?",        "prove it babe 😍",                    "bella_gift_love"),
+    "kiss":      (369,  "😘 Kiss Me Already",        "what are you waiting for?",                   "bella_gift_kiss"),
 }
 
 def send_gift_invoice(chat_id: int, gift_key: str, biz: str = "") -> bool:
@@ -1403,6 +1405,17 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                     tg("sendMessage", {"chat_id": OWNER_CHAT_ID,
                         "text": f"{'✅' if ok else '❌'} Gift {title} ({amt}⭐) sent to chat {_out_chat_id}"})
                 return None, None  # don't save the command as a chat message
+
+            # ── Link shortcuts: /links /fanvue /snap /insta ───────────────────────
+            _LINK_CMDS = {"links":"linktr.ee/bellavistaxo","fanvue":"fanvue.com/bellavistaxo","snap":"snapchat.com/add/bellavistaxo","insta":"instagram.com/bellavistaxo"}
+            if _gift_key and _gift_key in _LINK_CMDS:
+                _delete_command()
+                _link_url = "https://" + _LINK_CMDS[_gift_key]
+                _link_msg = {"chat_id": _out_chat_id, "text": _link_url}
+                if _out_biz: _link_msg["business_connection_id"] = _out_biz
+                tg("sendMessage", _link_msg)
+                log.info(f"Link shortcut /{_gift_key} → {_out_chat_id}")
+                return None, None
 
             # Register the fan
             _fans = load_fans()
