@@ -1407,7 +1407,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
                 return None, None  # don't save the command as a chat message
 
             # ── Link shortcuts: /links /fanvue /snap /insta ───────────────────────
-            _LINK_CMDS = {"links":"linktr.ee/bellavistaxo","fanvue":"fanvue.com/bellavistaxo","snap":"snapchat.com/add/bellavistaxo","insta":"instagram.com/bellavistaxo"}
+            _LINK_CMDS = {"links":"linktr.ee/bellavistaxo","fanvue":"fanvue.com/bellavistaxo","snap":"snapchat.com/add/bellavistaxo","insta":"instagram.com/bellavistaxo","tips":"pay.bellavista.lol/x"}
             if _gift_key and _gift_key in _LINK_CMDS:
                 _delete_command()
                 _link_url = "https://" + _LINK_CMDS[_gift_key]
