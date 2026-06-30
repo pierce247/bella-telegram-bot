@@ -15,10 +15,6 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 from urllib.parse import urlparse, parse_qs
 
-# ── Fanvue message dedup (module-level) ──────────────────────────────────────
-_fv_seen_msgs: set = set()
-_fv_seen_msgs_order: list = []
-
 # ── Postgres connection (shared with bella-bot) ───────────────────────────────
 _pg_conn = None
 _pg_lock = threading.Lock()
@@ -56,32 +52,6 @@ def pg_query(sql, params=(), fetchall=False, fetchone=False):
             try: conn.rollback()
             except: pass
             return None
-
-# ── Fanvue Postgres Memory ───────────────────────────────────────────────────
-def fanvue_db_init():
-    pg_query("CREATE TABLE IF NOT EXISTS fanvue_messages (id SERIAL PRIMARY KEY, fan_uuid TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, ts DOUBLE PRECISION DEFAULT EXTRACT(EPOCH FROM NOW()))")
-    pg_query("CREATE INDEX IF NOT EXISTS idx_fv_msgs_uuid ON fanvue_messages(fan_uuid, ts DESC)")
-    pg_query("CREATE TABLE IF NOT EXISTS fanvue_fans (fan_uuid TEXT PRIMARY KEY, name TEXT, msg_count INT DEFAULT 0, first_seen DOUBLE PRECISION DEFAULT EXTRACT(EPOCH FROM NOW()), last_seen DOUBLE PRECISION DEFAULT EXTRACT(EPOCH FROM NOW()), notes TEXT)")
-    print("[fanvue_db] Tables ready")
-
-def fanvue_db_save_message(fan_uuid, role, content):
-    try:
-        pg_query("INSERT INTO fanvue_messages (fan_uuid, role, content, ts) VALUES (%s, %s, %s, %s)", (fan_uuid, role, content[:2000], time.time()))
-    except Exception as e: print(f"[fanvue_db] save error: {e}")
-
-def fanvue_db_load_history(fan_uuid, limit=20):
-    try:
-        rows = pg_query("SELECT role, content FROM fanvue_messages WHERE fan_uuid=%s ORDER BY ts DESC LIMIT %s", (fan_uuid, limit), fetchall=True)
-        if rows: return [{"role": r[0], "content": r[1]} for r in reversed(rows)]
-    except Exception as e: print(f"[fanvue_db] load error: {e}")
-    return []
-
-def fanvue_db_upsert_fan(fan_uuid, name):
-    try:
-        pg_query("INSERT INTO fanvue_fans (fan_uuid, name, msg_count, first_seen, last_seen) VALUES (%s,%s,1,%s,%s) ON CONFLICT (fan_uuid) DO UPDATE SET name=EXCLUDED.name, msg_count=fanvue_fans.msg_count+1, last_seen=%s",
-                 (fan_uuid, name or "Fan", time.time(), time.time(), time.time()))
-    except Exception as e: print(f"[fanvue_db] upsert error: {e}")
-
 
 def _call_bot_api(path):
     """Call bella-bot stats API (which has direct Postgres access)."""
@@ -211,10 +181,9 @@ def poynt_get(path):
 
 
 # ── Telegram ─────────────────────────────────────────────────────────────────
-def send_telegram(chat_id, text, biz="", reply_markup=None):
+def send_telegram(chat_id, text, biz=""):
     p = {"chat_id": int(chat_id), "text": text}
     if biz: p["business_connection_id"] = biz
-    if reply_markup: p["reply_markup"] = reply_markup
     data = json.dumps(p).encode()
     req  = urllib.request.Request(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
            data=data, headers={"Content-Type":"application/json"})
@@ -536,11 +505,9 @@ def fv_headers(at):
     return {"Authorization": f"Bearer {at}", "X-Fanvue-API-Version": FV_API_VERSION,
             "Content-Type": "application/json"}
 
-def fanvue_get_history(fan_uuid, at, limit=20):
-    pg_hist = fanvue_db_load_history(fan_uuid, limit=limit)
-    if pg_hist: return pg_hist
+def fanvue_get_history(fan_uuid, at, limit=6):
     req = urllib.request.Request(
-        f"https://api.fanvue.com/chats/{fan_uuid}/messages?limit=10&sortDirection=desc",
+        f"https://api.fanvue.com/chats/{fan_uuid}/messages?limit={limit}&sortDirection=desc",
         headers=fv_headers(at)
     )
     try:
@@ -610,9 +577,6 @@ def log_fanvue_dm(fan_uuid, fan_name, fan_msg, reply):
         })
         save_json(FANVUE_DM_LOG, log[-50:])  # keep last 50
     except Exception as e: print(f"[fanvue_log] {e}")
-    fanvue_db_upsert_fan(fan_uuid, fan_name)
-    fanvue_db_save_message(fan_uuid, "user", fan_msg)
-    fanvue_db_save_message(fan_uuid, "assistant", reply)
 
 def handle_fanvue_message(fan_uuid, fan_name, message):
     # Check if auto-reply is paused
@@ -861,135 +825,6 @@ async def _fetch_gift_catalog():
         return {"error": str(e), "gifts": []}
 
 
-async def _fetch_collectible_catalog(gift_id: int = 0, limit: int = 20) -> list:
-    """Fetch collectible (unique) star gifts with slugs via GetResaleStarGiftsRequest.
-    
-    These are the NFT-style gifts that have unique slugs. Used for SendStarGiftOfferRequest.
-    If gift_id=0, fetches across all gift types using the regular gift catalog IDs.
-    """
-    if not _client:
-        return []
-    try:
-        from telethon.tl.functions.payments import GetResaleStarGiftsRequest, GetStarGiftsRequest
-        from telethon.tl.types import StarGiftUnique
-    except ImportError:
-        return []
-    collectibles = []
-    try:
-        if gift_id == 0:
-            # Get regular gift IDs first
-            reg = await asyncio.wait_for(_client(GetStarGiftsRequest(hash=0)), timeout=15)
-            gift_ids = [g.id for g in getattr(reg, "gifts", [])[:10]]
-        else:
-            gift_ids = [gift_id]
-        for gid in gift_ids:
-            try:
-                result = await asyncio.wait_for(
-                    _client(GetResaleStarGiftsRequest(gift_id=gid, offset="", limit=limit)),
-                    timeout=15
-                )
-                for g in getattr(result, "gifts", []):
-                    if isinstance(g, StarGiftUnique) and g.slug:
-                        collectibles.append({
-                            "slug": g.slug,
-                            "title": g.title,
-                            "num": g.num,
-                            "gift_id": g.gift_id,
-                            "resell_amount": [
-                                {"amount": a.amount, "nanos": a.nanos}
-                                for a in (getattr(g, "resell_amount", None) or [])
-                            ],
-                        })
-            except Exception:
-                continue
-    except Exception as e:
-        print(f"[gift] collectible catalog error: {e}")
-    return collectibles[:limit]
-
-
-async def _send_star_gift(chat_id: int, gift_name: str) -> dict:
-    """Request a gift from a fan using SendStarGiftOfferRequest.
-    
-    gift_name can be:
-    - A collectible slug like "CrimsonGlobe-12345" (direct offer request)
-    - A regular gift name like "rose" (will find a collectible of that type or use slug directly)
-    
-    The fan sees a gift request message and can accept by paying Stars.
-    """
-    if not _client:
-        return {"ok": False, "error": "Telethon not connected"}
-    try:
-        from telethon.tl.functions.payments import SendStarGiftOfferRequest
-        from telethon.tl.types import StarsAmount
-    except ImportError as ie:
-        return {"ok": False, "error": f"Import error: {ie}"}
-    try:
-        peer = await _client.get_input_entity(chat_id)
-
-        # Determine slug and price
-        # If gift_name looks like a slug (contains a hyphen-number pattern), use directly
-        import re as _re
-        is_slug = bool(_re.search(r"-\d+$", gift_name)) or "-" in gift_name
-
-        if is_slug:
-            slug = gift_name
-            # Try to get price from unique gift info
-            price_stars = 50  # fallback
-            try:
-                from telethon.tl.functions.payments import GetUniqueStarGiftRequest
-                info = await asyncio.wait_for(_client(GetUniqueStarGiftRequest(slug=slug)), timeout=10)
-                resell = getattr(getattr(info, "gift", None), "resell_amount", None) or []
-                if resell:
-                    price_stars = resell[0].amount
-            except Exception:
-                pass
-        else:
-            # Regular gift name — fetch collectible catalog and find one
-            FALLBACK_STARS = {
-                "rose": 15, "diamond ring": 2500, "ring": 2500,
-                "teddy bear": 75, "birthday cake": 75, "cake": 75,
-                "bouquet": 350, "heart": 30,
-            }
-            price_stars = FALLBACK_STARS.get(gift_name.lower(), 50)
-            # Load regular gift catalog to find gift_id
-            cache_file = os.path.join(DATA_DIR, "gift_catalog_cache.json")
-            catalog = load_json(cache_file, {}) if os.path.exists(cache_file) else {}
-            gifts = catalog.get("gifts", [])
-            gn_lower = gift_name.lower()
-            reg_gift = next((g for g in gifts if g.get("title","").lower() == gn_lower), None)
-            if not reg_gift:
-                reg_gift = next((g for g in gifts if gn_lower in g.get("title","").lower()), None)
-            if reg_gift:
-                price_stars = int(reg_gift.get("stars", price_stars))
-                # Try to find a collectible of this gift type
-                collectibles = await _fetch_collectible_catalog(gift_id=reg_gift["id"], limit=5)
-                if collectibles:
-                    slug = collectibles[0]["slug"]
-                    c_price = (collectibles[0].get("resell_amount") or [{}])[0].get("amount", price_stars)
-                    price_stars = c_price
-                else:
-                    # No collectibles found — use gift title as slug (may or may not work)
-                    slug = gift_name.lower().replace(" ", "-")
-            else:
-                slug = gift_name.lower().replace(" ", "-")
-
-        print(f"[gift] Requesting gift: slug={slug} price={price_stars}⭐ from chat {chat_id}")
-        result = await asyncio.wait_for(
-            _client(SendStarGiftOfferRequest(
-                peer=peer,
-                slug=slug,
-                price=StarsAmount(amount=price_stars, nanos=0),
-                duration=86400,  # 24 hour offer window
-            )),
-            timeout=15
-        )
-        print(f"[gift] SendStarGiftOfferRequest OK: {slug} -> {chat_id}")
-        return {"ok": True, "gift": gift_name, "slug": slug, "stars": price_stars}
-    except Exception as e:
-        print(f"[gift] _send_star_gift error: {type(e).__name__}: {e}")
-        return {"ok": False, "error": str(e)}
-
-
 async def run_telethon_authed():
     global _client
     try:
@@ -1230,6 +1065,17 @@ def build_c360_page():
     """Server-side rendered Content360 dashboard - no client-side fetch needed."""
     import time as _time
     _cache = load_json(os.path.join(DATA_DIR, "c360_data_cache.json"), {})
+    # If file cache is empty (wiped by deploy), try Postgres
+    if not _cache or not _cache.get("data"):
+        try:
+            row = pg_query("SELECT value FROM kv_store WHERE key = 'c360_data_cache'", fetchone=True)
+            if row and row[0]:
+                _cache = json.loads(row[0])
+                # Restore file cache so subsequent requests don't hit DB
+                save_json(os.path.join(DATA_DIR, "c360_data_cache.json"), _cache)
+                print("[c360] Restored cache from Postgres after deploy wipe")
+        except Exception as _pg_e:
+            print(f"[c360] Postgres cache restore failed: {_pg_e}")
     _d = _cache.get("data", {})
     _ts = _cache.get("ts", 0)
     _age = int(_time.time() - _ts) if _ts else -1
@@ -1394,7 +1240,7 @@ h2{{font-size:10px;font-weight:600;color:#555;text-transform:uppercase;letter-sp
 <div class="hdr">
   <a href="/dashboard?token=bella-admin-2024" class="back">← Dashboard</a>
   <h1>Content360</h1>
-  <button onclick="fetchAndCacheC360(true)" id="refbtn" style="font-size:11px;color:#555;cursor:pointer;margin-left:auto;padding:4px 12px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;background:rgba(255,255,255,0.04)">↻ Refresh</button>
+  <a href="/content360?token=bella-admin-2024" style="font-size:11px;color:#555;text-decoration:none;margin-left:auto;padding:4px 12px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;background:rgba(255,255,255,0.04)">↻ Refresh</a>
 </div>
 {_status_msg}
 <div class="stats">
@@ -1530,58 +1376,6 @@ function delP(){{
     .catch(function(e){{b.disabled=false;b.textContent='Delete';setMsg('err',''+e);}});
 }}
 function setMsg(t,m){{var el=document.getElementById('mmsg');el.className=t;el.textContent=m;}}
-function fetchAndCacheC360(forceReload){{
-  var btn=document.getElementById('refbtn');
-  if(btn){{btn.disabled=true;btn.textContent='Fetching...';}}
-  var base='https://app.content360.io/os/api/'+_C360_UUID;
-  var h={{'Authorization':'Bearer '+_C360_TOK,'Accept':'application/json'}};
-  function getAll(status,pages,cb){{
-    var results=[];var pg=1;
-    function next(){{
-      fetch(base+'/posts?status='+status+'&limit=50&page='+pg,{{headers:h}})
-        .then(function(r){{return r.json();}})
-        .then(function(d){{
-          results=results.concat(d.data||[]);
-          if(pg<((d.meta&&d.meta.last_page)||1)&&pg<pages){{pg++;next();}}
-          else{{cb(results,(d.meta&&d.meta.total)||results.length);}}
-        }}).catch(function(){{cb(results,results.length);}});
-    }}next();
-  }}
-  getAll('scheduled',4,function(sched,totalS){{
-    getAll('draft',2,function(draft,totalD){{
-      var todayStr=new Date().toISOString().slice(0,10);
-      var TAG={{4037:'photo',4038:'video',4039:'text'}};
-      function parse(p){{
-        var tags=(p.tags||[]).map(function(t){{return typeof t==='object'?t.id:t;}});
-        var mt=TAG[tags[0]]||'unknown';
-        var body='',thumb=null;
-        try{{body=(p.versions[0].content[0].body||'').replace(/<[^>]+>/g,'').slice(0,80);}}catch(e){{}}
-        try{{thumb=p.versions[0].content[0].media[0].thumb_url||null;}}catch(e){{}}
-        return{{id:p.id,uuid:p.uuid,status:p.status,scheduled_at:p.scheduled_at,media_type:mt,caption:body,thumb:thumb}};
-      }}
-      var sp=sched.map(parse).sort(function(a,b){{return(a.scheduled_at||'')>(b.scheduled_at||'')?1:-1;}});
-      var dp=draft.map(parse);
-      var byDay={{}};
-      sp.forEach(function(p){{if(p.scheduled_at){{var d=p.scheduled_at.slice(0,10);if(!byDay[d])byDay[d]=[];byDay[d].push(p);}}}});
-      var up=sp.filter(function(p){{return(p.scheduled_at||'')>=todayStr;}});
-      var dbt={{video:0,photo:0,text:0}};
-      dp.forEach(function(p){{if(dbt[p.media_type]!==undefined)dbt[p.media_type]++;}});
-      var dates=Object.keys(byDay).sort();
-      var payload={{
-        stats:{{scheduled_total:totalS,draft_total:totalD,days_covered:dates.length,
-               draft_by_type:dbt,date_range:dates.length?[dates[0],dates[dates.length-1]]:[]}},
-        by_day:byDay,upcoming:up,
-        drafts:{{video:dp.filter(function(p){{return p.media_type==='video';}}).slice(0,30),
-                photo:dp.filter(function(p){{return p.media_type==='photo';}}).slice(0,30)}}
-      }};
-      fetch('/update-c360-cache?token=bella-admin-2024',{{
-        method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(payload)
-      }}).then(function(){{if(forceReload)location.reload();else if(btn){{btn.disabled=false;btn.textContent='↻ Refresh';}}}})
-        .catch(function(){{if(btn){{btn.disabled=false;btn.textContent='↻ Refresh';}}}});
-    }});
-  }});
-}}
-if(_C360_TOK){{fetchAndCacheC360(false);}}
 </script></body></html>"""
 
 
@@ -4047,7 +3841,13 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 self.send_json(401,{"error":"unauthorized"}); return
             try:
                 data_in = json.loads(body)
-                save_json(os.path.join(DATA_DIR, "c360_data_cache.json"), {"data": data_in, "ts": time.time()})
+                _c360_payload = {"data": data_in, "ts": time.time()}
+                save_json(os.path.join(DATA_DIR, "c360_data_cache.json"), _c360_payload)
+                # Also persist to Postgres so it survives Railway deploys
+                pg_query(
+                    "INSERT INTO kv_store (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+                    ("c360_data_cache", json.dumps(_c360_payload))
+                )
                 if hasattr(Handler,'_c360_cache'): Handler._c360_cache = None; Handler._c360_cache_ts = 0
                 self.send_json(200, {"ok": True, "scheduled": data_in.get("stats",{}).get("scheduled_total",0), "drafts": data_in.get("stats",{}).get("draft_total",0)})
             except Exception as e:
@@ -4767,32 +4567,6 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                             print(f"[fanvue_webhook] chat_update error: {ex2}")
                     _fvt.Thread(target=_handle_chat_update, args=(counterpart_uuid,), daemon=True).start()
 
-                # Direct message payload: Fanvue sends {messageUuid, sender, message, ...} with no event/type
-                elif not etype and event.get("messageUuid") and event.get("sender"):
-                    _msg_uuid = event.get("messageUuid","")
-                    if _msg_uuid and _msg_uuid in _fv_seen_msgs:
-                        pass  # duplicate delivery — skip
-                    else:
-                        if _msg_uuid:
-                            _fv_seen_msgs.add(_msg_uuid)
-                            _fv_seen_msgs_order.append(_msg_uuid)
-                            if len(_fv_seen_msgs_order) > 1000:
-                                _fv_seen_msgs.discard(_fv_seen_msgs_order.pop(0))
-                        _sender = event.get("sender",{}) or {}
-                        _fan_uuid2 = _sender.get("uuid","") or ""
-                        _fan_name2 = _sender.get("displayName","Fan") or _sender.get("handle","Fan")
-                        _msg_raw = event.get("message","") or event.get("text","") or ""
-                        _msg_text2 = str(_msg_raw.get("text","") if isinstance(_msg_raw, dict) else _msg_raw).strip()
-                        _my_uuid = "759d4266-e8d6-416d-9e59-da6b41f458f1"
-                        if _fan_uuid2 and _fan_uuid2 != _my_uuid and _msg_text2:
-                            print(f"[fanvue_webhook] direct_msg from {_fan_name2}: {_msg_text2[:60]}")
-                            preview2 = _msg_text2[:80] + ("\u2026" if len(_msg_text2) > 80 else "")
-                            _fv_url = f"https://www.fanvue.com/messages/{_fan_uuid2}"
-                            _fv_markup = {"inline_keyboard": [[{"text": "💬 Open Chat on Fanvue", "url": _fv_url}]]}
-                            for oid in OWNER_CHAT_IDS: send_telegram(oid, f"\U0001f4ac Fanvue DM\n\U0001f464 {_fan_name2}\n{preview2}", reply_markup=_fv_markup)
-                            _fvt.Thread(target=handle_fanvue_message,
-                                        args=(_fan_uuid2, _fan_name2, _msg_text2), daemon=True).start()
-
                 # Fanvue canonical event names (from webhook API)
                 elif etype in ("message.received", "message_received") and fan_uuid and msg_text:
                     # Notify Pierce and auto-reply
@@ -4863,29 +4637,21 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                     else: self.send_json(200,{"ok":False,"matched":True,"error":"telegram send failed"})
                 else: self.send_json(200,{"ok":True,"matched":False})
             except Exception as e: self.send_json(500,{"error":str(e)})
-        elif p.path == "/gift_request":
-            try:
-                data=json.loads(body)
-                tok=data.get("token",""); cid=int(data.get("chat_id",0)); gname=data.get("gift_name","")
-                if tok != ADMIN_TOKEN: self.send_json(403,{"ok":False,"error":"unauthorized"}); return
-                if not cid or not gname: self.send_json(400,{"ok":False,"error":"missing chat_id or gift_name"}); return
-                if not _client: self.send_json(503,{"ok":False,"error":"Telethon not connected"}); return
-                result=asyncio.run_coroutine_threadsafe(_send_star_gift(cid,gname),_STARS_LOOP).result(timeout=30)
-                print(f"[gift] {gname} -> {cid}: {result}")
-                self.send_json(200,result)
-            except Exception as e:
-                print(f"[gift] Exception: {e}")
-                self.send_json(500,{"ok":False,"error":str(e)})
         else:
             self.send_json(404,{"error":"not found"})
 
 
 if __name__ == "__main__":
+    # Ensure kv_store table exists for persistent cache (survives Railway deploys)
+    pg_query("""CREATE TABLE IF NOT EXISTS kv_store (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )""")
     print(f"[startup] Bella webhook v3 on port {PORT}")
     print(f"[startup] Owner IDs: {OWNER_CHAT_IDS}")
     print(f"[startup] Stats URL: {STATS_URL or 'not set'}")
     print(f"[startup] Content delivery: {'custom' if CONTENT_MESSAGE else 'placeholder mode'}")
-    fanvue_db_init()
     start_fanvue_scheduler()
     # Start Stars tracker if session exists
     if os.path.exists(STARS_SESSION + ".session") and STARS_API_ID and STARS_API_HASH:
