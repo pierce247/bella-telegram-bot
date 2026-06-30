@@ -825,6 +825,45 @@ async def _fetch_gift_catalog():
         return {"error": str(e), "gifts": []}
 
 
+async def _send_star_gift(chat_id: int, gift_name: str) -> dict:
+    """Send an animated star gift to a fan via Telethon MTProto."""
+    if not _client:
+        return {"ok": False, "error": "Telethon not connected"}
+    try:
+        from telethon.tl.functions.payments import GetPaymentFormRequest, SendPaymentFormRequest
+        from telethon.tl.types import InputInvoiceStarGift
+    except ImportError:
+        return {"ok": False, "error": "GetPaymentFormRequest not available — upgrade Telethon"}
+    try:
+        # Load gift catalog cache to find gift ID by name
+        cache_file = os.path.join(DATA_DIR, "gift_catalog_cache.json")
+        catalog = load_json(cache_file) if os.path.exists(cache_file) else {}
+        gifts = catalog.get("gifts", [])
+        gn_lower = gift_name.lower()
+        gift = next((g for g in gifts if g.get("title","").lower() == gn_lower), None)
+        if not gift:
+            gift = next((g for g in gifts if gn_lower in g.get("title","").lower()), None)
+        if not gift:
+            # Refresh catalog and retry
+            fresh = await _fetch_gift_catalog()
+            gifts = fresh.get("gifts", [])
+            if gifts:
+                save_json(cache_file, fresh)
+            gift = next((g for g in gifts if g.get("title","").lower() == gn_lower), None)
+            if not gift:
+                gift = next((g for g in gifts if gn_lower in g.get("title","").lower()), None)
+        if not gift:
+            return {"ok": False, "error": f"Gift '{gift_name}' not found in catalog ({len(gifts)} gifts loaded)"}
+        gift_id = gift["id"]
+        peer = await _client.get_input_entity(chat_id)
+        invoice = InputInvoiceStarGift(user_id=peer, gift_id=gift_id)
+        form = await asyncio.wait_for(_client(GetPaymentFormRequest(invoice=invoice)), timeout=15)
+        await asyncio.wait_for(_client(SendPaymentFormRequest(form_id=form.form_id, invoice=invoice)), timeout=15)
+        return {"ok": True, "gift": gift_name, "gift_id": gift_id, "stars": gift.get("stars")}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 async def run_telethon_authed():
     global _client
     try:
@@ -4620,6 +4659,16 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                     else: self.send_json(200,{"ok":False,"matched":True,"error":"telegram send failed"})
                 else: self.send_json(200,{"ok":True,"matched":False})
             except Exception as e: self.send_json(500,{"error":str(e)})
+        elif p.path == "/gift_request":
+            try:
+                data=json.loads(body)
+                tok=data.get("token",""); cid=int(data.get("chat_id",0)); gname=data.get("gift_name","")
+                if tok != ADMIN_TOKEN: self.send_json(403,{"ok":False,"error":"unauthorized"}); return
+                if not cid or not gname: self.send_json(400,{"ok":False,"error":"missing chat_id or gift_name"}); return
+                if not _client: self.send_json(503,{"ok":False,"error":"Telethon not connected"}); return
+                result=asyncio.run_coroutine_threadsafe(_send_star_gift(cid,gname),_STARS_LOOP).result(timeout=30)
+                self.send_json(200,result)
+            except Exception as e: self.send_json(500,{"ok":False,"error":str(e)})
         else:
             self.send_json(404,{"error":"not found"})
 
