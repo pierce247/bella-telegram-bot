@@ -1363,7 +1363,7 @@ h2{{font-size:10px;font-weight:600;color:#555;text-transform:uppercase;letter-sp
 <div class="hdr">
   <a href="/dashboard?token=bella-admin-2024" class="back">← Dashboard</a>
   <h1>Content360</h1>
-  <a href="/content360?token=bella-admin-2024" style="font-size:11px;color:#555;text-decoration:none;margin-left:auto;padding:4px 12px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;background:rgba(255,255,255,0.04)">↻ Refresh</a>
+  <button onclick="fetchAndCacheC360(true)" id="refbtn" style="font-size:11px;color:#555;cursor:pointer;margin-left:auto;padding:4px 12px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;background:rgba(255,255,255,0.04)">↻ Refresh</button>
 </div>
 {_status_msg}
 <div class="stats">
@@ -1499,6 +1499,58 @@ function delP(){{
     .catch(function(e){{b.disabled=false;b.textContent='Delete';setMsg('err',''+e);}});
 }}
 function setMsg(t,m){{var el=document.getElementById('mmsg');el.className=t;el.textContent=m;}}
+function fetchAndCacheC360(forceReload){{
+  var btn=document.getElementById('refbtn');
+  if(btn){{btn.disabled=true;btn.textContent='Fetching...';}}
+  var base='https://app.content360.io/os/api/'+_C360_UUID;
+  var h={{'Authorization':'Bearer '+_C360_TOK,'Accept':'application/json'}};
+  function getAll(status,pages,cb){{
+    var results=[];var pg=1;
+    function next(){{
+      fetch(base+'/posts?status='+status+'&limit=50&page='+pg,{{headers:h}})
+        .then(function(r){{return r.json();}})
+        .then(function(d){{
+          results=results.concat(d.data||[]);
+          if(pg<((d.meta&&d.meta.last_page)||1)&&pg<pages){{pg++;next();}}
+          else{{cb(results,(d.meta&&d.meta.total)||results.length);}}
+        }}).catch(function(){{cb(results,results.length);}});
+    }}next();
+  }}
+  getAll('scheduled',4,function(sched,totalS){{
+    getAll('draft',2,function(draft,totalD){{
+      var todayStr=new Date().toISOString().slice(0,10);
+      var TAG={{4037:'photo',4038:'video',4039:'text'}};
+      function parse(p){{
+        var tags=(p.tags||[]).map(function(t){{return typeof t==='object'?t.id:t;}});
+        var mt=TAG[tags[0]]||'unknown';
+        var body='',thumb=null;
+        try{{body=(p.versions[0].content[0].body||'').replace(/<[^>]+>/g,'').slice(0,80);}}catch(e){{}}
+        try{{thumb=p.versions[0].content[0].media[0].thumb_url||null;}}catch(e){{}}
+        return{{id:p.id,uuid:p.uuid,status:p.status,scheduled_at:p.scheduled_at,media_type:mt,caption:body,thumb:thumb}};
+      }}
+      var sp=sched.map(parse).sort(function(a,b){{return(a.scheduled_at||'')>(b.scheduled_at||'')?1:-1;}});
+      var dp=draft.map(parse);
+      var byDay={{}};
+      sp.forEach(function(p){{if(p.scheduled_at){{var d=p.scheduled_at.slice(0,10);if(!byDay[d])byDay[d]=[];byDay[d].push(p);}}}});
+      var up=sp.filter(function(p){{return(p.scheduled_at||'')>=todayStr;}});
+      var dbt={{video:0,photo:0,text:0}};
+      dp.forEach(function(p){{if(dbt[p.media_type]!==undefined)dbt[p.media_type]++;}});
+      var dates=Object.keys(byDay).sort();
+      var payload={{
+        stats:{{scheduled_total:totalS,draft_total:totalD,days_covered:dates.length,
+               draft_by_type:dbt,date_range:dates.length?[dates[0],dates[dates.length-1]]:[]}},
+        by_day:byDay,upcoming:up,
+        drafts:{{video:dp.filter(function(p){{return p.media_type==='video';}}).slice(0,30),
+                photo:dp.filter(function(p){{return p.media_type==='photo';}}).slice(0,30)}}
+      }};
+      fetch('/update-c360-cache?token=bella-admin-2024',{{
+        method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(payload)
+      }}).then(function(){{if(forceReload)location.reload();else if(btn){{btn.disabled=false;btn.textContent='↻ Refresh';}}}})
+        .catch(function(){{if(btn){{btn.disabled=false;btn.textContent='↻ Refresh';}}}});
+    }});
+  }});
+}}
+if(_C360_TOK){{fetchAndCacheC360(false);}}
 </script></body></html>"""
 
 
@@ -4704,7 +4756,8 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                         if _fan_uuid2 and _fan_uuid2 != _my_uuid and _msg_text2:
                             print(f"[fanvue_webhook] direct_msg from {_fan_name2}: {_msg_text2[:60]}")
                             preview2 = _msg_text2[:80] + ("\u2026" if len(_msg_text2) > 80 else "")
-                            _fv_markup = {"inline_keyboard": [[{"text": "Open Chat", "url": "https://www.fanvue.com/messages"}]]}
+                            _fv_url = f"https://www.fanvue.com/messages/{_fan_uuid2}"
+                            _fv_markup = {"inline_keyboard": [[{"text": "💬 Open Chat on Fanvue", "url": _fv_url}]]}
                             for oid in OWNER_CHAT_IDS: send_telegram(oid, f"\U0001f4ac Fanvue DM\n\U0001f464 {_fan_name2}\n{preview2}", reply_markup=_fv_markup)
                             _fvt.Thread(target=handle_fanvue_message,
                                         args=(_fan_uuid2, _fan_name2, _msg_text2), daemon=True).start()
