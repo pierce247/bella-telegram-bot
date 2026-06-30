@@ -279,15 +279,31 @@ def send_animated_gift(chat_id: int, gift_name: str) -> bool:
 # ── Gift catalog ──────────────────────────────────────────────────────────────
 
 GIFT_CATALOG = {
-    "coffee":   (150,  "☕ Buy Me a Coffee",    "I need it rn 😩",                         "bella_gift_coffee"),
-    "flowers":  (300,  "🌸 Send Me Flowers",    "make me blush 🥰",                        "bella_gift_flowers"),
-    "wine":     (500,  "🍷 Wine Night",          "you pour, I'll dress up 😏",              "bella_gift_wine"),
-    "dinner":   (750,  "🍽️ Take Me to Dinner",  "you buy, I show up looking amazing 💕",   "bella_gift_dinner"),
-    "spa":      (1000, "💆 Spa Day",             "I deserve to be pampered 🥰",             "bella_gift_spa"),
-    "designer": (2000, "👜 Designer Treat",      "spoil me the right way 😍",              "bella_gift_designer"),
-    "spoil":    (3333, "💎 Spoil Me",            "no limits, just vibes ✨",                "bella_gift_spoil"),
-    "lucky":    (777,  "🍀 Feeling Lucky?",      "Unlock a special surprise 😘",           "bella_gift_lucky"),
-    "wish":     (1111, "🌸 Make a Wish",         "my undivided attention 🩷 make it count", "bella_gift_wish"),
+    # ── Cute & Affordable ───────────────────────────────────────────────────────
+    "coffee":    (150,  "☕ Buy Me a Coffee",       "I need it rn 😩",                           "bella_gift_coffee"),
+    "snack":     (200,  "🍓 Send Me a Snack",       "I'm hungry and it's your fault 😏",         "bella_gift_snack"),
+    "flowers":   (300,  "🌸 Send Me Flowers",       "make me blush 🥰",                          "bella_gift_flowers"),
+    "playlist":  (350,  "🎵 Make Me a Playlist",    "put me in a mood 🎶",                       "bella_gift_playlist"),
+    "bubbles":   (400,  "🛁 Bubble Bath Night",     "I'll light the candles 🕯️",                 "bella_gift_bubbles"),
+    # ── Mid Tier ────────────────────────────────────────────────────────────────
+    "wine":      (500,  "🍷 Wine Night",            "you pour, I'll dress up 😏",                "bella_gift_wine"),
+    "brunch":    (600,  "🥂 Sunday Brunch",         "mimosas and bad decisions 🫧",              "bella_gift_brunch"),
+    "dinner":    (750,  "🍽️ Take Me to Dinner",    "you buy, I show up looking amazing 💕",     "bella_gift_dinner"),
+    "lucky":     (777,  "🍀 Feeling Lucky?",        "Unlock a special surprise 😘",              "bella_gift_lucky"),
+    "sunset":    (888,  "🌅 Sunset Drive",          "windows down, music up, just us 🚗",       "bella_gift_sunset"),
+    "spa":       (1000, "💆 Spa Day",               "I deserve to be pampered 🥰",              "bella_gift_spa"),
+    "wish":      (1111, "🌸 Make a Wish",           "my undivided attention 🩷 make it count",   "bella_gift_wish"),
+    # ── Premium ─────────────────────────────────────────────────────────────────
+    "getaway":   (1500, "✈️ Weekend Getaway",       "just you, me, and no plans 🌴",             "bella_gift_getaway"),
+    "designer":  (2000, "👜 Designer Treat",        "spoil me the right way 😍",                "bella_gift_designer"),
+    "yacht":     (2500, "⛵ Yacht Day",             "sun, sea, and definitely not enough clothes 🌊", "bella_gift_yacht"),
+    "vip":       (3000, "🎟️ VIP Experience",        "exclusive access. you earned it 🔥",       "bella_gift_vip"),
+    "spoil":     (3333, "💎 Spoil Me",              "no limits, just vibes ✨",                  "bella_gift_spoil"),
+    # ── Extra ───────────────────────────────────────────────────────────────────
+    "moon":      (4444, "🌙 Take Me to the Moon",  "I'm expensive and worth it 🚀",             "bella_gift_moon"),
+    "diamond":   (5000, "💍 Diamond Energy",        "only for the ones who really see me 💎",   "bella_gift_diamond"),
+    "fantasy":   (7777, "🦋 Make It a Fantasy",    "you already know 😈",                       "bella_gift_fantasy"),
+    "everything":(9999, "🌟 Give Me Everything",   "no explanation needed. just do it.",         "bella_gift_everything"),
 }
 
 def send_gift_invoice(chat_id: int, gift_key: str, biz: str = "") -> bool:
