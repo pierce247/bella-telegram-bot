@@ -57,6 +57,32 @@ def pg_query(sql, params=(), fetchall=False, fetchone=False):
             except: pass
             return None
 
+# ── Fanvue Postgres Memory ───────────────────────────────────────────────────
+def fanvue_db_init():
+    pg_query("CREATE TABLE IF NOT EXISTS fanvue_messages (id SERIAL PRIMARY KEY, fan_uuid TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, ts DOUBLE PRECISION DEFAULT EXTRACT(EPOCH FROM NOW()))")
+    pg_query("CREATE INDEX IF NOT EXISTS idx_fv_msgs_uuid ON fanvue_messages(fan_uuid, ts DESC)")
+    pg_query("CREATE TABLE IF NOT EXISTS fanvue_fans (fan_uuid TEXT PRIMARY KEY, name TEXT, msg_count INT DEFAULT 0, first_seen DOUBLE PRECISION DEFAULT EXTRACT(EPOCH FROM NOW()), last_seen DOUBLE PRECISION DEFAULT EXTRACT(EPOCH FROM NOW()), notes TEXT)")
+    print("[fanvue_db] Tables ready")
+
+def fanvue_db_save_message(fan_uuid, role, content):
+    try:
+        pg_query("INSERT INTO fanvue_messages (fan_uuid, role, content, ts) VALUES (%s, %s, %s, %s)", (fan_uuid, role, content[:2000], time.time()))
+    except Exception as e: print(f"[fanvue_db] save error: {e}")
+
+def fanvue_db_load_history(fan_uuid, limit=20):
+    try:
+        rows = pg_query("SELECT role, content FROM fanvue_messages WHERE fan_uuid=%s ORDER BY ts DESC LIMIT %s", (fan_uuid, limit), fetchall=True)
+        if rows: return [{"role": r[0], "content": r[1]} for r in reversed(rows)]
+    except Exception as e: print(f"[fanvue_db] load error: {e}")
+    return []
+
+def fanvue_db_upsert_fan(fan_uuid, name):
+    try:
+        pg_query("INSERT INTO fanvue_fans (fan_uuid, name, msg_count, first_seen, last_seen) VALUES (%s,%s,1,%s,%s) ON CONFLICT (fan_uuid) DO UPDATE SET name=EXCLUDED.name, msg_count=fanvue_fans.msg_count+1, last_seen=%s",
+                 (fan_uuid, name or "Fan", time.time(), time.time(), time.time()))
+    except Exception as e: print(f"[fanvue_db] upsert error: {e}")
+
+
 def _call_bot_api(path):
     """Call bella-bot stats API (which has direct Postgres access)."""
     bot_url = STATS_URL or os.environ.get("BOT_STATS_URL", "")
@@ -510,9 +536,11 @@ def fv_headers(at):
     return {"Authorization": f"Bearer {at}", "X-Fanvue-API-Version": FV_API_VERSION,
             "Content-Type": "application/json"}
 
-def fanvue_get_history(fan_uuid, at, limit=6):
+def fanvue_get_history(fan_uuid, at, limit=20):
+    pg_hist = fanvue_db_load_history(fan_uuid, limit=limit)
+    if pg_hist: return pg_hist
     req = urllib.request.Request(
-        f"https://api.fanvue.com/chats/{fan_uuid}/messages?limit={limit}&sortDirection=desc",
+        f"https://api.fanvue.com/chats/{fan_uuid}/messages?limit=10&sortDirection=desc",
         headers=fv_headers(at)
     )
     try:
@@ -582,6 +610,9 @@ def log_fanvue_dm(fan_uuid, fan_name, fan_msg, reply):
         })
         save_json(FANVUE_DM_LOG, log[-50:])  # keep last 50
     except Exception as e: print(f"[fanvue_log] {e}")
+    fanvue_db_upsert_fan(fan_uuid, fan_name)
+    fanvue_db_save_message(fan_uuid, "user", fan_msg)
+    fanvue_db_save_message(fan_uuid, "assistant", reply)
 
 def handle_fanvue_message(fan_uuid, fan_name, message):
     # Check if auto-reply is paused
@@ -4854,6 +4885,7 @@ if __name__ == "__main__":
     print(f"[startup] Owner IDs: {OWNER_CHAT_IDS}")
     print(f"[startup] Stats URL: {STATS_URL or 'not set'}")
     print(f"[startup] Content delivery: {'custom' if CONTENT_MESSAGE else 'placeholder mode'}")
+    fanvue_db_init()
     start_fanvue_scheduler()
     # Start Stars tracker if session exists
     if os.path.exists(STARS_SESSION + ".session") and STARS_API_ID and STARS_API_HASH:
