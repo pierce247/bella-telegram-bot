@@ -341,8 +341,9 @@ GIFT_CATALOG = {
     "feet":      (300,  "🦶 Feet Pics",              "you already know what you want 😏",            "bella_gift_feet"),
     "sext":      (999,  "💬 Sexting Fee",            "I charge for that energy babe 😈",            "bella_gift_sext"),
     "nude":      (1500, "📵 Fully Nude",             "must be 18+ to view content",                        "bella_gift_nude"),
+    "night":     (321,  "🌙 Goodnight Babe",         "don't forget my kiss",                              "bella_gift_night"),
     "love":      (831,  "🩷 Do You Love Me?",        "prove it babe 😍",                    "bella_gift_love"),
-    "kiss":      (369,  "😘 Kiss Me Already",        "what are you waiting for?",                   "bella_gift_kiss"),
+    "kiss":      (369,  "😘 Kiss Me Already",        "what're you waiting for?",                   "bella_gift_kiss"),
 }
 
 def send_gift_invoice(chat_id: int, gift_key: str, biz: str = "") -> bool:
