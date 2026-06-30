@@ -4443,9 +4443,40 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                     existing.insert(0, entry)
                     save_json(PAYMENTS_LOG, existing)
 
+                # ── Handle Fanvue's "chat updated" event format ──────────────────────
+                # Fanvue sends {counterpartUuid, unreadMessagesCount, readMessagesCount, ...}
+                # with NO eventType when a fan sends a message. Detect this and fetch the message.
+                counterpart_uuid = event.get("counterpartUuid","")
+                unread_count = event.get("unreadMessagesCount", 0)
+                if not etype and counterpart_uuid and unread_count and unread_count > 0:
+                    def _handle_chat_update(cuuid):
+                        try:
+                            at2 = fanvue_get_access_token()
+                            if not at2: return
+                            req2 = urllib.request.Request(
+                                f"https://api.fanvue.com/chats/{cuuid}/messages?size=3",
+                                headers=fv_headers(at2)
+                            )
+                            with urllib.request.urlopen(req2, timeout=10) as r2:
+                                msgs2 = json.loads(r2.read())
+                            items2 = msgs2.get("data", msgs2) if isinstance(msgs2, dict) else msgs2
+                            # Find most recent message NOT from Bella
+                            my_uuid = "759d4266-e8d6-416d-9e59-da6b41f458f1"
+                            for m2 in (items2 if isinstance(items2, list) else []):
+                                sender = (m2.get("sender",{}) or {}).get("uuid","")
+                                if sender != my_uuid:
+                                    fan_text = m2.get("text","") or m2.get("content","") or ""
+                                    if fan_text:
+                                        f_name2 = (m2.get("sender",{}) or {}).get("displayName","Fan")
+                                        print(f"[fanvue_webhook] chat_update from {f_name2}: {fan_text[:60]}")
+                                        handle_fanvue_message(cuuid, f_name2, fan_text)
+                                    break
+                        except Exception as ex2:
+                            print(f"[fanvue_webhook] chat_update error: {ex2}")
+                    _fvt.Thread(target=_handle_chat_update, args=(counterpart_uuid,), daemon=True).start()
+
                 # Fanvue canonical event names (from webhook API)
-                # also keep old names as fallback for any legacy events
-                if etype in ("message.received", "message_received") and fan_uuid and msg_text:
+                elif etype in ("message.received", "message_received") and fan_uuid and msg_text:
                     _fvt.Thread(target=handle_fanvue_message,
                                 args=(fan_uuid, fan_name, msg_text), daemon=True).start()
 
