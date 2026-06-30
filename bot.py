@@ -330,6 +330,13 @@ GIFT_CATALOG = {
     "7777":      (7777, "🦋 7777",                   "the jackpot. for when you feel lucky 😏",     "bella_gift_7777"),
     "8888":      (8888, "♾️ 8888",         "infinite energy, infinite Bella 🩷",          "bella_gift_8888"),
     "9999":      (9999, "🌟 9999",                   "one step away from everything. take it.",     "bella_gift_9999"),
+    # ── Spicy Content Requests ──────────────────────────────────────────────────
+    "balls":     (150,  "🎱 One Squeeze",            "just one. make it count 😈",                  "bella_gift_balls"),
+    "dick":      (500,  "📸 Dick Pic Fee",           "I don't look for free babe 😏",               "bella_gift_dick"),
+    "cock":      (750,  "⭐ Cock Rating",             "my honest opinion costs Stars 🔥",            "bella_gift_cock"),
+    "boobs":     (1000, "🍒 Boobies",                "these don't come free 😈",                    "bella_gift_boobs"),
+    "booty":     (1250, "🍑 Booty Pic",              "earned, not given 💕",                        "bella_gift_booty"),
+    "feet":      (300,  "🦶 Feet Pics",              "you already know what you want 😏",            "bella_gift_feet"),
 }
 
 def send_gift_invoice(chat_id: int, gift_key: str, biz: str = "") -> bool:
