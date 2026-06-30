@@ -1410,7 +1410,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
             _LINK_CMDS = {"links":"linktr.ee/bellavistaxo","fanvue":"fanvue.com/bellavistaxo","snap":"snapchat.com/add/bellavistaxo","insta":"instagram.com/bellavistaxo","tips":"pay.bellavista.lol/x"}
             if _gift_key and _gift_key in _LINK_CMDS:
                 _delete_command()
-                _link_url = "https://" + _LINK_CMDS[_gift_key]
+                _link_url = _LINK_CMDS[_gift_key]
                 _link_msg = {"chat_id": _out_chat_id, "text": _link_url}
                 if _out_biz: _link_msg["business_connection_id"] = _out_biz
                 tg("sendMessage", _link_msg)
