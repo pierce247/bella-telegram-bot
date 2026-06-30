@@ -837,7 +837,7 @@ async def _send_star_gift(chat_id: int, gift_name: str) -> dict:
     try:
         # Load gift catalog cache to find gift ID by name
         cache_file = os.path.join(DATA_DIR, "gift_catalog_cache.json")
-        catalog = load_json(cache_file) if os.path.exists(cache_file) else {}
+        catalog = load_json(cache_file, {}) if os.path.exists(cache_file) else {}
         gifts = catalog.get("gifts", [])
         gn_lower = gift_name.lower()
         gift = next((g for g in gifts if g.get("title","").lower() == gn_lower), None)
@@ -4667,11 +4667,8 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 if not cid or not gname: self.send_json(400,{"ok":False,"error":"missing chat_id or gift_name"}); return
                 if not _client: self.send_json(503,{"ok":False,"error":"Telethon not connected"}); return
                 result=asyncio.run_coroutine_threadsafe(_send_star_gift(cid,gname),_STARS_LOOP).result(timeout=30)
-                print(f"[gift_request] {gname} -> {cid}: {result}")
                 self.send_json(200,result)
-            except Exception as e:
-                print(f"[gift_request] Exception: {e}")
-                self.send_json(500,{"ok":False,"error":str(e)})
+            except Exception as e: self.send_json(500,{"ok":False,"error":str(e)})
         else:
             self.send_json(404,{"error":"not found"})
 
