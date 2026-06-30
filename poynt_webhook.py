@@ -856,7 +856,7 @@ async def _send_star_gift(chat_id: int, gift_name: str) -> dict:
             return {"ok": False, "error": f"Gift '{gift_name}' not found in catalog ({len(gifts)} gifts loaded)"}
         gift_id = gift["id"]
         peer = await _client.get_input_entity(chat_id)
-        invoice = InputInvoiceStarGift(user_id=peer, gift_id=gift_id)
+        invoice = InputInvoiceStarGift(peer=peer, gift_id=gift_id)
         form = await asyncio.wait_for(_client(GetPaymentFormRequest(invoice=invoice)), timeout=15)
         await asyncio.wait_for(_client(SendStarsFormRequest(form_id=form.form_id, invoice=invoice)), timeout=15)
         return {"ok": True, "gift": gift_name, "gift_id": gift_id, "stars": gift.get("stars")}
