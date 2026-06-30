@@ -4454,6 +4454,20 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
         elif p.path == "/fanvue-webhook":
             # Fanvue real-time webhook: DMs, subscriptions, purchases
             try:
+                # Verify Fanvue HMAC-SHA256 signature if secret is configured
+                _fv_secret = os.environ.get("FANVUE_WEBHOOK_SECRET","")
+                if _fv_secret:
+                    _sig_hdr = self.headers.get("X-Fanvue-Signature","") or self.headers.get("X-Signature","") or self.headers.get("Signature","")
+                    if _sig_hdr:
+                        import hmac as _hmac, hashlib as _hsh
+                        _expected = _hmac.new(_fv_secret.encode(), body, _hsh.sha256).hexdigest()
+                        _sig_clean = _sig_hdr.replace("sha256=","").strip()
+                        if not _hmac.compare_digest(_expected, _sig_clean):
+                            print(f"[fanvue_webhook] SIGNATURE MISMATCH — expected={_expected[:16]}... got={_sig_clean[:16]}...")
+                            self.send_json(401,{"error":"invalid signature"}); return
+                        print(f"[fanvue_webhook] Signature verified OK")
+                    else:
+                        print(f"[fanvue_webhook] No signature header — headers: {dict(self.headers)}")
                 event      = json.loads(body)
                 etype      = (event.get("event","") or event.get("type","") or "").lower().replace("-","_")
                 fan_obj    = event.get("user",{}) or event.get("fan",{}) or {}
