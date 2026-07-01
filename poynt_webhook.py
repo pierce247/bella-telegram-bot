@@ -4073,10 +4073,11 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                     return ""
 
                 # If Zapier is sending raw email body, parse it — check all common field names
-                email_body_raw = (data.get("body_plain") or data.get("Body Plain") or data.get("body_text") or
-                                  data.get("body") or data.get("Body") or data.get("html") or "")
+                # Zapier sends HTML in the empty-string key "" when using raw email trigger
+                email_body_raw = (data.get("") or data.get("body_plain") or data.get("Body Plain") or
+                                  data.get("body_text") or data.get("body") or data.get("Body") or data.get("html") or "")
                 email_html_raw = data.get("html","") or data.get("body_html","") or ""
-                is_raw_email = bool(email_body_raw) and not _first("amount","total","name","customer_name")
+                is_raw_email = bool(email_body_raw)  # always parse from body — Zapier never sends structured fields
                 if is_raw_email:
                     import re as _re_zap
                     full_body = email_body_raw + "\n" + email_html_raw
@@ -4104,6 +4105,14 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                         parts = [g for g in name_match.groups() if g]
                         data["name"] = " ".join(parts).strip() if parts else name_match.group(1)
                     if cust_email: data["email"] = cust_email
+                    # Extra name patterns if regex missed it
+                    if not name_match and not data.get("name"):
+                        _name_alt = (
+                            _re_zap.search(r"(?:Billing|Full|Customer)\s+Name[:\s]+([A-Za-z][\w .\-]{2,40})", full_body, _re_zap.I) or
+                            _re_zap.search(r"([A-Za-z][a-z]+ [A-Za-z][a-z]+)\s+\*{4}\d{4}", full_body)
+                        )
+                        if _name_alt:
+                            data["name"] = _name_alt.group(1).strip()
                     if data.get("date"): data["ts"] = data["date"]
                     print(f"[zapier] Parsed from email body: amt={data.get('amount')} order={data.get('order_id')} name={data.get('name')} email={data.get('email')}")
 
