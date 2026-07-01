@@ -414,9 +414,6 @@ def clean_reply(text: str) -> str:
     }
     for pattern, replacement in _emoji_map.items():
         text = _rec.sub(pattern, replacement, text, flags=_rec.I)
-    # Strip system-prompt instruction leakage — if the reply contains rule-like text, wipe it
-    if _rec.search(r'\b(?:NEVER|ALWAYS|hard rule|rule:|instruction:)\b', text[:100], _rec.I):
-        return ""
     # Strip markdown code blocks (```...``` or ``` prefix leaking in)
     text = _rec.sub(r'```[a-z]*\n?', '', text).strip()
     # Strip leaked internal memory/context markers before further processing
