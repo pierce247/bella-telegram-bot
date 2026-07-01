@@ -152,6 +152,12 @@ GIVEAWAY_KEYWORDS  = {"giveaway", "give away", "contest", "prize", "winner", "wo
 PROVE_KEYWORDS     = {"i can handle", "i'm different", "bet i could", "i know how to", "trust me i", "i'm not like other", "you wouldn't be bored", "i promise i"}
 BEGGING_KEYWORDS   = {"please send", "please show", "please bella", "begging you", "dying to see", "i need to see", "just one pic", "one photo please", "ill pay", "please please", "i beg", "dying here"}
 DISMISS_KEYWORDS   = {"whatever", "forget it", "never mind", "you're boring", "this is boring", "not worth it", "i'm done", "forget you", "okay bye", "you're not even"}
+EXIT_KEYWORDS      = {"bye", "goodbye", "later", "i'll go", "i'll leave", "sorry i'll go", "i'm going", "leaving now",
+                      "leave now", "go now", "bye later", "i'll be off", "i'm off", "cya", "see ya",
+                      "i'm leaving", "let me go", "going now", "take care", "farewell"}
+AI_ACCUSATION_KEYWORDS = {"this ai", "you're an ai", "you are an ai", "this is ai", "is this ai", "are you ai",
+                           "are you a bot", "you're a bot", "this is a bot", "is this a bot", "ai bot",
+                           "chatgpt", "artificial intelligence", "not real", "you're not real", "robot"}
 # Only trigger sleep on explicit bedtime phrases — NOT generic departure phrases
 # which are too common mid-conversation and cause false positives
 GOODNIGHT_KEYWORDS = {"good night", "goodnight", "going to bed", "gonna sleep", "time to sleep", "heading to bed", "sweet dreams", "night night", "bedtime", "sleep now", "gn babe", "gn bella", "gn babe", "going to sleep", "off to bed", "gotta sleep"}
@@ -688,8 +694,9 @@ def bella_reply(user_name: str, user_text: str, history: list,
             "did I stutter 😈",
         ], chat_id)
 
-    # Leaving / busy / goodbye
-    if any(kw in t for kw in ["busy", "work", "later", "gotta go", "have to go", "bye", "goodbye", "heading out"]):
+    # Leaving / busy / goodbye — warm send-off, not sexual
+    if any(kw in t for kw in ["busy", "work", "later", "gotta go", "have to go", "bye", "goodbye", "heading out",
+                               "bye later", "leave", "i'll go", "leaving", "going now", "i'm off", "farewell", "cya", "see ya"]):
         return _pick([
             "go handle your business, come back to me 🩷",
             "fine... but you better come find me later 😏",
@@ -699,6 +706,10 @@ def bella_reply(user_name: str, user_text: str, history: list,
             "fine, go. I'll be here 💕",
             "I'll miss this 🩷",
             "don't forget about me out there 😏",
+            "okay but you're coming back right? 🌸",
+            "I was just getting into this 😏",
+            "ugh fine. don't stay gone long 💕",
+            "this conversation had so much potential 😏",
         ], chat_id)
 
     # Love / feelings / I love you
@@ -1585,6 +1596,8 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     is_begging   = any(kw in text.lower() for kw in BEGGING_KEYWORDS)
     is_proving   = any(kw in text.lower() for kw in PROVE_KEYWORDS)
     is_dismissing = any(kw in text.lower() for kw in DISMISS_KEYWORDS)
+    is_exiting    = any(kw in text.lower() for kw in EXIT_KEYWORDS) and not is_dismissing
+    is_ai_accusation = any(kw in text.lower() for kw in AI_ACCUSATION_KEYWORDS)
     is_giveaway  = any(kw in text.lower() for kw in GIVEAWAY_KEYWORDS)
     is_new_fan   = chat_id not in seen_chats  # first ever message from this fan
     is_call      = any(kw in text.lower() for kw in CALL_KEYWORDS)
@@ -1605,6 +1618,8 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     ctx_hint = get_context_hint(text)
     prove_hint    = "\n\nContext: fan is making a bold claim — challenge them lightly, drop prove-it energy." if is_proving else ""
     dismiss_hint  = "\n\nContext: fan is being dismissive — let them walk but leave a crumb. Toxic pull-back." if is_dismissing else ""
+    exit_hint     = "\n\nContext: fan is leaving the conversation — respond warmly, like you hate to see them go. 'Come back soon' energy. DO NOT be sexual. Make them want to return." if is_exiting else ""
+    ai_hint       = "\n\nContext: fan thinks they're talking to AI or a bot — deny it with confidence and personality, not defensiveness. Only a real woman would react this way. Never confirm, never over-explain." if is_ai_accusation else ""
     giveaway_hint = "\n\nContext: fan found Bella through a giveaway or contest — react with extra warmth and excitement, make them feel special and welcome. Then naturally push toward the channel and exclusive content." if is_giveaway else ""
     new_fan_hint  = ""  # removed — channel button handles new fan engagement
     goodnight_hint = "\n\nContext: fan is leaving or going to work — acknowledge it with a cute, playful send-off that makes them feel missed. Leave the door open to come back. Don't ask unrelated questions." if is_goodnight else ""
@@ -1620,7 +1635,7 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     _fan_rec = db_get_fan(chat_id)
     _fan_note = _fan_rec.get("notes", "") or ""
     memory_hint = f"\n\n[MEMORY about this fan]: {_fan_note}" if _fan_note else ""
-    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + meetup_hint + custom_hint + pay_hint + memory_hint
+    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + meetup_hint + custom_hint + pay_hint + exit_hint + ai_hint + memory_hint
 
     # 5. Generate reply (track time for research)
     _reply_start = time.time()
@@ -1663,6 +1678,8 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
         ok = send_raw(chat_id, reply, biz, PROVE_MARKUP)
     elif is_dismissing:
         ok = send_raw(chat_id, reply, biz, random_tip_markup(chat_heat.get(chat_id, 1)))
+    elif is_exiting:
+        ok = send_raw(chat_id, reply, biz)  # no buttons on exit — keep it personal
     elif is_goodnight:
         ok = send_raw(chat_id, reply, biz)
         if sleep_until is not None:
