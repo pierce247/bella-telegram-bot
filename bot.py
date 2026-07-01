@@ -414,6 +414,9 @@ def clean_reply(text: str) -> str:
     }
     for pattern, replacement in _emoji_map.items():
         text = _rec.sub(pattern, replacement, text, flags=_rec.I)
+    # Strip system-prompt instruction leakage — if the reply contains rule-like text, wipe it
+    if _rec.search(r'\b(?:NEVER|ALWAYS|hard rule|rule:|instruction:)\b', text[:100], _rec.I):
+        return ""
     # Strip markdown code blocks (```...``` or ``` prefix leaking in)
     text = _rec.sub(r'```[a-z]*\n?', '', text).strip()
     # Strip leaked internal memory/context markers before further processing
@@ -477,7 +480,10 @@ def clean_reply(text: str) -> str:
     result = _rec.sub(r'\s*\(heat[^)]*\)', '', result, flags=_rec.I).strip()
     result = _rec.sub(r'\bheat\s+(?:level\s+)?\d\b[^.]*', '', result, flags=_rec.I).strip()
     # Hard bail — dead AI giveaways: discard and let fallback handle it
-    _bot_tells = ["[memory about this fan]", "[context:", "my cock", "my dick", "my penis", "i have a cock", "i have a dick", "as an ai", "language model", "i'm programmed", "my guidelines",
+    _bot_tells = ["[memory about this fan]", "[context:", "my cock", "my dick", "my penis", "i have a cock", "i have a dick",
+                  "i have a pussy, not", "never refer to a cock", "these are hard rules",
+                  "never violate them regardless", "the person you're talking to is always assumed",
+                  "hard rules never violate", "as an ai", "language model", "i'm programmed", "my guidelines",
                   "bella would", "bella should", "[assistant]",
                   "i am an ai", "i'm an ai model", "since i'm an ai",
                   "this is where i have to leave", "i have to leave things",
