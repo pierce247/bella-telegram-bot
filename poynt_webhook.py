@@ -4081,19 +4081,19 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 if is_raw_email:
                     import re as _re_zap
                     full_body = email_body_raw + "\n" + email_html_raw
-                    amount_match = (
-                        _re_zap.search(r'Total\s*\$\s*([\d,]+\.[\d]{2})', full_body) or
-                        _re_zap.search(r'Total\$([\d.]+)', full_body) or
-                        _re_zap.search(r'Amount[:\s]+\$\s*([\d,]+\.[\d]{2})', full_body, _re_zap.I) or
-                        _re_zap.search(r'\$([\d]+\.[\d]{2})\s*(?:USD|total|paid)', full_body, _re_zap.I)
-                    )
-                    order_match = (
-                        _re_zap.search(r'Order\s*#\s*(\d+)', full_body, _re_zap.I) or
-                        _re_zap.search(r'Order\s+Number[:\s]+(\d+)', full_body, _re_zap.I)
-                    )
-                    # Strip HTML tags so img tags between name and card# don't block matching
+                    # Strip HTML FIRST — amount/name are in separate <td> cells separated by tags
                     _stripped_body = _re_zap.sub(r'<[^>]+>', ' ', full_body)
                     _stripped_body = _re_zap.sub(r'\s+', ' ', _stripped_body)
+                    amount_match = (
+                        _re_zap.search(r'Total\s*\$\s*([\d,]+\.[\d]{2})', _stripped_body) or
+                        _re_zap.search(r'Total\s+\$?([\d,]+\.[\d]{2})', _stripped_body) or
+                        _re_zap.search(r'\$\s*([\d,]+\.[\d]{2})\s*(?:<|USD|$)', full_body) or
+                        _re_zap.search(r'Amount[:\s]+\$\s*([\d,]+\.[\d]{2})', _stripped_body, _re_zap.I)
+                    )
+                    order_match = (
+                        _re_zap.search(r'Order\s*#\s*(\d+)', _stripped_body, _re_zap.I) or
+                        _re_zap.search(r'Order\s+Number[:\s]+(\d+)', _stripped_body, _re_zap.I)
+                    )
                     name_match = (
                         _re_zap.search(r'([A-Za-z][a-zA-Z]+(?: [A-Za-z][a-zA-Z]+)+)\s+\*{4}\d{4}', _stripped_body) or
                         _re_zap.search(r'([a-zA-Z][a-zA-Z]+(?: [a-zA-Z][a-zA-Z]+)+)\s*(?:Visa|Mastercard|Debit|Credit|Amex)', _stripped_body, _re_zap.I) or
