@@ -33,6 +33,10 @@ BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 # Per-chat fallback history — prevents reusing the same fallback within 10 messages
 _fallback_history: dict = defaultdict(lambda: deque(maxlen=10))
 
+# Per-chat tip cooldown — how many messages ago Bella last pushed tips verbally
+_tip_msg_count: dict = defaultdict(int)   # messages since last tip mention
+_TIP_COOLDOWN_MSGS = 5  # min messages before tipping again (avoids back-to-back begging)
+
 def _pick(pool: list, chat_id: int = 0) -> str:
     """Pick from pool, avoiding recently used responses for this chat."""
     recent = _fallback_history[chat_id]
@@ -1628,6 +1632,11 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     send_typing(chat_id, biz)
 
     # 3. Build extra context
+    # Warmup & tip cooldown — count messages in this session
+    _session_msgs = len(chat_history.get(chat_id, []))
+    _tip_msg_count[chat_id] += 1
+    _tip_ok = _tip_msg_count[chat_id] >= _TIP_COOLDOWN_MSGS and _session_msgs >= 8
+
     no_url = "\n\nIMPORTANT: Do NOT include URLs in your reply text. Do NOT redirect to your private page. Instead: tease, build heat, then hint that a tip unlocks something special — keep it vague and suggestive ('tip me and see what happens 😈', 'show me you're serious', 'there's a button below'). Keep the energy in this conversation. Buttons handle the links. NEVER mention OnlyFans, Fansly, or any other platform."
     ctx_hint = get_context_hint(text)
     prove_hint    = "\n\nContext: fan is making a bold claim — challenge them lightly, drop prove-it energy." if is_proving else ""
@@ -1649,7 +1658,9 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     _fan_rec = db_get_fan(chat_id)
     _fan_note = _fan_rec.get("notes", "") or ""
     memory_hint = f"\n\n[MEMORY about this fan]: {_fan_note}" if _fan_note else ""
-    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + meetup_hint + custom_hint + pay_hint + exit_hint + ai_hint + memory_hint
+    # Suppress tip language if warmup not done or cooldown active
+    _tip_suppress = "\n\nDo NOT mention tips, payments, or monetization in this reply. Just connect with the fan naturally." if not _tip_ok else ""
+    extra = (no_url if (is_social or is_content) else "") + ctx_hint + stars_hint + goodnight_hint + call_hint + meetup_hint + custom_hint + (pay_hint if _tip_ok else "") + exit_hint + ai_hint + memory_hint + _tip_suppress
 
     # 5. Generate reply (track time for research)
     _reply_start = time.time()
@@ -1727,6 +1738,10 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     # Persist to DB — save fan message + Bella's reply with research metadata
     if ok:
         _heat_now = chat_heat.get(chat_id, 1)
+        # Reset tip cooldown if Bella just mentioned tips
+        _TIP_WORDS = ("tip", "spoil", "pay", "fanvue", "pay.bella", "stars")
+        if any(w in reply.lower() for w in _TIP_WORDS):
+            _tip_msg_count[chat_id] = 0  # reset counter after tip mention
         db_save_message(chat_id, "user", text, heat=_heat_now)
         db_save_message(chat_id, "assistant", reply, heat=_heat_now, response_ms=_reply_ms)
         db_upsert_fan(chat_id, name=user_name, biz=biz, heat=_heat_now)
