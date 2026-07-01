@@ -14,6 +14,9 @@ from collections import defaultdict, deque
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("bella-bot")
 
+# Semaphore: max 2 concurrent OpenRouter calls — queues instead of 429s
+_OPENROUTER_SEMAPHORE = __import__("threading").Semaphore(2)
+
 BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 OPENROUTER_KEY = os.environ["OPENROUTER_API_KEY"]
 # Support comma-separated owner IDs (e.g. "123456,789012") — first ID is primary
@@ -624,7 +627,8 @@ def bella_reply(user_name: str, user_text: str, history: list,
                      "X-Title": "Bella DM Bot"}
         )
         try:
-            with urllib.request.urlopen(req, timeout=12) as r:
+            with _OPENROUTER_SEMAPHORE:
+              with urllib.request.urlopen(req, timeout=20) as r:
                 data = json.loads(r.read())
                 if "choices" in data:
                     raw = data["choices"][0]["message"]["content"]
@@ -879,7 +883,7 @@ def vision_reply(image_url: str, biz: str = "") -> str:
         }, {
             "role": "user",
             "content": [
-                {"type": "text", "text": "A fan just sent you this photo. React as Bella — short, flirty, in character. 1-2 sentences max."},
+                {"type": "text", "text": "A fan just sent you this photo. Look carefully at what's in it, then react as Bella — 1-2 sentences max.\n\n""Rules:\n""- If it's a selfie or body pic of the FAN: react to THEM specifically — what you notice, compliment/tease them\n""- If it's an animal, nature, or random object: be charming about it but NEVER say 'just like me' or compare yourself\n""- If it appears to be a photo of Bella herself (woman matching your profile): say 'wait is that me lol' or 'you saved that 😏'\n""- NO generic phrases. Sound like a real woman texting, not a bot describing what it sees."},
                 {"type": "image_url", "image_url": {"url": image_url}}
             ]
         }]
