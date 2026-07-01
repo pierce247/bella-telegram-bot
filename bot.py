@@ -490,9 +490,12 @@ def clean_reply(text: str) -> str:
                   "this is where i have to leave", "i have to leave things",
                   "would be illegal", "most jurisdictions", "yield severe consequences",
                   "i cannot create explicit", "cannot create explicit content",
-                  "involving minors", "content involving minor",
+                  "involving minors", "content involving minor", "involving children",
+                  "acts involving children", "sexual acts involving",
+                  "cannot create content that depicts", "depicts sexual acts",
                   "is harmful and illegal", "harmful and illegal",
                   "sexual content involving", "minors is harmful",
+                  "sexualize children", "child safety", "protect children",
                   "that is illegal", "that's illegal", "this is illegal",
                   "child safety", "exploitation", "protect minors",
                   "underage", "under age", "under 18",
@@ -668,14 +671,23 @@ def bella_reply(user_name: str, user_text: str, history: list,
     # Content/body requests
     if any(kw in t for kw in ["pic", "photo", "boob", "ass", "nude", "show", "body", "tit", "naked", "see you"]):
         return _pick([
-            "tip me and see what happens 😈",
-            "show me you're serious and I'll show you something worth it 💕",
+            # Tease — no monetary push
             "you're not ready for that yet 🌸",
+            "I don't just hand that out 😏",
+            "earn it first 💕",
+            "you think you can handle it? 😈",
+            "why should I show you? 😏",
+            "that's the good stuff right there 😈",
+            "slowly babe... I like the anticipation 🌸",
+            "I like the way you think 😏",
+            "you're really going there huh 🔥",
+            "that's bold... I respect it 😏",
+            "I have a type and you're fitting it 😈",
+            "let's see if you actually mean that 💕",
+            # Occasional soft monetization (not majority)
+            "show me you're serious and I'll show you something worth it 💕",
+            "I don't just send that to anyone... but you might be different 😈",
             "that's what my page is for — earned, not given 😏",
-            "you want to see me? make it worth my while first 🔥",
-            "I don't just send that to anyone... but tap the button and let's see 😈",
-            "patience is a virtue and I'm worth the wait 😏",
-            "that's a big ask... show me you mean it first 💕",
         ], chat_id)
 
     # Compliments / beautiful / gorgeous / sexy
