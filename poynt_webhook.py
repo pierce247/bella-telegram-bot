@@ -4091,10 +4091,13 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                         _re_zap.search(r'Order\s*#\s*(\d+)', full_body, _re_zap.I) or
                         _re_zap.search(r'Order\s+Number[:\s]+(\d+)', full_body, _re_zap.I)
                     )
+                    # Strip HTML tags so img tags between name and card# don't block matching
+                    _stripped_body = _re_zap.sub(r'<[^>]+>', ' ', full_body)
+                    _stripped_body = _re_zap.sub(r'\s+', ' ', _stripped_body)
                     name_match = (
-                        _re_zap.search(r'([A-Za-z][a-zA-Z]+(?: [A-Za-z][a-zA-Z]+)+)\s+\*{4}\d{4}', full_body) or
-                        _re_zap.search(r'([a-zA-Z][a-zA-Z]+(?: [a-zA-Z][a-zA-Z]+)+)\s*(?:Visa|Mastercard|Debit|Credit|Amex)', full_body, _re_zap.I) or
-                        _re_zap.search(r'(?:Name|Customer|Buyer)[:\s]+([A-Za-z][a-z]+(?: [A-Za-z][a-z]+)+)', full_body, _re_zap.I)
+                        _re_zap.search(r'([A-Za-z][a-zA-Z]+(?: [A-Za-z][a-zA-Z]+)+)\s+\*{4}\d{4}', _stripped_body) or
+                        _re_zap.search(r'([a-zA-Z][a-zA-Z]+(?: [a-zA-Z][a-zA-Z]+)+)\s*(?:Visa|Mastercard|Debit|Credit|Amex)', _stripped_body, _re_zap.I) or
+                        _re_zap.search(r'(?:Name|Customer|Buyer)[:\s]+([A-Za-z][a-z]+(?: [A-Za-z][a-z]+)+)', _stripped_body, _re_zap.I)
                     )
                     email_matches = _re_zap.findall(r'[\w.+-]+@[\w-]+\.[\w.]+', full_body)
                     cust_email = next((e for e in email_matches if 'godaddy' not in e.lower() and 'noreply' not in e.lower()), "")
@@ -4108,8 +4111,8 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                     # Extra name patterns if regex missed it
                     if not name_match and not data.get("name"):
                         _name_alt = (
-                            _re_zap.search(r"(?:Billing|Full|Customer)\s+Name[:\s]+([A-Za-z][\w .\-]{2,40})", full_body, _re_zap.I) or
-                            _re_zap.search(r"([A-Za-z][a-z]+ [A-Za-z][a-z]+)\s+\*{4}\d{4}", full_body)
+                            _re_zap.search(r"(?:Billing|Full|Customer)\s+Name[:\s]+([A-Za-z][\w .\-]{2,40})", _stripped_body, _re_zap.I) or
+                            _re_zap.search(r"([A-Za-z][a-z]+ [A-Za-z][a-z]+)\s+\*{4}\d{4}", _stripped_body)
                         )
                         if _name_alt:
                             data["name"] = _name_alt.group(1).strip()
