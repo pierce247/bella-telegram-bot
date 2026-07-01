@@ -163,7 +163,7 @@ AI_ACCUSATION_KEYWORDS = {"this ai", "you're an ai", "you are an ai", "this is a
                            "chatgpt", "artificial intelligence", "not real", "you're not real", "robot"}
 # Only trigger sleep on explicit bedtime phrases — NOT generic departure phrases
 # which are too common mid-conversation and cause false positives
-GOODNIGHT_KEYWORDS = {"good night", "goodnight", "going to bed", "gonna sleep", "time to sleep", "heading to bed", "sweet dreams", "night night", "bedtime", "sleep now", "gn babe", "gn bella", "gn babe", "going to sleep", "off to bed", "gotta sleep"}
+GOODNIGHT_KEYWORDS = {"good night", "goodnight", "going to bed", "gonna sleep", "time to sleep", "heading to bed", "sweet dreams", "night night", "bedtime", "sleep now", "gn babe", "gn bella", "gn bab", "off to bed", "hitting the bed", "gotta sleep", "need to sleep", "trying to sleep"}
 CUSTOM_REQUEST_KEYWORDS = {"custom", "personalized", "special request", "can you make", "can you do", "would you do", "i'll pay", "how much for", "what would it cost", "commission", "special content", "custom content", "request", "order"}
 CALL_KEYWORDS      = {"video call", "facetime", "face time", "video chat", "phone call", "call me", "let's call", "lets call", "hop on a call"}
 MEETUP_KEYWORDS    = {"meet up", "meetup", "meet in person", "see you in person", "come over", "visit you", "pick me up", "pick you up", "i'll come to you", "come to me", "come find me", "i can come", "where do you live", "where are you located", "what city", "where in boca", "let me take you out", "take you out", "take you somewhere", "go out with you", "hang out with you", "hang out in person", "irl", "in real life", "meet irl"}
@@ -1599,11 +1599,18 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     is_tip_amounts = any(kw in text.lower() for kw in TIP_AMOUNT_KEYWORDS)
     is_gym      = any(kw in text.lower() for kw in GYM_KEYWORDS)
     is_travel   = any(kw in text.lower() for kw in TRAVEL_KEYWORDS)
+    # Preserve heat from Postgres — prevents cold-start after sleep gaps
+    _stored_heat = db_get_fan(chat_id).get("heat", 1) if chat_id not in chat_heat or chat_heat.get(chat_id, 1) == 1 else chat_heat.get(chat_id, 1)
+    if chat_id not in chat_heat or chat_heat[chat_id] < _stored_heat:
+        chat_heat[chat_id] = _stored_heat
     is_goodnight = any(kw in text.lower() for kw in GOODNIGHT_KEYWORDS)
     is_begging   = any(kw in text.lower() for kw in BEGGING_KEYWORDS)
     is_proving   = any(kw in text.lower() for kw in PROVE_KEYWORDS)
     is_dismissing = any(kw in text.lower() for kw in DISMISS_KEYWORDS)
     is_exiting    = any(kw in text.lower() for kw in EXIT_KEYWORDS) and not is_dismissing
+    # Decay heat when fan is leaving or frustrated — stop sexualizing someone walking out
+    if (is_exiting or is_dismissing) and chat_heat.get(chat_id, 1) > 2:
+        chat_heat[chat_id] = max(2, chat_heat.get(chat_id, 2) - 1)
     is_ai_accusation = any(kw in text.lower() for kw in AI_ACCUSATION_KEYWORDS)
     is_giveaway  = any(kw in text.lower() for kw in GIVEAWAY_KEYWORDS)
     is_new_fan   = chat_id not in seen_chats  # first ever message from this fan
@@ -1690,8 +1697,15 @@ def process_update(update: dict, chat_history: dict, chat_heat: dict, sleep_unti
     elif is_goodnight:
         ok = send_raw(chat_id, reply, biz)
         if sleep_until is not None:
-            sleep_until[chat_id] = time.time() + 2 * 3600  # 2 hours (was 8)
-            log.info(f"Chat {chat_id} entering sleep mode for 2 hours")
+            import time as _t
+            _hour = _t.localtime().tm_hour
+            # Only activate sleep during actual night hours (9pm-9am local)
+            # Avoids blocking afternoon/evening messages from fans in different timezones
+            if _hour >= 21 or _hour < 9:
+                sleep_until[chat_id] = time.time() + 2 * 3600  # 2 hours
+                log.info(f"Chat {chat_id} entering sleep mode for 2 hours")
+            else:
+                log.info(f"Chat {chat_id} said goodnight but it is daytime — skipping sleep mode")
     elif is_travel:
         ok = send_raw(chat_id, reply, biz, TRAVEL_MARKUP)
     elif is_social:
