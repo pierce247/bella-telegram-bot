@@ -768,7 +768,6 @@ def bella_reply(user_name: str, user_text: str, history: list,
     if any(kw in t for kw in ["fuck", "sex", "cum", "wet", "hard", "inside", "touch", "feel"]):
         return _pick([
             "you're bold... I respect it 🔥",
-            "keep going 😈",
             "my type of energy 💕",
             "you have no idea what you just started 🌸",
             "I like where your head is at 😏",
@@ -793,10 +792,8 @@ def bella_reply(user_name: str, user_text: str, history: list,
     _heat = heat if heat else 1
     if _heat >= 4:
         return _pick([
-            "keep going 🔥",
             "you're making me crazy rn 😈",
             "I like the way your mind works 💕",
-            "don't stop 🌸",
             "yes... exactly that 🔥",
             "you know exactly what you're doing 😈",
             "this is a dangerous conversation 🔥",
@@ -806,18 +803,12 @@ def bella_reply(user_name: str, user_text: str, history: list,
         ], chat_id)
     elif _heat >= 2:
         return _pick([
-            "I'm listening 😏",
             "tell me more 💕",
             "you have my attention 😈",
             "that's... interesting 🌸",
-            "go ahead 😏",
-            "say more 🩷",
-            "I want to hear the rest 💕",
             "you're keeping me curious 😏",
-            "don't leave me hanging 🌸",
             "okay now I'm intrigued 😈",
             "where is this going 🩷",
-            "I'm paying attention now 😏",
             "that caught me off guard 💕",
             "you've got my full attention 🔥",
         ], chat_id)
