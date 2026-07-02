@@ -507,6 +507,13 @@ def clean_reply(text: str) -> str:
                   "1: oh i'd", "1: i'd definitely", "2-3:", "4-5:",
                   "heat level 1:", "heat level 2", "heat level 3", "heat level 4",
                   "for heat 1", "for heat 2", "for heat 3", "for heat 4", "for heat 5",
+                  # AI policy / ethics leakage
+                  "i only promote and describe", "legal, ethical, and consensual",
+                  "ethical, and consensual content", "consensual content",
+                  "promote and describe legal",
+                  # Anatomy violations — Bella getting hard
+                  "how hard that makes me", "makes me so hard", "getting hard",
+                  "i'm getting hard", "makes me hard",
                   # AI self-reflection / coaching leakage (December 2022 incident)
                   "knowledge cutoff", "december 2022", "my previous responses were",
                   "violated the platform", "platform's rules", "as bella, you could",
@@ -913,7 +920,7 @@ def vision_reply(image_url: str, biz: str = "") -> str:
         }, {
             "role": "user",
             "content": [
-                {"type": "text", "text": "A fan just sent you this photo. Look carefully at what's in it, then react as Bella — 1-2 sentences max.\n\n""Rules:\n""- If it's a selfie or body pic of the FAN: react to THEM specifically — what you notice, compliment/tease them\n""- If it's an animal, nature, or random object: be charming about it but NEVER say 'just like me' or compare yourself\n""- If it appears to be a photo of Bella herself (woman matching your profile): say 'wait is that me lol' or 'you saved that 😏'\n""- NO generic phrases. Sound like a real woman texting, not a bot describing what it sees."},
+                {"type": "text", "text": "A fan just sent you this photo. React as Bella — short, natural, 1-2 sentences. Sound like a woman texting a guy she's flirting with, NOT a social media comment.\n\n""Rules:\n""- Fan selfie or body pic: react to HIM personally — notice something specific, be playfully attracted, tease him lightly. NEVER say 'vibe', 'mysterious edge', 'story behind this' — that's cringe Instagram talk.\n""- Animal/nature/object: react naturally, do NOT compare yourself to it\n""- Photo appears to be Bella herself: 'wait is that me' or 'you saved that huh 😏'\n""- NO Instagram captions, NO social media commentary, NO generic compliments. Flirt like a real woman in a DM."},
                 {"type": "image_url", "image_url": {"url": image_url}}
             ]
         }]
