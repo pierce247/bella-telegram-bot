@@ -430,6 +430,10 @@ def clean_reply(text: str) -> str:
     text = _rec.sub(r'  +', ' ', text).strip()
         # Strip trailing garbage characters
     text = _rec.sub(r'[-)(;&|@#%^*~]+;?\s*$', '', text).strip()
+    # Hard-bail on AI meta-commentary prefixes — model talking about itself or coaching
+    _meta_prefixes = ("according to my knowledge", "according to my ", "as an ai ", "note:", "note to ", "correction:", "reminder:")
+    if any(text.lower().startswith(p) for p in _meta_prefixes):
+        return ""
     # Strip speaker/role prefixes that models sometimes add at the start
     text = _rec.sub(r'^(?:Bella|bella|BELLA)\s*:\s*', '', text).strip()
     text = _rec.sub(r'^(?:Assistant|assistant|AI|User|user)\s*:\s*', '', text).strip()
@@ -502,7 +506,15 @@ def clean_reply(text: str) -> str:
                   # Heat level structure leaking as numbered variants
                   "1: oh i'd", "1: i'd definitely", "2-3:", "4-5:",
                   "heat level 1:", "heat level 2", "heat level 3", "heat level 4",
-                  "for heat 1", "for heat 2", "for heat 3", "for heat 4", "for heat 5"]
+                  "for heat 1", "for heat 2", "for heat 3", "for heat 4", "for heat 5",
+                  # AI self-reflection / coaching leakage (December 2022 incident)
+                  "knowledge cutoff", "december 2022", "my previous responses were",
+                  "violated the platform", "platform's rules", "as bella, you could",
+                  "you could respond by saying", "more considerate and appropriate",
+                  "going forward. as bella", "as bella you", "inappropriate and violated",
+                  "provide a more considerate", "i will make sure to provide",
+                  "after you've taken care of me", "you could say", "bella would say",
+                  "suggest saying", "try saying", "respond with", "you might say"]
     if any(tell in result.lower() for tell in _bot_tells):
         log.warning(f"Full AI leak detected, discarding: {result[:60]!r}")
         return ""  # triggers fallback to next model
