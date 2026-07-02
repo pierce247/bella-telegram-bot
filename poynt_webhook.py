@@ -4590,7 +4590,7 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 # with NO eventType when a fan sends a message. Detect this and fetch the message.
                 counterpart_uuid = event.get("counterpartUuid","")
                 unread_count = event.get("unreadMessagesCount", 0)
-                if not etype and counterpart_uuid and unread_count and unread_count > 0:
+                if not etype and counterpart_uuid:  # always check for new messages when chat updates
                     def _handle_chat_update(cuuid):
                         try:
                             at2 = fanvue_get_access_token()
