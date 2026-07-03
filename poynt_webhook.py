@@ -4590,7 +4590,7 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                 # with NO eventType when a fan sends a message. Detect this and fetch the message.
                 counterpart_uuid = event.get("counterpartUuid","")
                 unread_count = event.get("unreadMessagesCount", 0)
-                if not etype and counterpart_uuid:  # always check for new messages when chat updates
+                if not etype and counterpart_uuid and unread_count and unread_count > 0:
                     def _handle_chat_update(cuuid):
                         try:
                             at2 = fanvue_get_access_token()
@@ -4608,15 +4608,22 @@ const d=await r.json();document.getElementById("msg").textContent=d.ok?"Connecte
                                 sender = (m2.get("sender",{}) or {}).get("uuid","")
                                 if sender != my_uuid:
                                     fan_text = m2.get("text","") or m2.get("content","") or ""
+                                    msg_uuid2 = m2.get("uuid","") or m2.get("messageUuid","") or ""
+                                    if msg_uuid2 and msg_uuid2 in _fv_seen_msgs:
+                                        break  # already handled this message
                                     if fan_text:
                                         f_name2 = (m2.get("sender",{}) or {}).get("displayName","Fan")
                                         print(f"[fanvue_webhook] chat_update from {f_name2}: {fan_text[:60]}")
-                                        # Notify Pierce via Telegram
-                                        preview = fan_text[:80] + ("…" if len(fan_text) > 80 else "")
-                                        notif = f"💬 Fanvue DM from {f_name2}:\n\"{preview}\""
-                                        for oid in OWNER_CHAT_IDS: send_telegram(oid, notif)
+                                        if msg_uuid2:
+                                            _fv_seen_msgs.add(msg_uuid2)
+                                            _fv_seen_msgs_order.append(msg_uuid2)
+                                            if len(_fv_seen_msgs_order) > 1000:
+                                                _fv_seen_msgs.discard(_fv_seen_msgs_order.pop(0))
+                                        preview2 = fan_text[:80] + ("\u2026" if len(fan_text) > 80 else "")
+                                        _fv_markup2 = {"inline_keyboard": [[{"text": "Open Fanvue", "url": "https://www.fanvue.com/messages"}]]}
+                                        for oid in OWNER_CHAT_IDS: send_telegram(oid, f"\U0001f4ac Fanvue DM\n\U0001f464 {f_name2}\n{preview2}", reply_markup=_fv_markup2)
                                         handle_fanvue_message(cuuid, f_name2, fan_text)
-                                    break
+                                break
                         except Exception as ex2:
                             print(f"[fanvue_webhook] chat_update error: {ex2}")
                     _fvt.Thread(target=_handle_chat_update, args=(counterpart_uuid,), daemon=True).start()
